@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#173d35">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; worker-src 'self' blob:; connect-src 'self' https://huggingface.co https://*.hf.co https://cdn-lfs.huggingface.co; object-src 'none'; base-uri 'self'; form-action 'none'">
+<title>Fire-eye · What-if</title>
+<link rel="stylesheet" href="assets/maplibre.css">
+<link rel="stylesheet" href="assets/what-if.css?v=6854f030d7819053">
+<script src="assets/maplibre.js" defer></script>
+<script src="assets/proj4.js" defer></script>
+<script src="assets/what-if.js?v=955cb7b95c902a7c" defer></script>
+</head>
+<body>
+<header class="masthead">
+ <a class="brand" href="./" aria-label="Fire-eye main map"><img src="assets/nsf-logo.png" alt="National Science Foundation" width="36" height="36"><span class="rai-brand">RAI<span>LAB</span></span><span class="brand-divider"></span><span class="brand-name">Fire-eye</span></a>
+ <a class="back-link" href="./">Back to map ↗</a>
+</header>
+<main>
+ <section class="intro" aria-labelledby="page-title">
+  <div><p class="eyebrow">EXPLORE A DIFFERENT FUEL CONDITION</p><h1 id="page-title">What-if</h1><p class="muted">Compare a published baseline with a verified fuel-sensitivity result.</p></div>
+  <p class="method">Treatment date is context only. Recovery, causal effects and fire spread are not modeled.</p>
+ </section>
+ <section class="panel library" aria-label="Published scenarios">
+  <label for="case-select">Published comparison<select id="case-select" disabled><option value="">Loading published results…</option></select></label>
+  <button id="reload-catalog" type="button">Refresh library</button>
+  <p id="catalog-status" class="muted" role="status" aria-live="polite">Connecting to published data…</p>
+ </section>
+ <section class="panel comparison" aria-label="Linked comparison maps" aria-busy="true" id="comparison">
+  <div class="comparison-heading"><div><p class="eyebrow">DISPLAYED RESULT</p><h2 id="result-location">Choose a published comparison</h2><p id="result-dates" class="muted">No verified result loaded.</p></div><button id="fit-result" type="button" disabled>Fit region</button></div>
+  <p id="result-condition" class="result-condition"></p>
+  <p id="result-status" role="status" aria-live="polite">Loading library…</p>
+  <div class="map-toolbar"><span>Linked views · same scale</span><label class="delta-toggle"><input id="delta-toggle" type="checkbox" disabled> Show signed change</label></div>
+  <div class="map-pair">
+   <section class="map-column" aria-labelledby="baseline-title"><h3 id="baseline-title">Baseline</h3><div id="baseline-map" class="map" aria-label="Baseline map"></div></section>
+   <section class="map-column" aria-labelledby="scenario-title"><h3 id="scenario-title">Scenario</h3><div id="scenario-map" class="map" aria-label="Scenario map"></div></section>
+  </div>
+  <div id="map-unavailable" class="notice" hidden>Map rendering is unavailable in this browser. Verified values and JSON remain available.</div>
+  <div class="legends"><div class="legend"><span>Modeled fire activity · both maps</span><div class="risk-gradient" role="img" aria-label="Shared modeled fire activity scale from 0 to 1"></div><div class="legend-labels"><span>0 · Lower</span><span>1 · Higher</span></div></div><div id="delta-legend" class="legend" hidden><span>Scenario − baseline · right map</span><div class="delta-gradient" role="img" aria-label="Signed change colors clipped at minus 0.20 and plus 0.20"></div><div class="legend-labels"><span>−0.20</span><span>0</span><span>+0.20</span></div><span>Colors clipped at ±0.20; numeric values are not clipped.</span></div></div>
+  <p class="muted map-note">Self-hosted continental basemap; detailed streets are not shown. 5 km model cells · dashed outline: requested radius · cell outline: modified fuel. Values are not ignition probabilities.</p>
+  <div id="cell-values" class="cell-values" role="status" aria-live="polite">Tap a cell on either map to inspect both values.</div>
+  <div id="result-summary" class="summary" hidden></div>
+  <details id="result-metadata" hidden><summary>Result details &amp; provenance</summary><dl id="metadata-list"></dl></details>
+  <div class="result-actions"><button id="download-result" type="button" disabled>Download result JSON</button><a id="share-result" hidden>Link to this result ↗</a><button id="retry-result" type="button" hidden>Retry selected result</button></div>
+ </section>
+ <details class="panel request-panel" id="request-panel">
+  <summary>Request another comparison <span>Choose settings → review on GitHub</span></summary>
+  <p class="muted">Draft settings below do not change the maps. A comparison appears only after its computed result is published.</p>
+  <form id="request-form">
+   <fieldset id="request-fields" disabled>
+    <div class="request-grid">
+     <label class="full" for="request-source">Forecast window<select id="request-source" required><option value="">Choose a forecast window</option></select></label>
+     <label for="request-lat">Latitude<input id="request-lat" name="lat" type="number" min="24" max="50" step="0.0001" inputmode="decimal" placeholder="24 to 50" required></label>
+     <label for="request-lng">Longitude<input id="request-lng" name="lng" type="number" min="-125" max="-66" step="0.0001" inputmode="decimal" placeholder="−125 to −66" required></label>
+     <label for="request-radius">Radius<select id="request-radius" required><option value="5">5 km</option><option value="10" selected>10 km</option><option value="25">25 km</option></select></label>
+     <label for="request-date">Treatment date · context<input id="request-date" type="date" min="2000-01-01" required></label>
+     <label class="full" for="request-fuel">Assumed surface fuel<select id="request-fuel" required><option value="">Choose a fuel condition</option></select></label>
+    </div>
+   </fieldset>
+  </form>
+  <p class="muted">Treatment date must precede the forecast issue date. It does not model time since treatment or vegetation recovery.</p>
+  <button id="copy-result-settings" type="button" disabled>Use displayed result settings</button>
+  <p id="request-validation" class="notice" role="status" aria-live="polite">Choose a source, location and fuel condition.</p>
+  <p id="request-policy" class="muted">GitHub login required. Request settings are public and require maintainer approval. Nothing is submitted from this page.</p>
+  <a id="request-link" class="primary-link" aria-disabled="true" target="_blank" rel="noopener noreferrer">Review request on GitHub ↗</a>
+ </details>
+ <section class="panel request-lookup" aria-labelledby="lookup-title"><h2 id="lookup-title">Check a request</h2><form id="lookup-form"><label for="lookup-issue">GitHub issue number<input id="lookup-issue" type="number" min="1" step="1" inputmode="numeric" required></label><button type="submit">Look up</button></form><p id="lookup-status" class="muted" role="status">Last published request status, not a live queue. Refresh the library for newer updates.</p><button id="lookup-open" type="button" hidden>Open published result</button></section>
+ <footer>RAI Lab · Published fuel-sensitivity comparisons</footer>
+</main>
+<noscript><p class="notice">Enable JavaScript to load published comparisons.</p></noscript>
+</body>
+</html>

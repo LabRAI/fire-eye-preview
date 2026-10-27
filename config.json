@@ -36,5 +36,15 @@
   "resolution_assets": {
     "35e45566853b2c951c0fa17da293b2b83c2c70a8b949988a470c87885173d639": "./assets/resolution/35e45566853b2c951c0fa17da293b2b83c2c70a8b949988a470c87885173d639.gz",
     "7e6bd886dd5dd561134291d0d8aa419cc6fad169b1c1ba37ffe64fe5af640594": "./assets/resolution/7e6bd886dd5dd561134291d0d8aa419cc6fad169b1c1ba37ffe64fe5af640594.gz"
+  },
+  "scenarios_url": "https://huggingface.co/datasets/yx21e/fire-eye-forecasts-preview/resolve/main/scenarios.json",
+  "scenario_assets": {
+    "36e8b47f39b6848c56ac9d62e714b981fa54c1637517264eea42bf1c440198aa": "./assets/scenarios/36e8b47f39b6848c56ac9d62e714b981fa54c1637517264eea42bf1c440198aa.json",
+    "5503fea084e7be762c4fda3e4f04cb2821f38a96a2bae0c8aacae7acde083649": "./assets/scenarios/5503fea084e7be762c4fda3e4f04cb2821f38a96a2bae0c8aacae7acde083649.json",
+    "519fc18950578301cd9df9995d83770a206d2c7138fb6edb6566002ed8caf1fd": "./assets/scenarios/519fc18950578301cd9df9995d83770a206d2c7138fb6edb6566002ed8caf1fd.json",
+    "842c1ce66e603abc084c007390fcdf86f21f87fdc957ed088754a6e5736ca27b": "./assets/scenarios/842c1ce66e603abc084c007390fcdf86f21f87fdc957ed088754a6e5736ca27b.json",
+    "eb6fecfda33648d6f6a8a09c2bc4c8ec7fca73ab1a306b4a3f5f1e35933a87aa": "./assets/scenarios/eb6fecfda33648d6f6a8a09c2bc4c8ec7fca73ab1a306b4a3f5f1e35933a87aa.json",
+    "3ccddf95a6e7aa2fbff6eed298fd58ae15c04a3e4fd0f335c525bfce2b266db6": "./assets/scenarios/3ccddf95a6e7aa2fbff6eed298fd58ae15c04a3e4fd0f335c525bfce2b266db6.json",
+    "de516e2dbba84d6d1d3f21f90016396e4b60f21d33c9b208018a66a397ed882e": "./assets/scenarios/de516e2dbba84d6d1d3f21f90016396e4b60f21d33c9b208018a66a397ed882e.json"
   }
 }
