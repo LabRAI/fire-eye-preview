@@ -4,6 +4,7 @@
  const V={ready:false,manifest:null,selected:'',status:'idle',generation:0,result:null,errors:[]};window.fireEyeVectors=V;
  const kinds={'wui':{crs:'EPSG:5070',minzoom:10},'burn-severity':{crs:'EPSG:4326',minzoom:10},'buildings':{crs:'EPSG:4326',minzoom:14}};
  const element=(tag,value,cls)=>{const e=document.createElement(tag);e.textContent=value;if(cls)e.className=cls;return e;};
+ const viewCache=new Map();let cachedCoordinates=0;
  let S,map,worker,debounce,config;const sourceId='vector-context';
  function validate(m){
   if(m.schema_version!==1||m.kind!=='indexed-vector-context'||m.layers?.length!==3||new Set(m.layers.map(l=>l.id)).size!==3)throw Error('Invalid vector catalog');
@@ -38,17 +39,26 @@
   if(map.getZoom()<layer.minzoom){state('zoom','Zoom in to see '+layer.label.toLowerCase()+'.');return;}
   const b=map.getBounds(),bounds=[Math.max(-125,b.getWest()),Math.max(24,b.getSouth()),Math.min(-66,b.getEast()),Math.min(50,b.getNorth())];
   if(bounds[0]>=bounds[2]||bounds[1]>=bounds[3]){state('outside','This view is outside the CONUS display area.');return;}
-  state('loading','Loading features in this view…');const generation=V.generation,start=performance.now();
-  worker=new Worker('assets/vector-worker.js?v=e51a4ddb362d1ce8');worker.onmessage=e=>{const result=e.data;if(result.id!==V.generation)return;worker?.terminate();worker=null;V.result=result;V.lastLoadMs=performance.now()-start;
-   if(result.status==='ready'){try{show({type:'FeatureCollection',features:result.features});filterYear();}catch{state('unavailable','Feature overlay is temporarily unavailable.');}}
+  const generation=V.generation,start=performance.now(),key=layer.asset.sha256+':'+JSON.stringify(bounds),cached=viewCache.get(key);V.lastCacheHit=false;
+  if(cached&&Date.now()-cached.saved<600000){V.result={...cached.result,id:generation};V.lastCacheHit=true;show({type:'FeatureCollection',features:V.result.features});filterYear();V.lastLoadMs=performance.now()-start;return;}
+  state('loading','Loading features in this view…');
+  worker=new Worker('assets/vector-worker.js?v=e83c82cf44190545');worker.onmessage=e=>{const result=e.data;if(result.id!==V.generation)return;worker?.terminate();worker=null;V.result=result;V.lastLoadMs=performance.now()-start;
+   if(result.status==='ready'){try{
+    if(Number.isFinite(result.coordinateCount)){
+     if(viewCache.has(key)){cachedCoordinates-=viewCache.get(key).result.coordinateCount;viewCache.delete(key);}
+     while(viewCache.size&&(viewCache.size>=3||cachedCoordinates+result.coordinateCount>(mobile?200000:500000))){const first=viewCache.keys().next().value;cachedCoordinates-=viewCache.get(first).result.coordinateCount;viewCache.delete(first);}
+     viewCache.set(key,{result,saved:Date.now()});cachedCoordinates+=result.coordinateCount;
+    }
+    show({type:'FeatureCollection',features:result.features});filterYear();}catch{state('unavailable','Feature overlay is temporarily unavailable.');}}
    else if(result.status==='zoom')state('zoom','Zoom in for a smaller, more detailed view.');else state('unavailable','Feature overlay is temporarily unavailable.');
   };worker.onerror=()=>{if(generation===V.generation){worker?.terminate();worker=null;state('unavailable','Feature overlay is temporarily unavailable.');}};
-  worker.postMessage({id:generation,layer,bounds,year:layer.id==='burn-severity'&&$('vector-year').value?Number($('vector-year').value):null,featureLimit:mobile?6000:15000,coordinateLimit:mobile?200000:500000,byteLimit:(mobile?6:12)*1024*1024});
+  const seed=layer.asset.index_seeds?.find(s=>s.tier==='compact');
+  worker.postMessage({id:generation,layer,seed:seed?{...seed,local_url:config?.vector_seeds?.[seed.sha256]?new URL(config.vector_seeds[seed.sha256],location.href).href:null}:null,bounds,year:layer.id==='burn-severity'&&$('vector-year').value?Number($('vector-year').value):null,featureLimit:mobile?6000:15000,coordinateLimit:mobile?200000:500000,byteLimit:(mobile?6:12)*1024*1024});
  }
  function select(id){if(id&&!kinds[id])return;V.selected=id;$('vector-select').value=id;meta();if(id==='burn-severity'){$('vector-year').replaceChildren(new Option('All available years',''));for(const y of selected().years)$('vector-year').append(new Option(String(y),String(y)));}request();}
  async function refresh(){
   try{config ||= await fetch('config.json',{signal:AbortSignal.timeout(6000)}).then(r=>r.json());let m;try{const u=new URL(config.vectors_url);if(u.protocol!=='https:'||u.hostname!=='huggingface.co'||!new RegExp('^/datasets/[^/]+/[^/]+/resolve/main/vectors[.]json$').test(u.pathname))throw Error();const r=await fetch(u.href,{cache:'no-store',credentials:'omit',signal:AbortSignal.timeout(8000)});if(!r.ok)throw Error();m=validate(await r.json());V.saved=false;}catch{V.saved=true;if(V.manifest)m=V.manifest;else{const r=await fetch('vectors-bootstrap.json',{signal:AbortSignal.timeout(6000)});if(!r.ok)throw Error();m=validate(await r.json());}}
-   const old=selected()?.asset.sha256;V.manifest=m;$('vector-select').replaceChildren(new Option('None',''));for(const l of m.layers)$('vector-select').append(new Option(l.label,l.id));$('vector-select').value=V.selected;$('vector-select').disabled=false;V.ready=true;$('vector-index-retry').hidden=true;if(old&&old!==selected()?.asset.sha256)select(V.selected);else if(!V.selected)state('idle','Choose one feature overlay.');return true;
+   const old=selected()?.asset.sha256;V.manifest=m;$('vector-select').replaceChildren(new Option('None',''));for(const l of m.layers)$('vector-select').append(new Option(l.label,l.id));$('vector-select').value=V.selected;$('vector-select').disabled=false;V.ready=true;$('vector-index-retry').hidden=true;if(old&&old!==selected()?.asset.sha256){viewCache.clear();cachedCoordinates=0;select(V.selected);}else if(!V.selected)state('idle','Choose one feature overlay.');return true;
   }catch{state('catalog-unavailable','Feature catalog is temporarily unavailable.');$('vector-index-retry').hidden=false;return false;}
  }
  V.select=select;V.refresh=refresh;V.request=request;

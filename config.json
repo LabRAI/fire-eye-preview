@@ -7,5 +7,29 @@
   "background_url": "https://huggingface.co/datasets/yx21e/fire-eye-forecasts-preview/resolve/main/background.json",
   "vectors_url": "https://huggingface.co/datasets/yx21e/fire-eye-forecasts-preview/resolve/main/vectors.json",
   "assistant_url": null,
-  "channel": "preview"
+  "channel": "preview",
+  "hurricanes_url": "https://huggingface.co/datasets/yx21e/fire-eye-forecasts-preview/resolve/main/hurricanes.json",
+  "vector_seeds": {
+    "176321cb77eaaab23e885357d3a076c74484b91d9f0d1d67b1bac9119b948425": "./assets/vector-index/176321cb77eaaab23e885357d3a076c74484b91d9f0d1d67b1bac9119b948425.bin",
+    "093c9fa8f53b758536a82692b470a69490301d09b7d6023af4e86e235282b1e4": "./assets/vector-index/093c9fa8f53b758536a82692b470a69490301d09b7d6023af4e86e235282b1e4.bin",
+    "70616f09d75713fd605bd981d2431fce8f66eb7e151472297fc623a92b222ecd": "./assets/vector-index/70616f09d75713fd605bd981d2431fce8f66eb7e151472297fc623a92b222ecd.bin"
+  },
+  "hurricane_assets": {
+    "b9fb051a016e08dc54bb792d5a9e9160bee9230d2d12bb63e0539f106fd82d18": "./assets/hurricanes/b9fb051a016e08dc54bb792d5a9e9160bee9230d2d12bb63e0539f106fd82d18.geojson",
+    "5f71bd84f754ef59e34f9666a5a02c4058606af74317c672498b7c477b88be08": "./assets/hurricanes/5f71bd84f754ef59e34f9666a5a02c4058606af74317c672498b7c477b88be08.geojson",
+    "1c8da7406889c9856c99daeff2705286c131500e39eaac8e37df1308c16ea6ff": "./assets/hurricanes/1c8da7406889c9856c99daeff2705286c131500e39eaac8e37df1308c16ea6ff.geojson",
+    "3bb89f2945e53618c109b8dfe57de872be555939e216cbce37ee4eb6f770fe7f": "./assets/hurricanes/3bb89f2945e53618c109b8dfe57de872be555939e216cbce37ee4eb6f770fe7f.geojson",
+    "866a2f8def5aa217485fbeafab85a2dee48308e5fb256fbb46cbdb6e803b7812": "./assets/hurricanes/866a2f8def5aa217485fbeafab85a2dee48308e5fb256fbb46cbdb6e803b7812.geojson",
+    "459ed4ca0762d1fbc37ea2379a7e15e3bd3d2287d10c8ec151a40d8b36019f6e": "./assets/hurricanes/459ed4ca0762d1fbc37ea2379a7e15e3bd3d2287d10c8ec151a40d8b36019f6e.geojson",
+    "b335e79115b11dd46308d5653505456288173256a6d3aa8ccd45663d11e0330a": "./assets/hurricanes/b335e79115b11dd46308d5653505456288173256a6d3aa8ccd45663d11e0330a.geojson",
+    "38e4837e3be9ea079586723aa54174eb4cf54de6560d79138dfe654754016443": "./assets/hurricanes/38e4837e3be9ea079586723aa54174eb4cf54de6560d79138dfe654754016443.geojson",
+    "2987c54a5a392ca0a8b63d0dc0a151e8ee756fcc4ea6a4f5fa76302f3973f1c3": "./assets/hurricanes/2987c54a5a392ca0a8b63d0dc0a151e8ee756fcc4ea6a4f5fa76302f3973f1c3.geojson",
+    "812cec02cb0f3e8568a3e138ba0395707e4585dd7e9d15c6a931cd4e907de5ae": "./assets/hurricanes/812cec02cb0f3e8568a3e138ba0395707e4585dd7e9d15c6a931cd4e907de5ae.geojson",
+    "a0649b677319e1f942ea3cd296ee22566c14fc34f5d23cfbebbc08011dd2b93a": "./assets/hurricanes/a0649b677319e1f942ea3cd296ee22566c14fc34f5d23cfbebbc08011dd2b93a.geojson",
+    "6222efa924783e0306c111b73dcc796e9788df0566ef5b7e5f37b8b1e41f76ee": "./assets/hurricanes/6222efa924783e0306c111b73dcc796e9788df0566ef5b7e5f37b8b1e41f76ee.geojson",
+    "34ff8e1166c18e7ac6c85cc3bc10c9494266242b1c31f738d60844af1b51ce3f": "./assets/hurricanes/34ff8e1166c18e7ac6c85cc3bc10c9494266242b1c31f738d60844af1b51ce3f.geojson",
+    "7b62289775df0873a182bd988313b6bc1b624072d6c428bcd118f328a89b4a2a": "./assets/hurricanes/7b62289775df0873a182bd988313b6bc1b624072d6c428bcd118f328a89b4a2a.geojson",
+    "b624fda4dd98aad649c402ebf9c3f888798dabe9ba5b79902295d94218cf6d11": "./assets/hurricanes/b624fda4dd98aad649c402ebf9c3f888798dabe9ba5b79902295d94218cf6d11.geojson",
+    "14eccce24e98b7410bbf7e7a46924949d1d0af3b43d5aa33a77e20d97445cfdb": "./assets/hurricanes/14eccce24e98b7410bbf7e7a46924949d1d0af3b43d5aa33a77e20d97445cfdb.geojson"
+  }
 }
