@@ -8,7 +8,7 @@ The production website is unchanged. This preview does not contact the laborator
 
 Data: RAI Lab / NOAA HRRR. Map libraries: MapLibre GL JS and PMTiles; their licenses are included in assets. Basemaps: OpenFreeMap / OpenMapTiles / OpenStreetMap and Natural Earth.
 
-Restored features include published fire reports and perimeters, satellite detections, drought, soil moisture, weather advisories, regional charts, coordinate/incident search, source dates, downloads and a rolling archive of sixty complete forecast issues. The Simulation button runs the original illustrative scene rules in a browser worker and displays real 3 km landscape context. Flamme, visitor writes, what-if computation and the 50 m lab are not yet migrated.
+Restored features include published fire reports and perimeters, satellite detections, drought, soil moisture, weather advisories, regional charts, coordinate/incident search, source dates, downloads and a rolling archive of sixty complete forecast issues. The Simulation button runs the original illustrative scene rules in a browser worker and displays real 3 km landscape context. Dated incident-history queries are available under Details. The independent Flamme service and conversation interface pass local tests but are not enabled publicly because compute hosting is pending. Visitor writes, what-if computation and the 50 m lab are not yet migrated.
 
 The webpage is hosted on GitHub Pages and normally reads verified forecast releases from Hugging Face. It checks the publication index every five minutes while visible. If remote data cannot load, a bundled snapshot remains available; its original issue time is always displayed. The snapshot may be older than the latest release.
 
