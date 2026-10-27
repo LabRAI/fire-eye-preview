@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "release_id": "20261026T120000Z-e8c4ba90f7a68779",
+  "issue_time_utc": "2026-10-26T12:00:00Z",
+  "published_at_utc": "2026-10-27T02:19:29.297501Z",
+  "bounds": [
+    -125,
+    24,
+    -66,
+    50
+  ],
+  "source": "RAI Lab / NOAA HRRR",
+  "measure": "Modeled active-fire occupancy in each 12-hour window; not ignition probability.",
+  "runs": [
+    {
+      "lead_hours": 12,
+      "target_time_utc": "2026-10-27T00:00:00Z",
+      "path": "forecast-h12.pmtiles",
+      "source_id": "firewxfm_forecast_20261026T120000Z_v2f8c8ada57202720",
+      "source_layer": "day1",
+      "sha256": "3b545d9b394dbb482645e15bb739ee0bc8afc1bf48a0d562c568d18b31539d3f",
+      "bytes": 33316750,
+      "minzoom": 2,
+      "maxzoom": 10
+    },
+    {
+      "lead_hours": 24,
+      "target_time_utc": "2026-10-27T12:00:00Z",
+      "path": "forecast-h24.pmtiles",
+      "source_id": "firewxfm_forecast_20261026T120000Z_h24_vaa61505d0e5e6b9c",
+      "source_layer": "day1",
+      "sha256": "8ad797e1843b638ac2634ef70394a92a88a9486761c2dac1ee9776ca0937be09",
+      "bytes": 31668454,
+      "minzoom": 2,
+      "maxzoom": 10
+    },
+    {
+      "lead_hours": 36,
+      "target_time_utc": "2026-10-28T00:00:00Z",
+      "path": "forecast-h36.pmtiles",
+      "source_id": "firewxfm_forecast_20261026T120000Z_h36_v7cdc2746c8937be7",
+      "source_layer": "day1",
+      "sha256": "4cfc51cef0dae855032a07861a988ebfe45047a8f8606f0928c3e19e09b54750",
+      "bytes": 32573388,
+      "minzoom": 2,
+      "maxzoom": 10
+    },
+    {
+      "lead_hours": 48,
+      "target_time_utc": "2026-10-28T12:00:00Z",
+      "path": "forecast-h48.pmtiles",
+      "source_id": "firewxfm_forecast_20261026T120000Z_h48_v53eb0bf5e076a09a",
+      "source_layer": "day1",
+      "sha256": "39c1919c693f3e137332e90fea798cad8249635738dc39c15f2e2632b0c13642",
+      "bytes": 31944701,
+      "minzoom": 2,
+      "maxzoom": 10
+    }
+  ],
+  "asset_base": "./releases/20261026T120000Z-e8c4ba90f7a68779/"
+}
