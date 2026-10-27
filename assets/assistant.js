@@ -36,11 +36,11 @@
   const id=++generation,abort=new AbortController();controller=abort;$('assistant-send').disabled=true;$('assistant-status').textContent='Reading published evidence…';const timer=setTimeout(()=>abort.abort(),55000);
   const item=text('p',question,'assistant-question');$('assistant-messages').append(item);
   try{
-   const response=await fetch(endpoint,{method:'POST',credentials:'omit',headers:{'Content-Type':'application/json'},body:JSON.stringify({selection:q,question,history:turns.slice(-3)}),signal:abort.signal});
+   const response=await fetch(endpoint,{method:'POST',credentials:'omit',headers:{'Content-Type':'application/json'},body:JSON.stringify({selection:q,question,history:turns.slice(-3).map(t=>({role:'user',content:t.content.slice(0,800)}))}),signal:abort.signal});
    if(!response.headers.get('Content-Type')?.includes('application/json'))throw Error('The assistant could not be reached. The map remains available.');
    const raw=await response.text();if(raw.length>100000)throw Error('The response could not be verified.');const r=JSON.parse(raw);
    if(!response.ok)throw Error(response.status===429?'Flamme is answering other questions. Please retry shortly.':'This answer could not be loaded. Please retry; your map remains available.');
-   validate(r,q);if(id!==generation)return;show(r);turns.push({role:'user',content:question});$('assistant-question').value='';$('assistant-status').textContent='';
+   validate(r,q);if(id!==generation)return;show(r);turns=[...turns,{role:'user',content:question.slice(0,800)}].slice(-3);$('assistant-question').value='';$('assistant-status').textContent='';
   }catch(error){if(id===generation)$('assistant-status').textContent=abort.signal.aborted?'This answer took too long. Please retry; your map remains available.':error instanceof SyntaxError?'The assistant returned an unreadable response. Please retry.':error.message;}
   finally{clearTimeout(timer);if(controller===abort)controller=null;if(id===generation)$('assistant-send').disabled=false;}
  };
