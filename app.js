@@ -21,9 +21,10 @@
   }return m;
  }
  async function json(url){const r=await fetch(url,{cache:'no-store',credentials:'omit',signal:AbortSignal.timeout(12000)});if(!r.ok)throw Error('Forecast index unavailable');return validate(await r.json());}
- // Fetch the small publication index while the basemap and renderer start.
- const configTask=fetch('config.json',{cache:'no-store',signal:AbortSignal.timeout(4000)}).then(r=>r.json()).catch(()=>({}));
- const initialTask=configTask.then(c=>{state.manifestURL=c.manifest_url||'latest.json';return json(state.manifestURL);}).catch(()=>null);
+ // Resolve configuration before synchronous WebGL startup can delay its timeout.
+ const loadConfig=()=>fetch('config.json',{cache:'no-store',signal:AbortSignal.timeout(4000)}).then(r=>r.ok?r.json():null).catch(()=>null);
+ const configuration=await loadConfig();state.manifestURL=configuration?.manifest_url||null;
+ const initialTask=state.manifestURL?json(state.manifestURL).catch(()=>null):Promise.resolve(null);
  const protocol=new pmtiles.Protocol();maplibregl.addProtocol('pmtiles',protocol.tile);
  const map=new maplibregl.Map({container:'map',antialias:false,center:[-98,38],zoom:3.2,minZoom:2,maxZoom:12,pixelRatio:Math.min(devicePixelRatio,narrow?1.5:2),maxTileCacheSize:narrow?16:32,attributionControl:false,style:{version:8,sources:{land:{type:'geojson',data:'assets/land.geojson',attribution:'RAI Lab · NOAA HRRR · Natural Earth'}},layers:[{id:'ocean',type:'background',paint:{'background-color':'#dce9e9'}},{id:'land',type:'fill',source:'land',paint:{'fill-color':'#ebe8d9'}}]}});
  state.map=map;map.addControl(new maplibregl.AttributionControl({compact:true}));map.addControl(new maplibregl.NavigationControl({showCompass:false}),'bottom-right');
@@ -91,7 +92,8 @@
    if(state.active&&Date.parse(m.issue_time_utc)<Date.parse(state.manifest.issue_time_utc)){status('Previous forecast retained');return true;}
    if(m.release_id===state.manifest?.release_id&&state.active){status('Published forecast');return true;}
    const ok=await show(m,state.active?.run.lead_hours||12);if(ok&&saved)status('Showing saved forecast');return ok;}
-  const published=initial?await initialTask:await json(state.manifestURL).catch(()=>null);initial=false;if(await attempt(published))return;
+  if(!initial&&!state.manifestURL){const configuration=await loadConfig();state.manifestURL=configuration?.manifest_url||null;}
+  const published=initial?await initialTask:(state.manifestURL?await json(state.manifestURL).catch(()=>null):null);initial=false;if(await attempt(published))return;
   if(state.active){status('Previous forecast retained');return;}let cached=null;try{cached=validate(JSON.parse(localStorage.getItem('fire-eye-preview-last-good-v1')));}catch{}
   if(await attempt(cached,true))return;if(await attempt(await json('bootstrap.json').catch(()=>null),true))return;status('Forecast temporarily unavailable');
  }
