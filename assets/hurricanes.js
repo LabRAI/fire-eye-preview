@@ -10,7 +10,7 @@
   for(const year of m.seasons){const a=m.assets?.[year];if(!Number.isInteger(year)||year<1900||year>new Date().getUTCFullYear()||!a||a.path!==year+'.geojson'||!Number.isSafeInteger(a.bytes)||a.bytes<1||a.bytes>2e6||!/^[a-f0-9]{64}$/.test(a.sha256))throw Error('Invalid storm asset');const u=new URL(a.url);if(u.origin!=='https://huggingface.co'||u.username||u.password||u.search||u.hash||!new RegExp('^/datasets/[^/]+/[^/]+/resolve/[a-f0-9]{40}/hurricanes/assets/'+a.sha256+'/'+year+'[.]geojson$').test(u.pathname))throw Error('Invalid storm origin');}return m;
  }
  function clear(){for(const id of ids)if(map.getLayer(id))map.removeLayer(id);if(map.getSource('hurricane-tracks'))map.removeSource('hurricane-tracks');popup?.remove();popup=null;}
- function order(){const layers=map.getStyle().layers,anchor=layers.find(l=>/^(platform-(perimeters|incidents|detections)|selection-)/.test(l.id)||l.type==='symbol');if(!anchor)return;for(const id of ids)if(map.getLayer(id))map.moveLayer(id,anchor.id);}
+ function order(){if(!H.enabled||!ids.some(id=>map.getLayer(id)))return;const layers=map.getStyle().layers,anchor=layers.find(l=>/^(platform-(perimeters|incidents|detections)|selection-)/.test(l.id)||l.type==='symbol');if(!anchor)return;for(const id of ids)if(map.getLayer(id))map.moveLayer(id,anchor.id);}
  function applyFilter(){
   H.storm=$('hurricane-storm').value;popup?.remove();
   for(const id of ids){if(!map.getLayer(id))continue;const part=id==='hurricane-track-point'?'positions':'track';map.setFilter(id,['all',['==',['get','part'],part],...(H.storm?[['==',['get','storm_key'],H.storm]]:[])]);}
