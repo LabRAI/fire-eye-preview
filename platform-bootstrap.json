@@ -9,7 +9,7 @@
       "encoding": "identity",
       "observed_at": "2026-10-27T07:45:01Z",
       "record_count": 561,
-      "url": "./assets/platform/incidents.json"
+      "url": "./assets/platform/incidents.json?v=5a9759e7359fe140"
     },
     "detections": {
       "path": "detections.json",
@@ -18,7 +18,7 @@
       "encoding": "identity",
       "observed_at": "2026-10-27T07:54:38.379000Z",
       "record_count": 2528,
-      "url": "./assets/platform/detections.json"
+      "url": "./assets/platform/detections.json?v=de97c52a5b09efb3"
     },
     "perimeters": {
       "path": "perimeters.json",
@@ -27,14 +27,14 @@
       "encoding": "identity",
       "observed_at": "2026-10-27T07:45:01Z",
       "record_count": 112,
-      "url": "./assets/platform/perimeters.json"
+      "url": "./assets/platform/perimeters.json?v=018e405ce508470e"
     },
     "status": {
       "path": "status.json",
       "sha256": "421efaefac8d3e3c5ed4deb23e1dce31a314d6c8c8cd73afa9241897ac480e7d",
       "bytes": 1448,
       "encoding": "identity",
-      "url": "./assets/platform/status.json"
+      "url": "./assets/platform/status.json?v=421efaefac8d3e3c"
     },
     "soil": {
       "path": "soil.json.gz",
@@ -42,364 +42,364 @@
       "bytes": 267185,
       "encoding": "gzip",
       "observed_at": "2026-10-25T00:00:00.000Z",
-      "url": "./assets/platform/soil.json.gz"
+      "url": "./assets/platform/soil.json.gz?v=3dc5c0ef938fe187"
     },
     "drought-0-3": {
       "path": "drought-0-3.json.gz",
       "sha256": "f95ba1324a8a4e79ea36e0db0c298ee048ad452e7e853864a308c86670908980",
       "bytes": 1776,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-0-3.json.gz"
+      "url": "./assets/platform/drought-0-3.json.gz?v=f95ba1324a8a4e79"
     },
     "drought-0-4": {
       "path": "drought-0-4.json.gz",
       "sha256": "3e45b31a216c72fe41f3f1e575589d0f621668db9fd8f8875feb635ad19126e8",
       "bytes": 185050,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-0-4.json.gz"
+      "url": "./assets/platform/drought-0-4.json.gz?v=3e45b31a216c72fe"
     },
     "drought-0-5": {
       "path": "drought-0-5.json.gz",
       "sha256": "75fc04df5de364b2399471810c884a182b5f08fc69572741bae41f08da47014b",
       "bytes": 354650,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-0-5.json.gz"
+      "url": "./assets/platform/drought-0-5.json.gz?v=75fc04df5de364b2"
     },
     "drought-0-6": {
       "path": "drought-0-6.json.gz",
       "sha256": "15d85badaa229e1714cfa9297c4902d25b812a35f4e68bd77688d7c895a3b815",
       "bytes": 119632,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-0-6.json.gz"
+      "url": "./assets/platform/drought-0-6.json.gz?v=15d85badaa229e17"
     },
     "drought-1-2": {
       "path": "drought-1-2.json.gz",
       "sha256": "9f90c858fb027b4a1d34bac770890dd05541b37d1d71e116614f46b1817d6c54",
       "bytes": 26774,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-1-2.json.gz"
+      "url": "./assets/platform/drought-1-2.json.gz?v=9f90c858fb027b4a"
     },
     "drought-1-3": {
       "path": "drought-1-3.json.gz",
       "sha256": "29875bb38a9c4890852a39a712ab4c27b90df67e0e3e4fabe691956288343514",
       "bytes": 6407,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-1-3.json.gz"
+      "url": "./assets/platform/drought-1-3.json.gz?v=29875bb38a9c4890"
     },
     "drought-1-4": {
       "path": "drought-1-4.json.gz",
       "sha256": "36aa5c8669985c18c296b80299cca3eb4c1aa6f9c7de083e1e221c961a57f40c",
       "bytes": 6904,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-1-4.json.gz"
+      "url": "./assets/platform/drought-1-4.json.gz?v=36aa5c8669985c18"
     },
     "drought-1-5": {
       "path": "drought-1-5.json.gz",
       "sha256": "3fe6c5bd751eb444f9ddc5ac608d8d3e5f5b4241636d66d7d4b6033c33644412",
       "bytes": 75282,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-1-5.json.gz"
+      "url": "./assets/platform/drought-1-5.json.gz?v=3fe6c5bd751eb444"
     },
     "drought-1-6": {
       "path": "drought-1-6.json.gz",
       "sha256": "c6815206294f737bccdb0fe1f0dd9c8f70cdc328cad0a1a8108cf8f3da591fda",
       "bytes": 545176,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-1-6.json.gz"
+      "url": "./assets/platform/drought-1-6.json.gz?v=c6815206294f737b"
     },
     "drought-2-1": {
       "path": "drought-2-1.json.gz",
       "sha256": "617fe5ab6354a2cefb0765f267a29188d64f25e503cd1511aeb4985d6c915c2f",
       "bytes": 364,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-2-1.json.gz"
+      "url": "./assets/platform/drought-2-1.json.gz?v=617fe5ab6354a2ce"
     },
     "drought-2-2": {
       "path": "drought-2-2.json.gz",
       "sha256": "1980d30dfa5190184c4c08ed252d25b9fdc05686fd465fca67bbabbcf6b3771f",
       "bytes": 24424,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-2-2.json.gz"
+      "url": "./assets/platform/drought-2-2.json.gz?v=1980d30dfa519018"
     },
     "drought-2-3": {
       "path": "drought-2-3.json.gz",
       "sha256": "7036fa4633f10804fcbac5a1fe6438e73fe2bfc929600f5067899aaf5214f2c0",
       "bytes": 23249,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-2-3.json.gz"
+      "url": "./assets/platform/drought-2-3.json.gz?v=7036fa4633f10804"
     },
     "drought-2-4": {
       "path": "drought-2-4.json.gz",
       "sha256": "a33a74522e7d67f9e4bc597c1f55f0194e9e7b9f7dc969eabed1beb7a75efe04",
       "bytes": 20944,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-2-4.json.gz"
+      "url": "./assets/platform/drought-2-4.json.gz?v=a33a74522e7d67f9"
     },
     "drought-2-5": {
       "path": "drought-2-5.json.gz",
       "sha256": "710ddafce2105dffd76fe83f2d1197508686086e3f8597ed61918393e9ada162",
       "bytes": 16575,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-2-5.json.gz"
+      "url": "./assets/platform/drought-2-5.json.gz?v=710ddafce2105dff"
     },
     "drought-2-6": {
       "path": "drought-2-6.json.gz",
       "sha256": "dc1c8da3a66b1ab882d9dce630d48efa997692e6524d348da3dd372d022cdb47",
       "bytes": 636,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-2-6.json.gz"
+      "url": "./assets/platform/drought-2-6.json.gz?v=dc1c8da3a66b1ab8"
     },
     "drought-3-1": {
       "path": "drought-3-1.json.gz",
       "sha256": "5dc53828bc71af58d1de2edc19d80821819342570e74a9306e9a83b2604b9d6e",
       "bytes": 266169,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-3-1.json.gz"
+      "url": "./assets/platform/drought-3-1.json.gz?v=5dc53828bc71af58"
     },
     "drought-3-2": {
       "path": "drought-3-2.json.gz",
       "sha256": "86abdd2d98f9cf6f3482af0c2d7ca2055c3e420f3fc0e5943204d1b55022f1e0",
       "bytes": 33095,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-3-2.json.gz"
+      "url": "./assets/platform/drought-3-2.json.gz?v=86abdd2d98f9cf6f"
     },
     "drought-3-3": {
       "path": "drought-3-3.json.gz",
       "sha256": "ded6cf2c41c33fc7d7abb860c934b41e9a922844b791bc4d3b01cc214b19daed",
       "bytes": 101024,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-3-3.json.gz"
+      "url": "./assets/platform/drought-3-3.json.gz?v=ded6cf2c41c33fc7"
     },
     "drought-3-4": {
       "path": "drought-3-4.json.gz",
       "sha256": "f405762bc1adc2443613bf5b29463c5f7a6b55b69cf20c1c15764cfde4194ffa",
       "bytes": 34734,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-3-4.json.gz"
+      "url": "./assets/platform/drought-3-4.json.gz?v=f405762bc1adc244"
     },
     "drought-3-5": {
       "path": "drought-3-5.json.gz",
       "sha256": "9462b2938cc141fb8cf9a65d60e070254b8d3916139409fca55fa2154f34bf9d",
       "bytes": 17575,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-3-5.json.gz"
+      "url": "./assets/platform/drought-3-5.json.gz?v=9462b2938cc141fb"
     },
     "drought-4-0": {
       "path": "drought-4-0.json.gz",
       "sha256": "88b36fb75b1835f9797876e8567dd2427043ad5396ae5c194c52aeb18911d33e",
       "bytes": 375834,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-4-0.json.gz"
+      "url": "./assets/platform/drought-4-0.json.gz?v=88b36fb75b1835f9"
     },
     "drought-4-1": {
       "path": "drought-4-1.json.gz",
       "sha256": "0f6fc18ddbef141d53771abaeb449dfa4d9903467e69187ffaa834ecbcc91572",
       "bytes": 290818,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-4-1.json.gz"
+      "url": "./assets/platform/drought-4-1.json.gz?v=0f6fc18ddbef141d"
     },
     "drought-4-2": {
       "path": "drought-4-2.json.gz",
       "sha256": "c04ec3a621dbb1027b525f0d592834a27d8f50459593d016cc2a8b92774f2a29",
       "bytes": 90210,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-4-2.json.gz"
+      "url": "./assets/platform/drought-4-2.json.gz?v=c04ec3a621dbb102"
     },
     "drought-4-3": {
       "path": "drought-4-3.json.gz",
       "sha256": "fe285d76648b17e2fee42a9f42d8bd435291504d3537741ec47407c9e3aa41dd",
       "bytes": 65906,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-4-3.json.gz"
+      "url": "./assets/platform/drought-4-3.json.gz?v=fe285d76648b17e2"
     },
     "drought-4-4": {
       "path": "drought-4-4.json.gz",
       "sha256": "43a41938eae956d6ec1039a8b381066c2384b9246bafb33fb0c72bae22f9b74a",
       "bytes": 64242,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-4-4.json.gz"
+      "url": "./assets/platform/drought-4-4.json.gz?v=43a41938eae956d6"
     },
     "drought-4-5": {
       "path": "drought-4-5.json.gz",
       "sha256": "90855a3c452601d7409911fa1b351450949933716d353b5f614c40c5e976c72f",
       "bytes": 19378,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-4-5.json.gz"
+      "url": "./assets/platform/drought-4-5.json.gz?v=90855a3c452601d7"
     },
     "drought-5-1": {
       "path": "drought-5-1.json.gz",
       "sha256": "e61488a9233a049a1fa976a3616ccab239aa8c06361449a193b2a7da5a688f4a",
       "bytes": 490040,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-5-1.json.gz"
+      "url": "./assets/platform/drought-5-1.json.gz?v=e61488a9233a049a"
     },
     "drought-5-2": {
       "path": "drought-5-2.json.gz",
       "sha256": "ca49e89009c103b04a11617ef131f63baf82a30a7d6555e5e56a885197f2c0cf",
       "bytes": 101261,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-5-2.json.gz"
+      "url": "./assets/platform/drought-5-2.json.gz?v=ca49e89009c103b0"
     },
     "drought-5-3": {
       "path": "drought-5-3.json.gz",
       "sha256": "b60ad0c33efe9ce219fd5f2fa76ab626e288076639826cb54199509964e0cd51",
       "bytes": 38331,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-5-3.json.gz"
+      "url": "./assets/platform/drought-5-3.json.gz?v=b60ad0c33efe9ce2"
     },
     "drought-5-4": {
       "path": "drought-5-4.json.gz",
       "sha256": "b95c2981dda5662f46ab15a6d7a1a27de7d62c09ca7a9807f49d0140ce097188",
       "bytes": 21532,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-5-4.json.gz"
+      "url": "./assets/platform/drought-5-4.json.gz?v=b95c2981dda5662f"
     },
     "drought-5-5": {
       "path": "drought-5-5.json.gz",
       "sha256": "17196cace9b97c34f79aae9546e2001d521c0b81f333f1c4f47cc842d5573481",
       "bytes": 378564,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-5-5.json.gz"
+      "url": "./assets/platform/drought-5-5.json.gz?v=17196cace9b97c34"
     },
     "drought-6-1": {
       "path": "drought-6-1.json.gz",
       "sha256": "7a7de375d2a4466d3930e07d4af901652e9bd0d310c72c5dd602eb45922c514d",
       "bytes": 1444320,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-6-1.json.gz"
+      "url": "./assets/platform/drought-6-1.json.gz?v=7a7de375d2a4466d"
     },
     "drought-6-2": {
       "path": "drought-6-2.json.gz",
       "sha256": "f32ca91ac7732b3a3c136cf89b369ea0e2202de83962e46142d10cbf9aaac85b",
       "bytes": 97364,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-6-2.json.gz"
+      "url": "./assets/platform/drought-6-2.json.gz?v=f32ca91ac7732b3a"
     },
     "drought-6-3": {
       "path": "drought-6-3.json.gz",
       "sha256": "35aef3ef38dbe0fe08d16f2c65af3f07a2ea406fab1dc2b87e712fe2640ead44",
       "bytes": 33521,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-6-3.json.gz"
+      "url": "./assets/platform/drought-6-3.json.gz?v=35aef3ef38dbe0fe"
     },
     "drought-6-4": {
       "path": "drought-6-4.json.gz",
       "sha256": "6d6a04740c374f33f8d9acb961f41b42a44a4de08c7e3f8f67f9a88c92ab53f9",
       "bytes": 162238,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-6-4.json.gz"
+      "url": "./assets/platform/drought-6-4.json.gz?v=6d6a04740c374f33"
     },
     "drought-6-5": {
       "path": "drought-6-5.json.gz",
       "sha256": "91db0b7d56261aa0594b21a0892c2fe7e234a523d1dbb6fe96cd8d649e530f9b",
       "bytes": 714909,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-6-5.json.gz"
+      "url": "./assets/platform/drought-6-5.json.gz?v=91db0b7d56261aa0"
     },
     "drought-7-0": {
       "path": "drought-7-0.json.gz",
       "sha256": "e8ff4dca85ac8d2c42973e9381b44c1123f49d5022e7b266626d3f8c74fec29d",
       "bytes": 345274,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-7-0.json.gz"
+      "url": "./assets/platform/drought-7-0.json.gz?v=e8ff4dca85ac8d2c"
     },
     "drought-7-1": {
       "path": "drought-7-1.json.gz",
       "sha256": "9cdeadd98edf63d248f2b26c7d9002fa679fad36a7d18d84bf755ba5b986f839",
       "bytes": 987540,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-7-1.json.gz"
+      "url": "./assets/platform/drought-7-1.json.gz?v=9cdeadd98edf63d2"
     },
     "drought-7-2": {
       "path": "drought-7-2.json.gz",
       "sha256": "f640ae5810832b19379fa55d4fb625726486131dcdae8d5c4c47054b293271c2",
       "bytes": 424643,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-7-2.json.gz"
+      "url": "./assets/platform/drought-7-2.json.gz?v=f640ae5810832b19"
     },
     "drought-7-3": {
       "path": "drought-7-3.json.gz",
       "sha256": "dfc67e00bece2814f325db632be89de943de6e6f608392920a8f9a7f23769f8a",
       "bytes": 46563,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-7-3.json.gz"
+      "url": "./assets/platform/drought-7-3.json.gz?v=dfc67e00bece2814"
     },
     "drought-7-4": {
       "path": "drought-7-4.json.gz",
       "sha256": "588389930f5d1dc9295bb152d1f927805ec6441cc23f763b324c2a9c0e1d4494",
       "bytes": 127010,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-7-4.json.gz"
+      "url": "./assets/platform/drought-7-4.json.gz?v=588389930f5d1dc9"
     },
     "drought-8-0": {
       "path": "drought-8-0.json.gz",
       "sha256": "02d4b26a46725d93d5c6c350e4545f54220f7e620c25808631ca1d513800744a",
       "bytes": 255683,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-8-0.json.gz"
+      "url": "./assets/platform/drought-8-0.json.gz?v=02d4b26a46725d93"
     },
     "drought-8-1": {
       "path": "drought-8-1.json.gz",
       "sha256": "40e781e76e4ab3c59487eaadf74ad060234e089026c2c936c109808364e0862f",
       "bytes": 86027,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-8-1.json.gz"
+      "url": "./assets/platform/drought-8-1.json.gz?v=40e781e76e4ab3c5"
     },
     "drought-8-2": {
       "path": "drought-8-2.json.gz",
       "sha256": "d6fd6a8bb3a40a1c8c76999847b6948ee0b76baac5505fe523ab0833195b2b8a",
       "bytes": 394318,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-8-2.json.gz"
+      "url": "./assets/platform/drought-8-2.json.gz?v=d6fd6a8bb3a40a1c"
     },
     "drought-8-3": {
       "path": "drought-8-3.json.gz",
       "sha256": "28d8c0afeb816fefe5ae694b10b04982db335ca5d02958c793f08b3813e0bd6a",
       "bytes": 1909205,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-8-3.json.gz"
+      "url": "./assets/platform/drought-8-3.json.gz?v=28d8c0afeb816fef"
     },
     "drought-8-4": {
       "path": "drought-8-4.json.gz",
       "sha256": "f6ec080bc6a538d085ed10233a8d45c6bf994ae79df5a646391497c6873b9054",
       "bytes": 269848,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-8-4.json.gz"
+      "url": "./assets/platform/drought-8-4.json.gz?v=f6ec080bc6a538d0"
     },
     "drought-8-5": {
       "path": "drought-8-5.json.gz",
       "sha256": "84be16a5abadee5cd7508d469aaa142965fa588c480f423305064529f85aec59",
       "bytes": 136062,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-8-5.json.gz"
+      "url": "./assets/platform/drought-8-5.json.gz?v=84be16a5abadee5c"
     },
     "drought-9-4": {
       "path": "drought-9-4.json.gz",
       "sha256": "68246c97a73911561718cbeee2d09dc847556762cb0002fd9641abe05fda6d8e",
       "bytes": 1972931,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-9-4.json.gz"
+      "url": "./assets/platform/drought-9-4.json.gz?v=68246c97a7391156"
     },
     "drought-9-5": {
       "path": "drought-9-5.json.gz",
       "sha256": "82c6aa289e43dec663280c032b400743664db419c1ad45ac1a47edaf7c6e1e7b",
       "bytes": 773923,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-9-5.json.gz"
+      "url": "./assets/platform/drought-9-5.json.gz?v=82c6aa289e43dec6"
     },
     "drought-9-6": {
       "path": "drought-9-6.json.gz",
       "sha256": "d22af766f0a18e9c2404b64f276a8e8563e02afe1db27b9b549ac753f55e48b5",
       "bytes": 5308,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-9-6.json.gz"
+      "url": "./assets/platform/drought-9-6.json.gz?v=d22af766f0a18e9c"
     },
     "drought-map": {
       "path": "drought-map.json.gz",
       "sha256": "93aa578b5e2bad48d9fca2b6a0e4aeeca77005581149aafe1b8cce246def6713",
       "bytes": 714908,
       "encoding": "gzip",
-      "url": "./assets/platform/drought-map.json.gz"
+      "url": "./assets/platform/drought-map.json.gz?v=93aa578b5e2bad48"
     },
     "drought": {
       "path": "drought.json",
@@ -407,7 +407,7 @@
       "bytes": 3505,
       "encoding": "identity",
       "observed_at": "2026-10-20T00:00:00.000Z",
-      "url": "./assets/platform/drought.json"
+      "url": "./assets/platform/drought.json?v=57f79f9e484ea3b9"
     },
     "weather": {
       "path": "weather.json",
@@ -415,7 +415,7 @@
       "bytes": 2655,
       "encoding": "identity",
       "observed_at": "2026-10-27T07:45:02.000Z",
-      "url": "./assets/platform/weather.json"
+      "url": "./assets/platform/weather.json?v=703f01d000b84881"
     },
     "numeric-h12": {
       "path": "numeric-h12.f32",
@@ -661,7 +661,7 @@
       ],
       "uncompressed_bytes": 2284968,
       "source_sha256": "0edcc66de0882bedc72eb6169189db22d03e0f5799c071a27276e486aace7a6f",
-      "url": "./assets/platform/numeric-h12.f32"
+      "url": "./assets/platform/numeric-h12.f32?v=da68426d1c9c174b"
     },
     "numeric-h24": {
       "path": "numeric-h24.f32",
@@ -907,7 +907,7 @@
       ],
       "uncompressed_bytes": 2284968,
       "source_sha256": "c25368a8370ff14863b82956001fcee7778a42218c92f32f2140cbbafa1e4207",
-      "url": "./assets/platform/numeric-h24.f32"
+      "url": "./assets/platform/numeric-h24.f32?v=a15019270f969544"
     },
     "numeric-h36": {
       "path": "numeric-h36.f32",
@@ -1153,7 +1153,7 @@
       ],
       "uncompressed_bytes": 2284968,
       "source_sha256": "7e60e8b14ae031172c1c06e1a3bb7d7982c3a7c2f7b2195eac0fc520369e5488",
-      "url": "./assets/platform/numeric-h36.f32"
+      "url": "./assets/platform/numeric-h36.f32?v=367a66157bd98796"
     },
     "numeric-h48": {
       "path": "numeric-h48.f32",
@@ -1399,14 +1399,14 @@
       ],
       "uncompressed_bytes": 2284968,
       "source_sha256": "75b5602102ae769a194ca7c6f7b3c0ca7d8f5f81491a1a07c6c7ba1f52aa291f",
-      "url": "./assets/platform/numeric-h48.f32"
+      "url": "./assets/platform/numeric-h48.f32?v=895e0a887e23ceef"
     },
     "forecast": {
       "path": "forecast.json",
       "sha256": "fbb7f1211ce331da23278ff0b9c7e4cfad79116e9b1e815e29b67075c0616e66",
       "bytes": 764,
       "encoding": "identity",
-      "url": "./assets/platform/forecast.json"
+      "url": "./assets/platform/forecast.json?v=fbb7f1211ce331da"
     }
   },
   "failed_sources": [],
