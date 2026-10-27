@@ -65,7 +65,7 @@
   try{const value=await valueAt(state.manifest,active.run,selected);if(state.active!==active||state.selected!==selected)return;state.lastValue=value;$('cell-value').textContent=value===null?'Outside forecast coverage':'Fire risk at selected location · '+value.toFixed(3);}catch{if(state.active===active)$('cell-value').textContent='Location values temporarily unavailable';}
  }
  async function show(m,lead){
-  const run=m.runs.find(r=>r.lead_hours===lead),kind=representation(run),id=sourceId(m,run,kind);
+  const run=m.runs.find(r=>r.lead_hours===lead);if(!run)return false;const kind=representation(run),id=sourceId(m,run,kind);
   if(state.active?.id===id&&!state.pendingId)return true;
   const seq=++state.sequence,started=performance.now();state.pendingId=id;status('Loading +'+lead+'h…');document.querySelectorAll('#horizons button').forEach(b=>b.dataset.pending=String(Number(b.dataset.lead)===lead));
   try{
@@ -79,7 +79,7 @@
    map.setPaintProperty(id,kind==='overview'?'raster-opacity':'fill-opacity',kind==='overview'?1:opacity);
    state.active={id,run,kind};state.pendingId=null;state.manifest=m;if(!m.archive)state.latestManifest=m;state.lru=state.lru.filter(x=>x!==id);state.lru.push(id);prune();
    $('heading').textContent='Forecast +'+lead+'h';$('issue').textContent='Issued '+pretty(m.issue_time_utc);$('valid').textContent='12-hour window ending '+pretty(run.target_time_utc);
-   document.querySelectorAll('#horizons button').forEach(b=>{b.setAttribute('aria-pressed',String(Number(b.dataset.lead)===lead));b.dataset.pending='false';});
+   document.querySelectorAll('#horizons button').forEach(b=>{const available=m.runs.some(r=>r.lead_hours===Number(b.dataset.lead));b.disabled=!available;b.title=available?'':'Not archived for this issue';b.setAttribute('aria-pressed',String(Number(b.dataset.lead)===lead));b.dataset.pending='false';});
    state.delivery=new URL(m.asset_base,location.href).hostname==='huggingface.co'?'huggingface':'bundled';status('Published forecast');state.ready=true;
    await new Promise(resolve=>{map.once('render',resolve);map.triggerRepaint();});
    if(seq!==state.sequence)return false;

@@ -24,7 +24,7 @@
   try{
    if(!indexCache||Date.now()-loadedAt>120000){const c=await config;if(!c.history_url)throw Error();const r=await fetch(c.history_url,{credentials:'omit',cache:'no-store',signal:AbortSignal.timeout(15000)});if(!r.ok)throw Error();const m=await r.json();if(m.schema_version!==2||!Array.isArray(m.tiles)||m.tiles.length>500||!Array.isArray(m.snapshot_times_ms)||m.snapshot_times_ms.length>100000||!m.assets)throw Error();for(const a of Object.values(m.assets))if(!/^[a-f0-9]{64}$/.test(a.sha256)||!Number.isInteger(a.bytes)||a.bytes<=0||a.bytes>8*1024*1024)throw Error();indexCache=m;loadedAt=Date.now();}
    if(id!==generation)return;
-   if(!worker){worker=new Worker('assets/history-worker.js?v=e1f64ff049f2f76d');worker.onmessage=e=>{const m=e.data;if(m.id!==generation)return;result=m;window.fireEyeHistory.result=m;render(m);};worker.onerror=()=>{worker.terminate();worker=null;result=null;retry('Past reports are temporarily unavailable. Other map features remain available.');};}
+   if(!worker){worker=new Worker('assets/history-worker.js?v=de7db4966d4ae0ab');worker.onmessage=e=>{const m=e.data;if(m.id!==generation)return;result=m;window.fireEyeHistory.result=m;render(m);};worker.onerror=()=>{worker.terminate();worker=null;result=null;retry('Past reports are temporarily unavailable. Other map features remain available.');};}
    worker.postMessage({...q,id,manifest:indexCache});
   }catch{if(id===generation)retry('Past reports could not be loaded. Retry this section when ready.');}
  }
