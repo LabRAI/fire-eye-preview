@@ -25,7 +25,16 @@
  const loadConfig=()=>fetch('config.json',{cache:'no-store',signal:AbortSignal.timeout(4000)}).then(r=>r.ok?r.json():null).catch(()=>null);
  const configuration=await loadConfig();state.manifestURL=configuration?.manifest_url||null;
  const initialTask=state.manifestURL?json(state.manifestURL).catch(()=>null):Promise.resolve(null);
- const protocol=new pmtiles.Protocol();maplibregl.addProtocol('pmtiles',protocol.tile);
+ const protocol=new pmtiles.Protocol();
+ // MapLibre's installed raster loader leaves null image tiles pending forever.
+ // Only absent landscape display tiles become transparent; errors still fail.
+ const emptyRasterCanvas=document.createElement('canvas');emptyRasterCanvas.width=emptyRasterCanvas.height=1;
+ const emptyRaster=Uint8Array.from(atob(emptyRasterCanvas.toDataURL('image/png').split(',')[1]),c=>c.charCodeAt(0));
+ state.backgroundNoDataTiles=0;
+ maplibregl.addProtocol('pmtiles',(params,callback)=>protocol.tile(params,(err,data,cacheControl,expires)=>{
+  if(!err&&data===null&&params.url.includes('/background/assets/')){state.backgroundNoDataTiles++;callback(null,emptyRaster,cacheControl,expires);}
+  else callback(err,data,cacheControl,expires);
+ }));
  const map=new maplibregl.Map({container:'map',antialias:false,center:[-98,38],zoom:3.2,minZoom:2,maxZoom:12,pixelRatio:Math.min(devicePixelRatio,narrow?1.5:2),maxTileCacheSize:narrow?16:32,attributionControl:false,style:{version:8,sources:{land:{type:'geojson',data:'assets/land.geojson',attribution:'RAI Lab · NOAA HRRR · Natural Earth'}},layers:[{id:'ocean',type:'background',paint:{'background-color':'#dce9e9'}},{id:'land',type:'fill',source:'land',paint:{'fill-color':'#ebe8d9'}}]}});
  state.map=map;map.addControl(new maplibregl.AttributionControl({compact:true}));map.addControl(new maplibregl.NavigationControl({showCompass:false}),'bottom-right');
  map.on('error',e=>{state.errors.push({time:Date.now(),message:String(e.error?.message||'Map source failed').split('?')[0].slice(0,160)});});

@@ -4,6 +4,7 @@
   "archive_url": "https://huggingface.co/datasets/yx21e/fire-eye-forecasts-preview/resolve/main/archive.json",
   "scene_url": "https://huggingface.co/datasets/yx21e/fire-eye-forecasts-preview/resolve/main/scene.json",
   "history_url": "https://huggingface.co/datasets/yx21e/fire-eye-forecasts-preview/resolve/main/history.json",
+  "background_url": "https://huggingface.co/datasets/yx21e/fire-eye-forecasts-preview/resolve/main/background.json",
   "assistant_url": null,
   "channel": "preview"
 }
