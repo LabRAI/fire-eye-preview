@@ -5,13 +5,13 @@
 <meta name="theme-color" content="#183c38"><meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer"><title>Fire-eye · Forecast preview</title>
 <link rel="stylesheet" href="assets/maplibre.css"><link rel="stylesheet" href="style.css">
-<script src="assets/maplibre.js" defer></script><script src="assets/pmtiles.js" defer></script><script src="app.js" defer></script>
+<script src="assets/maplibre.js" defer></script><script src="assets/pmtiles.js" defer></script><script src="assets/proj4.js" defer></script><script src="app.js" defer></script>
 </head>
 <body>
 <main id="map" aria-label="CONUS fire forecast map"></main>
 <header class="panel masthead"><div class="brand"><span class="brandmark" aria-hidden="true">F</span><div><h1>Fire-eye <span class="preview">Preview</span></h1><p>RAI Lab · FireWx-FM</p></div></div><button id="refresh" title="Check for a newer forecast" aria-label="Check for a newer forecast">↻</button></header>
 <aside class="panel info"><div class="eyebrow">CONUS FIRE FORECAST</div><h2 id="heading">Loading forecast</h2><p id="issue">Connecting to published data…</p><div class="gradient" aria-label="Fire risk: lower to higher"></div><div class="legend"><span>Lower</span><span>Higher fire risk</span></div><p class="definition">Modeled active-fire occupancy.<br>Not ignition probability.</p></aside>
-<section class="panel inspection" id="inspection" hidden><button id="close-inspection" class="close" aria-label="Close selected location">×</button><div class="eyebrow">SELECTED LOCATION</div><h2 id="coordinates"></h2><p id="cell-value"></p><p class="definition">Displayed map-cell value for the selected 12-hour window.</p></section>
+<section class="panel inspection" id="inspection" hidden><button id="close-inspection" class="close" aria-label="Close selected location">×</button><div class="eyebrow">SELECTED LOCATION</div><h2 id="coordinates"></h2><p id="cell-value"></p><p class="definition">Published grid-cell value for the selected 12-hour window.</p></section>
 <footer class="panel timeline"><div class="timeline-top"><span class="eyebrow">FORECAST WINDOW</span><span id="status" role="status" aria-live="polite">Loading…</span></div><nav id="horizons" aria-label="Forecast lead time"></nav><p id="valid">Published forecast · all times UTC</p></footer>
 <noscript><div class="panel no-script">Enable JavaScript to view the forecast map.</div></noscript>
 </body></html>

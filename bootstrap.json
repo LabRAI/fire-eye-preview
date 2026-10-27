@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "release_id": "20261026T120000Z-e8c4ba90f7a68779",
+  "release_id": "20261026T120000Z-519b32c00bd7226e",
   "issue_time_utc": "2026-10-26T12:00:00Z",
-  "published_at_utc": "2026-10-27T02:19:29.297501Z",
+  "published_at_utc": "2026-10-27T06:48:40.275745Z",
   "bounds": [
     -125,
     24,
@@ -21,7 +21,60 @@
       "sha256": "3b545d9b394dbb482645e15bb739ee0bc8afc1bf48a0d562c568d18b31539d3f",
       "bytes": 33316750,
       "minzoom": 2,
-      "maxzoom": 10
+      "maxzoom": 10,
+      "overview": {
+        "image": {
+          "path": "overview-h12.png",
+          "sha256": "10676633222a6789d6e135f17908a7a5b2fd5d6f5b158233d16550458ce15381",
+          "bytes": 696021
+        },
+        "values": {
+          "path": "values-h12.bin",
+          "sha256": "08ddfa5f5fda93362bfe5274d3c3a799b6a33c810043cea7dcbf1250049383ca",
+          "bytes": 1142484
+        },
+        "grid": {
+          "width": 938,
+          "height": 609,
+          "transform": [
+            5000.0,
+            0.0,
+            -2362425.0,
+            0.0,
+            -5000.0,
+            3267405.0
+          ],
+          "crs": "EPSG:5070",
+          "proj4": "+proj=aea +lat_0=23 +lon_0=-96 +lat_1=29.5 +lat_2=45.5 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs",
+          "nodata": 65535,
+          "scale": 0.001
+        },
+        "coordinates": [
+          [
+            -128.3872854191448,
+            52.481746660469845
+          ],
+          [
+            -64.05506715692577,
+            52.481746660469845
+          ],
+          [
+            -64.05506715692577,
+            22.43855411376568
+          ],
+          [
+            -128.3872854191448,
+            22.43855411376568
+          ]
+        ],
+        "detail_minzoom": 6,
+        "width": 2048,
+        "height": 1236,
+        "valid_cells": 319370,
+        "projection_samples": 12000,
+        "projection_mismatches": 0,
+        "underlay_composited": true
+      }
     },
     {
       "lead_hours": 24,
@@ -32,7 +85,60 @@
       "sha256": "8ad797e1843b638ac2634ef70394a92a88a9486761c2dac1ee9776ca0937be09",
       "bytes": 31668454,
       "minzoom": 2,
-      "maxzoom": 10
+      "maxzoom": 10,
+      "overview": {
+        "image": {
+          "path": "overview-h24.png",
+          "sha256": "ae33da345fc1084db1ab8484304b1e57c281394d09ea81ddac664effdcf8dc4a",
+          "bytes": 661815
+        },
+        "values": {
+          "path": "values-h24.bin",
+          "sha256": "118db93f56103c637eb4998d7fef3ca777102cadc8dbb82da811ec3843aced80",
+          "bytes": 1142484
+        },
+        "grid": {
+          "width": 938,
+          "height": 609,
+          "transform": [
+            5000.0,
+            0.0,
+            -2362425.0,
+            0.0,
+            -5000.0,
+            3267405.0
+          ],
+          "crs": "EPSG:5070",
+          "proj4": "+proj=aea +lat_0=23 +lon_0=-96 +lat_1=29.5 +lat_2=45.5 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs",
+          "nodata": 65535,
+          "scale": 0.001
+        },
+        "coordinates": [
+          [
+            -128.3872854191448,
+            52.481746660469845
+          ],
+          [
+            -64.05506715692577,
+            52.481746660469845
+          ],
+          [
+            -64.05506715692577,
+            22.43855411376568
+          ],
+          [
+            -128.3872854191448,
+            22.43855411376568
+          ]
+        ],
+        "detail_minzoom": 6,
+        "width": 2048,
+        "height": 1236,
+        "valid_cells": 319370,
+        "projection_samples": 12000,
+        "projection_mismatches": 0,
+        "underlay_composited": true
+      }
     },
     {
       "lead_hours": 36,
@@ -43,7 +149,60 @@
       "sha256": "4cfc51cef0dae855032a07861a988ebfe45047a8f8606f0928c3e19e09b54750",
       "bytes": 32573388,
       "minzoom": 2,
-      "maxzoom": 10
+      "maxzoom": 10,
+      "overview": {
+        "image": {
+          "path": "overview-h36.png",
+          "sha256": "fb9b4181c89c0bad0b0ac79d95966e783f9094532c4a6946263a08c9c41d895b",
+          "bytes": 651689
+        },
+        "values": {
+          "path": "values-h36.bin",
+          "sha256": "f9cd22423855987ae9cbbdd8be2db00787bdedfd4de0a3289592461b8a6c3fa7",
+          "bytes": 1142484
+        },
+        "grid": {
+          "width": 938,
+          "height": 609,
+          "transform": [
+            5000.0,
+            0.0,
+            -2362425.0,
+            0.0,
+            -5000.0,
+            3267405.0
+          ],
+          "crs": "EPSG:5070",
+          "proj4": "+proj=aea +lat_0=23 +lon_0=-96 +lat_1=29.5 +lat_2=45.5 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs",
+          "nodata": 65535,
+          "scale": 0.001
+        },
+        "coordinates": [
+          [
+            -128.3872854191448,
+            52.481746660469845
+          ],
+          [
+            -64.05506715692577,
+            52.481746660469845
+          ],
+          [
+            -64.05506715692577,
+            22.43855411376568
+          ],
+          [
+            -128.3872854191448,
+            22.43855411376568
+          ]
+        ],
+        "detail_minzoom": 6,
+        "width": 2048,
+        "height": 1236,
+        "valid_cells": 319370,
+        "projection_samples": 12000,
+        "projection_mismatches": 0,
+        "underlay_composited": true
+      }
     },
     {
       "lead_hours": 48,
@@ -54,8 +213,61 @@
       "sha256": "39c1919c693f3e137332e90fea798cad8249635738dc39c15f2e2632b0c13642",
       "bytes": 31944701,
       "minzoom": 2,
-      "maxzoom": 10
+      "maxzoom": 10,
+      "overview": {
+        "image": {
+          "path": "overview-h48.png",
+          "sha256": "de9991a6b7833b6130281adb1683feab5fc59192efd4f5a6093c698fc7feef33",
+          "bytes": 657374
+        },
+        "values": {
+          "path": "values-h48.bin",
+          "sha256": "4635e7428b8a2839b032bd65e38d185ec1cd22a9df0e43d179ee99e462cdbec6",
+          "bytes": 1142484
+        },
+        "grid": {
+          "width": 938,
+          "height": 609,
+          "transform": [
+            5000.0,
+            0.0,
+            -2362425.0,
+            0.0,
+            -5000.0,
+            3267405.0
+          ],
+          "crs": "EPSG:5070",
+          "proj4": "+proj=aea +lat_0=23 +lon_0=-96 +lat_1=29.5 +lat_2=45.5 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs",
+          "nodata": 65535,
+          "scale": 0.001
+        },
+        "coordinates": [
+          [
+            -128.3872854191448,
+            52.481746660469845
+          ],
+          [
+            -64.05506715692577,
+            52.481746660469845
+          ],
+          [
+            -64.05506715692577,
+            22.43855411376568
+          ],
+          [
+            -128.3872854191448,
+            22.43855411376568
+          ]
+        ],
+        "detail_minzoom": 6,
+        "width": 2048,
+        "height": 1236,
+        "valid_cells": 319370,
+        "projection_samples": 12000,
+        "projection_mismatches": 0,
+        "underlay_composited": true
+      }
     }
   ],
-  "asset_base": "./releases/20261026T120000Z-e8c4ba90f7a68779/"
+  "asset_base": "./releases/20261026T120000Z-519b32c00bd7226e/"
 }
