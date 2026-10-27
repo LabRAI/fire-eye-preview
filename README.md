@@ -1,12 +1,14 @@
-# Fire-eye forecast preview
+# Fire-eye independent platform preview
 
-An isolated, public map of published CONUS FireWx-FM forecasts.
+An independent, public map of published CONUS FireWx-FM forecasts and environmental observations.
 
 This preview contains the +12, +24, +36 and +48 hour windows. Forecast values describe modeled active-fire occupancy, not ignition probability. All displayed times are UTC.
 
 The production website is unchanged. This preview does not contact the laboratory server.
 
-Data: RAI Lab / NOAA HRRR. Map libraries: MapLibre GL JS and PMTiles; their licenses are included in assets. Basemap: Natural Earth.
+Data: RAI Lab / NOAA HRRR. Map libraries: MapLibre GL JS and PMTiles; their licenses are included in assets. Basemaps: OpenFreeMap / OpenMapTiles / OpenStreetMap and Natural Earth.
+
+Restored features include published fire reports and perimeters, satellite detections, drought, soil moisture, weather advisories, regional charts, coordinate/incident search, source dates, downloads and a rolling archive of ten complete forecast issues. Flamme, visitor writes, simulation, what-if computation and the 50 m lab are not yet migrated.
 
 The webpage is hosted on GitHub Pages and normally reads verified forecast releases from Hugging Face. It checks the publication index every five minutes while visible. If remote data cannot load, a bundled snapshot remains available; its original issue time is always displayed. The snapshot may be older than the latest release.
 

@@ -2,16 +2,43 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#183c38"><meta name="robots" content="noindex,nofollow">
-<meta name="referrer" content="no-referrer"><title>Fire-eye · Forecast preview</title>
+<meta name="theme-color" content="#173d35"><meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer"><title>Fire-eye · Independent preview</title>
 <link rel="stylesheet" href="assets/maplibre.css"><link rel="stylesheet" href="style.css">
-<script src="assets/maplibre.js" defer></script><script src="assets/pmtiles.js" defer></script><script src="assets/proj4.js" defer></script><script src="app.js" defer></script>
+<script src="assets/maplibre.js" defer></script><script src="assets/pmtiles.js" defer></script><script src="assets/proj4.js" defer></script><script src="assets/fflate.js" defer></script><script src="app.js" defer></script><script src="platform.js" defer></script>
 </head>
 <body>
-<main id="map" aria-label="CONUS fire forecast map"></main>
-<header class="panel masthead"><div class="brand"><span class="brandmark" aria-hidden="true">F</span><div><h1>Fire-eye <span class="preview">Preview</span></h1><p>RAI Lab · FireWx-FM</p></div></div><button id="refresh" title="Check for a newer forecast" aria-label="Check for a newer forecast">↻</button></header>
-<aside class="panel info"><div class="eyebrow">CONUS FIRE FORECAST</div><h2 id="heading">Loading forecast</h2><p id="issue">Connecting to published data…</p><div class="gradient" aria-label="Fire risk: lower to higher"></div><div class="legend"><span>Lower</span><span>Higher fire risk</span></div><p class="definition">Modeled active-fire occupancy.<br>Not ignition probability.</p></aside>
-<section class="panel inspection" id="inspection" hidden><button id="close-inspection" class="close" aria-label="Close selected location">×</button><div class="eyebrow">SELECTED LOCATION</div><h2 id="coordinates"></h2><p id="cell-value"></p><p class="definition">Published grid-cell value for the selected 12-hour window.</p></section>
-<footer class="panel timeline"><div class="timeline-top"><span class="eyebrow">FORECAST WINDOW</span><span id="status" role="status" aria-live="polite">Loading…</span></div><nav id="horizons" aria-label="Forecast lead time"></nav><p id="valid">Published forecast · all times UTC</p></footer>
-<noscript><div class="panel no-script">Enable JavaScript to view the forecast map.</div></noscript>
+<main id="map" aria-label="CONUS wildfire map"></main>
+<header class="masthead">
+ <div class="brand"><button id="menu-toggle" class="icon-button" aria-label="Toggle map controls" aria-controls="sidebar" aria-expanded="true">☰</button><img src="assets/nsf-logo.png" alt="National Science Foundation" class="nsf-logo"><span class="rai-brand">RAI<span>LAB</span></span><span class="brand-divider"></span><h1>Fire-eye</h1><span class="preview">Preview</span></div>
+ <nav class="header-actions" aria-label="Site navigation"><button id="updates-open">Data updates<span class="status-dot"></span></button><a href="https://doi.org/10.5281/zenodo.22921178" target="_blank" rel="noopener noreferrer">Zenodo ↗</a><button id="refresh" class="icon-button" title="Refresh published data" aria-label="Refresh published data">↻</button></nav>
+</header>
+<aside class="sidebar panel" id="sidebar" aria-label="Map controls">
+ <div class="sidebar-heading"><div><div class="eyebrow">WILDFIRE INTELLIGENCE</div><h2>Explore the map</h2></div><button id="sidebar-close" class="icon-button" aria-label="Hide map controls">‹</button></div>
+ <form id="search-form" class="search"><label class="sr-only" for="search-input">Find coordinates or an incident</label><input id="search-input" placeholder="Coordinates or incident name" autocomplete="off"><button aria-label="Search">⌕</button></form><div id="search-results" class="search-results" hidden></div>
+ <div class="mode-switch" role="group" aria-label="Map mode"><button id="mode-forecast" aria-pressed="true">Forecast</button><button id="mode-observations" aria-pressed="false">Observations</button></div>
+ <section class="control-section"><div class="section-title"><h3>Fire risk</h3><span id="forecast-badge" class="pill">FORECAST</span></div><h2 id="heading">Loading forecast</h2><p id="issue" class="muted">Connecting to published data…</p><div class="gradient" aria-label="Modeled fire activity: lower to higher"></div><div class="legend"><span>Lower</span><span>Higher</span></div><p class="definition">Modeled active-fire occupancy in a 12-hour window. Not ignition probability.</p><label class="range-label" for="risk-opacity">Heatmap opacity <span id="opacity-value">100%</span></label><input id="risk-opacity" type="range" min="0" max="100" value="100"></section>
+ <section class="control-section"><h3>Fire observations</h3><p id="observation-note" class="context-note">Select Observations to see the latest reported fires.</p><div id="fire-layer-controls">
+ <label class="layer-row"><span><i class="swatch fire">♨</i>Reported fires</span><input type="checkbox" data-layer="incidents" checked></label>
+ <label class="layer-row"><span><i class="swatch perimeter"></i>Fire perimeters</span><input type="checkbox" data-layer="perimeters" checked></label>
+ <label class="layer-row"><span><i class="swatch detection"></i>Satellite detections</span><input type="checkbox" data-layer="detections"></label>
+ <label class="layer-row small"><span>Include prescribed fires</span><input id="include-prescribed" type="checkbox"></label>
+ </div><p id="incident-count" class="muted"></p><div class="mini-legend"><span><i class="dot red"></i>Wildfire</span><span><i class="dot amber"></i>Prescribed</span><span><i class="dot purple"></i>Complex</span></div></section>
+ <section class="control-section"><h3>Environment</h3><label class="layer-row"><span>Drought conditions</span><input type="checkbox" data-layer="drought"></label><label class="layer-row"><span>Soil moisture</span><input type="checkbox" data-layer="soil"></label><label class="layer-row"><span>Soil moisture anomaly</span><input type="checkbox" data-layer="anomaly"></label><label class="layer-row"><span>Weather advisories</span><input type="checkbox" data-layer="weather"></label><p id="environment-note" class="muted">Dated background observations; separate from forecast inputs.</p><div id="environment-legend"></div></section>
+ <section class="control-section"><h3>Map &amp; data</h3><label class="select-label">Basemap<select id="basemap"><option value="simple">Light</option><option value="street">Streets &amp; terrain</option></select></label><button id="fit-conus" class="wide-button">Fit continental United States</button><button id="data-open" class="wide-button">Data sources &amp; downloads ↗</button></section>
+ <p class="sidebar-footer">RAI Lab · Published data<br><span id="platform-state">Loading map features…</span></p>
+</aside>
+<button id="sidebar-peek" class="sidebar-peek" aria-label="Show map controls" hidden>›</button>
+<section class="panel inspection" id="inspection" aria-label="Selected region" hidden>
+ <div class="inspection-top"><div><div class="eyebrow">REGION INSIGHTS</div><h2 id="selection-name">Selected location</h2><p id="coordinates"></p></div><button id="close-inspection" class="close icon-button" aria-label="Close selected location">×</button></div>
+ <div id="incident-info"></div><div class="radius-options" role="group" aria-label="Region radius"><button data-radius="5">5 km</button><button data-radius="10" aria-pressed="true">10 km</button><button data-radius="25">25 km</button></div>
+ <p id="cell-value"></p><p id="selection-time" class="muted"></p><p id="regional-counts" class="muted"></p>
+ <div class="selection-actions"><button id="details-toggle" aria-expanded="false">Details <span>⌄</span></button><button id="assistant-info">Ask Flamme</button><button id="simulation-info">Simulation</button></div>
+ <p id="selection-notice" class="context-note" hidden></p>
+ <div id="details-body" hidden><div class="detail-section" id="chart-forecast"></div><div class="detail-section" id="chart-soil"></div><div class="detail-section" id="chart-anomaly"></div><div class="detail-section" id="chart-drought"></div><button id="export-region" class="wide-button" disabled>Download regional data (CSV)</button></div>
+</section>
+<footer class="panel timeline"><div class="timeline-top"><span id="timeline-label" class="eyebrow">FORECAST · NEXT 48 HOURS</span><span id="status" role="status" aria-live="polite">Loading…</span></div><div id="timeline-forecast"><nav id="horizons" aria-label="Forecast lead time"></nav><p id="valid">Published forecast · all times UTC</p></div><div id="timeline-observations" hidden><strong>Latest published observations</strong><p id="observations-valid">Loading observation snapshot…</p></div><div class="timeline-bottom"><button id="archive-open">Forecast archive</button><span>All times UTC</span></div></footer>
+<dialog id="data-dialog"><div class="dialog-heading"><h2 id="dialog-title">Data updates</h2><button id="dialog-close" class="close icon-button" aria-label="Close data panel">×</button></div><div id="dialog-content"></div></dialog>
+<div id="toast" class="toast" role="status" hidden></div>
+<noscript><div class="panel no-script">Enable JavaScript to view the map.</div></noscript>
 </body></html>

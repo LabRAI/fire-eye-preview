@@ -1,4 +1,6 @@
 {
   "manifest_url": "https://huggingface.co/datasets/yx21e/fire-eye-forecasts-preview/resolve/main/latest.json",
+  "platform_url": "https://huggingface.co/datasets/yx21e/fire-eye-forecasts-preview/resolve/main/platform.json",
+  "archive_url": "https://huggingface.co/datasets/yx21e/fire-eye-forecasts-preview/resolve/main/archive.json",
   "channel": "preview"
 }

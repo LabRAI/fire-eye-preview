@@ -2,7 +2,7 @@
 (async function(){
  const $=id=>document.getElementById(id),narrow=matchMedia('(max-width:640px)').matches;
  const state={manifest:null,active:null,sequence:0,lru:[],errors:[],events:[],selected:null,ready:false,gridCache:new Map()};window.fireEyePreview=state;
- const status=text=>{$('status').textContent=text;};
+ const status=text=>{$('status').textContent=state.mode==='observations'&&text==='Published forecast'?'Published observations':text;};
  const pretty=value=>new Intl.DateTimeFormat('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'UTC'}).format(new Date(value))+' UTC';
  const field=['to-number',['get','prob_fire'],0];
  const opacity=['interpolate',['linear'],field,0,.16,.03,.22,.05,.32,.08,.45,.15,.58,.25,.68,.4,.76,1,.82];
@@ -30,11 +30,11 @@
  state.map=map;map.addControl(new maplibregl.AttributionControl({compact:true}));map.addControl(new maplibregl.NavigationControl({showCompass:false}),'bottom-right');
  map.on('error',e=>{state.errors.push({time:Date.now(),message:String(e.error?.message||'Map source failed').split('?')[0].slice(0,160)});});
  const urlFor=(m,path)=>new URL(path,new URL(m.asset_base,location.href)).href;
- const representation=run=>run.overview&&map.getZoom()<run.overview.detail_minzoom?'overview':'vector';
+ const representation=run=>run.overview&&(!run.path||map.getZoom()<run.overview.detail_minzoom)?'overview':'vector';
  const sourceId=(m,run,kind)=>'forecast-'+m.release_id+'-'+run.lead_hours+(kind==='overview'?'-overview':'');
  function drop(id){if(map.getLayer(id))map.removeLayer(id);if(map.getSource(id))map.removeSource(id);state.lru=state.lru.filter(x=>x!==id);}
  function prune(){const limit=narrow?2:4;while(state.lru.length>limit){const id=state.lru.shift();if(id===state.active?.id){state.lru.push(id);continue;}drop(id);}}
- function ensureLoaded(id){return new Promise((resolve,reject)=>{let timer,settled=false;const finish=e=>{if(settled)return;settled=true;clearTimeout(timer);map.off('render',check);map.off('sourcedata',check);map.off('error',failed);e?reject(e):resolve();};const check=()=>{if(map.getSource(id)&&map.isSourceLoaded(id))finish();};const failed=e=>{if(e.sourceId===id||!e.sourceId)finish(Error('Forecast assets unavailable'));};timer=setTimeout(()=>finish(Error('Forecast assets timed out')),18000);map.on('render',check);map.on('sourcedata',check);map.on('error',failed);map.triggerRepaint();});}
+ function ensureLoaded(id){return new Promise((resolve,reject)=>{let timer,settled=false;const finish=e=>{if(settled)return;settled=true;clearTimeout(timer);map.off('render',check);map.off('sourcedata',check);map.off('error',failed);e?reject(e):resolve();};const check=()=>{if(map.getSource(id)&&map.isSourceLoaded(id))finish();};const failed=e=>{if(e.sourceId===id)finish(Error('Forecast assets unavailable'));};timer=setTimeout(()=>finish(Error('Forecast assets timed out')),18000);map.on('render',check);map.on('sourcedata',check);map.on('error',failed);map.triggerRepaint();});}
  async function ensureGrid(m,run){
   if(!run.overview)return null;const key=urlFor(m,run.overview.values.path);
   if(state.gridCache.has(key))return state.gridCache.get(key);
@@ -52,7 +52,7 @@
   const f=map.queryRenderedFeatures(map.project(lnglat),{layers:[state.active.id]}).find(f=>!Number(f.properties.background));return f?Number(f.properties.prob_fire):null;
  }
  async function updateSelection(){
-  if(!state.selected||!state.active)return;const active=state.active,selected=state.selected;
+  if(!state.selected||!state.active||state.mode==='observations')return;const active=state.active,selected=state.selected;
   try{const value=await valueAt(state.manifest,active.run,selected);if(state.active!==active||state.selected!==selected)return;state.lastValue=value;$('cell-value').textContent=value===null?'Outside forecast coverage':'Fire risk at selected location · '+value.toFixed(3);}catch{if(state.active===active)$('cell-value').textContent='Location values temporarily unavailable';}
  }
  async function show(m,lead){
@@ -68,29 +68,29 @@
    if(seq!==state.sequence){if(id!==state.active?.id&&id!==state.pendingId)drop(id);return false;}
    if(state.active&&state.active.id!==id&&map.getLayer(state.active.id))map.setLayoutProperty(state.active.id,'visibility','none');
    map.setPaintProperty(id,kind==='overview'?'raster-opacity':'fill-opacity',kind==='overview'?1:opacity);
-   state.active={id,run,kind};state.pendingId=null;state.manifest=m;state.lru=state.lru.filter(x=>x!==id);state.lru.push(id);prune();
+   state.active={id,run,kind};state.pendingId=null;state.manifest=m;if(!m.archive)state.latestManifest=m;state.lru=state.lru.filter(x=>x!==id);state.lru.push(id);prune();
    $('heading').textContent='Forecast +'+lead+'h';$('issue').textContent='Issued '+pretty(m.issue_time_utc);$('valid').textContent='12-hour window ending '+pretty(run.target_time_utc);
    document.querySelectorAll('#horizons button').forEach(b=>{b.setAttribute('aria-pressed',String(Number(b.dataset.lead)===lead));b.dataset.pending='false';});
    state.delivery=new URL(m.asset_base,location.href).hostname==='huggingface.co'?'huggingface':'bundled';status('Published forecast');state.ready=true;
    await new Promise(resolve=>{map.once('render',resolve);map.triggerRepaint();});
    if(seq!==state.sequence)return false;
    state.events.push({lead,release:m.release_id,kind,delivery:state.delivery,source_ready_ms:sourceMs,ready_ms:performance.now()-started});
-   try{localStorage.setItem('fire-eye-preview-last-good-v1',JSON.stringify(m));}catch{}
-   ensureGrid(m,run).catch(()=>{});updateSelection();
+   try{if(!m.archive)localStorage.setItem('fire-eye-preview-last-good-v1',JSON.stringify(m));}catch{}
+   ensureGrid(m,run).catch(()=>{});updateSelection();if(state.onForecastChange)state.onForecastChange();
    if(seq===state.sequence&&kind!==representation(run))show(m,lead);return true;
   }catch(e){if(seq===state.sequence){status(state.active?'Previous forecast retained':'Forecast temporarily unavailable');document.querySelectorAll('#horizons button').forEach(b=>b.dataset.pending='false');}
    if(id!==state.active?.id&&(seq===state.sequence||id!==state.pendingId))drop(id);if(seq===state.sequence)state.pendingId=null;return false;}
  }
  for(const lead of [12,24,36,48]){const b=document.createElement('button');b.textContent='+'+lead+'h';b.dataset.lead=lead;b.setAttribute('aria-pressed','false');b.onclick=()=>{if(state.manifest)show(state.manifest,lead);};$('horizons').append(b);}
- let clickSequence=0;map.on('click',async e=>{if(!state.active)return;const seq=++clickSequence,active=state.active,lnglat=[e.lngLat.lng,e.lngLat.lat];try{const value=await valueAt(state.manifest,active.run,lnglat);if(seq!==clickSequence||state.active!==active)return;if(value===null){$('inspection').hidden=true;state.selected=null;return;}state.selected=lnglat;state.lastValue=value;$('coordinates').textContent=lnglat[1].toFixed(3)+'°, '+lnglat[0].toFixed(3)+'°';$('cell-value').textContent='Fire risk at selected location · '+value.toFixed(3);$('inspection').hidden=false;}catch{status('Location values temporarily unavailable');}});
- $('close-inspection').onclick=()=>{clickSequence++;$('inspection').hidden=true;state.selected=null;};
+ let clickSequence=0;map.on('click',async e=>{if(!state.active)return;if(state.onMapClick){state.onMapClick(e);return;}const seq=++clickSequence,active=state.active,lnglat=[e.lngLat.lng,e.lngLat.lat];try{const value=await valueAt(state.manifest,active.run,lnglat);if(seq!==clickSequence||state.active!==active)return;if(value===null){$('inspection').hidden=true;state.selected=null;return;}state.selected=lnglat;state.lastValue=value;$('coordinates').textContent=lnglat[1].toFixed(3)+'°, '+lnglat[0].toFixed(3)+'°';$('cell-value').textContent='Fire risk at selected location · '+value.toFixed(3);$('inspection').hidden=false;}catch{status('Location values temporarily unavailable');}});
+ $('close-inspection').onclick=()=>{clickSequence++;$('inspection').hidden=true;state.selected=null;if(state.onCloseSelection)state.onCloseSelection();};
  map.on('zoomend',()=>{if(state.active&&!state.pendingId&&representation(state.active.run)!==state.active.kind)show(state.manifest,state.active.run.lead_hours);});
- await new Promise(r=>map.loaded()?r():map.once('load',r));map.fitBounds([[-125,24],[-66,50]],{padding:narrow?{top:210,bottom:180,left:10,right:10}:{top:95,bottom:180,left:315,right:40},duration:0});
+ await new Promise(r=>map.loaded()?r():map.once('load',r));map.fitBounds([[-125,24],[-66,50]],{padding:narrow?{top:30,bottom:175,left:20,right:20}:{top:40,bottom:180,left:335,right:40},duration:0});
  let refreshTask=null,initial=true;
  async function performRefresh(){status('Checking published forecast…');const attempted=new Set();
   async function attempt(m,saved=false){if(!m)return false;const key=m.release_id+'|'+new URL(m.asset_base,location.href).href;if(attempted.has(key))return false;attempted.add(key);
    if(state.active&&Date.parse(m.issue_time_utc)<Date.parse(state.manifest.issue_time_utc)){status('Previous forecast retained');return true;}
-   if(m.release_id===state.manifest?.release_id&&state.active){status('Published forecast');return true;}
+   if(state.historyPinned&&state.active){state.latestManifest=m;status('Viewing forecast archive');return true;}if(m.release_id===state.manifest?.release_id&&state.active){status('Published forecast');return true;}
    const ok=await show(m,state.active?.run.lead_hours||12);if(ok&&saved)status('Showing saved forecast');return ok;}
   if(!initial&&!state.manifestURL){const configuration=await loadConfig();state.manifestURL=configuration?.manifest_url||null;}
   const published=initial?await initialTask:(state.manifestURL?await json(state.manifestURL).catch(()=>null):null);initial=false;if(await attempt(published))return;
@@ -98,5 +98,5 @@
   if(await attempt(cached,true))return;if(await attempt(await json('bootstrap.json').catch(()=>null),true))return;status('Forecast temporarily unavailable');
  }
  function refresh(){if(!refreshTask)refreshTask=performRefresh().finally(()=>{refreshTask=null;});return refreshTask;}
- state.select=lead=>show(state.manifest,lead);state.query=lnglat=>valueAt(state.manifest,state.active.run,lnglat);state.refresh=refresh;$('refresh').onclick=refresh;await refresh();setInterval(()=>{if(!document.hidden)refresh();},300000);
+ state.gridFor=ensureGrid;state.valueAt=valueAt;state.showManifest=show;state.select=lead=>show(state.manifest,lead);state.query=lnglat=>valueAt(state.manifest,state.active.run,lnglat);state.refresh=refresh;$('refresh').onclick=refresh;await refresh();setInterval(()=>{if(!document.hidden)refresh();},300000);
 })().catch(()=>{document.getElementById('status').textContent='Map temporarily unavailable';});
