@@ -1,0 +1,5 @@
+Scene rules and original meshes: llll0630/wildfire-simulation.
+Pinned revision: eed7ae1e7b9109d1b9d13ea0f172e14900551fc3.
+No upstream license file accompanied this revision; no open-source license is inferred.
+Three.js renderer adapted from the Fire-eye production viewer. Three.js license included.
+The scene is illustrative. It does not reconstruct local terrain, buildings or physical fire spread.

@@ -4,8 +4,8 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#173d35"><meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer"><title>Fire-eye · Independent preview</title>
-<link rel="stylesheet" href="assets/maplibre.css"><link rel="stylesheet" href="style.css?v=078ea6b224e9b3ec">
-<script src="assets/maplibre.js" defer></script><script src="assets/pmtiles.js" defer></script><script src="assets/proj4.js" defer></script><script src="assets/fflate.js" defer></script><script src="app.js?v=4db5a281bb5a2739" defer></script><script src="platform.js?v=479b0fe18bb86a94" defer></script>
+<link rel="stylesheet" href="assets/maplibre.css"><link rel="stylesheet" href="style.css?v=1984a351450dd832">
+<script src="assets/maplibre.js" defer></script><script src="assets/pmtiles.js" defer></script><script src="assets/proj4.js" defer></script><script src="assets/fflate.js" defer></script><script src="app.js?v=4db5a281bb5a2739" defer></script><script src="platform.js?v=2b63ecf8b3340677" defer></script><script src="assets/scene.js?v=7f4300e7d0615aba" defer></script>
 </head>
 <body>
 <main id="map" aria-label="CONUS wildfire map"></main>
@@ -35,10 +35,16 @@
  <p id="cell-value"></p><p id="selection-time" class="muted"></p><p id="regional-counts" class="muted"></p>
  <div class="selection-actions"><button id="details-toggle" aria-expanded="false">Details <span>⌄</span></button><button id="assistant-info">Ask Flamme</button><button id="simulation-info">Simulation</button></div>
  <p id="selection-notice" class="context-note" hidden></p>
- <div id="details-body" hidden><div class="detail-section" id="chart-forecast"></div><div class="detail-section" id="chart-soil"></div><div class="detail-section" id="chart-anomaly"></div><div class="detail-section" id="chart-drought"></div><button id="export-region" class="wide-button" disabled>Download regional data (CSV)</button></div>
+ <div id="details-body" hidden><div class="detail-section" id="chart-forecast"></div><div class="detail-section" id="chart-soil"></div><div class="detail-section" id="chart-anomaly"></div><div class="detail-section" id="chart-drought"></div><div class="detail-section" id="detail-landscape"></div><button id="export-region" class="wide-button" disabled>Download regional data (CSV)</button></div>
 </section>
 <footer class="panel timeline"><div class="timeline-top"><span id="timeline-label" class="eyebrow">FORECAST · NEXT 48 HOURS</span><span id="status" role="status" aria-live="polite">Loading…</span></div><div id="timeline-forecast"><nav id="horizons" aria-label="Forecast lead time"></nav><p id="valid">Published forecast · all times UTC</p></div><div id="timeline-observations" hidden><strong>Latest published observations</strong><p id="observations-valid">Loading observation snapshot…</p></div><div class="timeline-bottom"><button id="archive-open">Forecast archive</button><span>All times UTC</span></div></footer>
 <dialog id="data-dialog"><div class="dialog-heading"><h2 id="dialog-title">Data updates</h2><button id="dialog-close" class="close icon-button" aria-label="Close data panel">×</button></div><div id="dialog-content"></div></dialog>
+<dialog id="scene-dialog" class="scene-dialog" aria-labelledby="scene-title">
+ <div class="dialog-heading"><div><div class="eyebrow">EXPLORE THE LANDSCAPE</div><h2 id="scene-title">Regional simulation</h2><p id="scene-location" class="muted"></p></div><button id="scene-close" class="close icon-button" aria-label="Close simulation">×</button></div>
+ <p id="scene-time" class="scene-time"></p>
+ <div class="scene-layout"><section class="scene-visual"><div id="scene-stage" class="scene-stage"></div><p id="scene-status" role="status" aria-live="polite"></p><button id="scene-retry" class="wide-button" hidden>Retry scene</button><div id="scene-controls" class="scene-controls" hidden><div role="group" aria-label="Scene view"><button id="scene-view-orbit" aria-pressed="true">Orbit</button><button id="scene-view-walk" aria-pressed="false">Walk</button></div><button id="scene-pause">Pause animation</button><button id="scene-variant">New realization</button></div><div id="scene-walking" class="scene-walking" hidden><p>Drag to look · WASD / arrow keys or touch controls to move</p><button data-scene-move="left" aria-label="Walk left">←</button><button data-scene-move="forward" aria-label="Walk forward">↑</button><button data-scene-move="back" aria-label="Walk backward">↓</button><button data-scene-move="right" aria-label="Walk right">→</button></div><p id="scene-outcome" class="scene-outcome"></p><p id="scene-method" class="context-note">Representative scene, not a fire-spread forecast.</p></section>
+ <aside class="scene-evidence"><section id="scene-landscape"></section><details><summary>Inputs &amp; source dates</summary><div id="scene-inputs"></div></details><button id="scene-download" class="wide-button" disabled>Download landscape context</button><p class="scene-credit">Scene rules &amp; assets: <a href="https://github.com/llll0630/wildfire-simulation" target="_blank" rel="noopener noreferrer">wildfire-simulation ↗</a></p></aside></div>
+</dialog>
 <div id="toast" class="toast" role="status" hidden></div>
 <noscript><div class="panel no-script">Enable JavaScript to view the map.</div></noscript>
 </body></html>
