@@ -2,7 +2,7 @@
 (async function(){
  const $=id=>document.getElementById(id),narrow=matchMedia('(max-width:640px)').matches;
  const state={manifest:null,active:null,sequence:0,lru:[],errors:[],events:[],selected:null,ready:false,gridCache:new Map(),detailFailures:new Set()};window.fireEyePreview=state;
- const status=text=>{$('status').textContent=state.mode==='observations'&&text==='Published forecast'?'Published observations':text;};
+ const status=text=>{$('status').textContent=text;};
  const pretty=value=>new Intl.DateTimeFormat('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'UTC'}).format(new Date(value))+' UTC';
  const field=['to-number',['get','prob_fire'],0];
  const opacity=['interpolate',['linear'],field,0,.16,.03,.22,.05,.32,.08,.45,.15,.58,.25,.68,.4,.76,1,.82];
@@ -45,7 +45,7 @@
  state.riskOpacity=1;state.riskVisible=true;
  function syncHeatmapDisplay(){
   const active=state.active;if(!active||!map.getLayer(active.id))return;
-  const a=state.riskOpacity,visible=state.riskVisible&&state.mode!=='observations',fallback=state.overviewFallbackId;
+  const a=state.riskOpacity,visible=state.riskVisible,fallback=state.overviewFallbackId;
   const detail=active.kind==='vector'&&(!fallback||(!state.detailFailures.has(active.id)&&!state.viewInMotion&&!map.isMoving()&&map.isSourceLoaded(active.id)));
   const visibility=(id,show)=>{if(!id||!map.getLayer(id))return;const next=show?'visible':'none';if((map.getLayoutProperty(id,'visibility')||'visible')!==next)map.setLayoutProperty(id,'visibility',next);};
   const paintKey=active.id+'|'+a+'|'+detail;
@@ -86,7 +86,7 @@
   const f=map.queryRenderedFeatures(map.project(lnglat),{layers:[state.active.id]}).find(f=>!Number(f.properties.background));return f?Number(f.properties.prob_fire):null;
  }
  async function updateSelection(){
-  if(!state.selected||!state.active||state.mode==='observations')return;const active=state.active,selected=state.selected;
+  if(!state.selected||!state.active)return;const active=state.active,selected=state.selected;
   try{const value=await valueAt(state.manifest,active.run,selected);if(state.active!==active||state.selected!==selected)return;state.lastValue=value;$('cell-value').textContent=value===null?'Outside forecast coverage':'Fire risk at selected location · '+value.toFixed(3);}catch{if(state.active===active)$('cell-value').textContent='Location values temporarily unavailable';}
  }
  async function show(m,lead){

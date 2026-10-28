@@ -1,5 +1,5 @@
-import {tools,systemPrompt,cleanText,validateCall,validateMessages,boundedMessages,providerEndpoint} from './assistant-contract.mjs?v=4a551bca4d7c4d75';
-import {pageState,contextKey,executeTool} from './assistant-tools.mjs?v=fd5532720268f37b';
+import {tools,systemPrompt,cleanText,validateCall,validateMessages,boundedMessages,providerEndpoint} from './assistant-contract.mjs?v=518e5a738a85d91d';
+import {pageState,contextKey,executeTool} from './assistant-tools.mjs?v=c07d40e2b756aca2';
 const $=id=>document.getElementById(id);
 const node=(tag,value='',cls='')=>{const e=document.createElement(tag);e.textContent=cleanText(value);if(cls)e.className=cls;return e;};
 const panel=$('assistant-panel'),globalPanel=$('assistant-global-panel'),settings=$('assistant-settings');

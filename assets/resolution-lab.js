@@ -47,10 +47,10 @@
  }
  function visibility(id,value){if(map.getLayer(id)&&map.getLayoutProperty(id,'visibility')!==value)map.setLayoutProperty(id,'visibility',value);}
  function display(){
-  const enabled=P.mode==='forecast'&&R.active&&R.active.source_id===S.active?.run.source_id&&R.status==='ready';
+  const enabled=R.active&&R.active.source_id===S.active?.run.source_id&&R.status==='ready';
   if(layerId&&map.getLayer(layerId)){visibility(layerId,enabled?'visible':R.status==='loading'?'visible':'none');map.setPaintProperty(layerId,'raster-opacity',enabled?Number($('risk-opacity').value)/100:R.status==='loading'?.001:0);}
-  if(enabled)visibility(S.active.id,'none');else if(P.mode==='forecast'&&S.active)visibility(S.active.id,'visible');
-  $('resolution-detail-state').textContent=enabled?(map.getZoom()>=10?'50 m spatial detail':'CONUS overview · zoom in for 50 m detail'):P.mode==='observations'?'Latest observations · separate from the experiment':R.status==='loading'?'Loading experimental map…':'Native 5 km map · experimental detail unavailable';
+  if(enabled)visibility(S.active.id,'none');else if(S.active)visibility(S.active.id,'visible');
+  $('resolution-detail-state').textContent=enabled?(map.getZoom()>=10?'50 m spatial detail':'CONUS overview · zoom in for 50 m detail'):R.status==='loading'?'Loading experimental map…':'Native 5 km map · experimental detail unavailable';
  }
  function order(){if(!layerId||!map.getLayer(layerId))return;const layers=map.getStyle().layers,anchor=layers.find(l=>/^(platform-|selection-|vector-context|hurricane-track)/.test(l.id)||l.type==='symbol');if(anchor&&layers.findIndex(l=>l.id===layerId)!==layers.indexOf(anchor)-1)map.moveLayer(layerId,anchor.id);}
  function drop(){if(layerId){if(map.getLayer(layerId))map.removeLayer(layerId);if(map.getSource(layerId))map.removeSource(layerId);layerId=null;}}
@@ -93,8 +93,8 @@
  $('resolution-target').onchange=e=>select(e.target.value);$('resolution-range').oninput=e=>{const run=manifest.runs[Number(e.target.value)];$('resolution-range').setAttribute('aria-valuetext',pretty(run.target_time_utc));};$('resolution-range').onchange=e=>select(manifest.runs[Number(e.target.value)].source_id);
  for(const [id,step]of [['resolution-previous',-1],['resolution-next',1]])$(id).onclick=()=>{const run=manifest.runs[manifest.runs.indexOf(R.selected)+step];if(run)select(run.source_id);};$('resolution-retry').onclick=R.retry;$('resolution-zoom').onclick=()=>map.easeTo({zoom:Math.max(12,map.getZoom()),duration:400});
  $('resolution-method').textContent='50 m terrain/fuel-conditioned redistribution of the native 5 km index. Fine-input coverage '+(100*manifest.fine_input_coverage_fraction).toFixed(1)+'%. Refiner fitted '+pretty(manifest.fitted_at_utc)+'. Retrospective; not a native 50 m forecast or ignition probability. Regional values and charts use the unchanged 5 km model fields.';
- P.onDisplayChange=display;const prior=S.onForecastChange;S.onForecastChange=()=>{prior?.();display();if(!switchingMode&&R.selected&&P.mode==='forecast'&&R.selected.source_id===S.active?.run.source_id)labels(R.selected);};
- $('mode-forecast').textContent='50 m map';$('mode-forecast').onclick=()=>select(R.selected.source_id);const observations=$('mode-observations').onclick;$('mode-observations').onclick=async()=>{++R.sequence;R.status='idle';switchingMode=true;drop();await observations();switchingMode=false;display();};
+ P.onDisplayChange=display;const prior=S.onForecastChange;S.onForecastChange=()=>{prior?.();display();if(!switchingMode&&R.selected&&R.selected.source_id===S.active?.run.source_id)labels(R.selected);};
+ // Active fires are an independent overlay; toggling them never removes detail tiles.
  $('archive-open').textContent='Back to standard map';$('archive-open').onclick=()=>{location.href='./';};map.on('zoomend',display);window.addEventListener('fire-eye:basemap-changed',()=>{order();display();});
  map.on('error',e=>{if(e.sourceId===layerId&&R.status==='ready'){R.status='unavailable';R.failures++;drop();display();$('resolution-retry').hidden=false;$('status').textContent='Native 5 km map retained';}});
  window.addEventListener('pagehide',()=>{for(const job of jobs.values()){clearTimeout(job.timer);job.cancelled=true;}for(const slot of slots)slot.worker.terminate();slots.length=0;});window.addEventListener('pageshow',e=>{if(e.persisted)location.reload();});
