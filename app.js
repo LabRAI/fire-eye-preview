@@ -114,7 +114,7 @@
    if(seq!==state.sequence)return false;
    state.events.push({lead,release:m.release_id,kind,delivery:state.delivery,source_ready_ms:sourceMs,ready_ms:performance.now()-started});
    try{if(!m.archive)localStorage.setItem('fire-eye-preview-last-good-v1',JSON.stringify(m));}catch{}
-   ensureGrid(m,run).catch(()=>{});updateSelection();if(!sameSelection&&state.onForecastChange)state.onForecastChange();
+   ensureGrid(m,run).catch(()=>{});updateSelection();if(!sameSelection){if(state.onForecastChange)state.onForecastChange();window.dispatchEvent(new Event('fire-eye:forecast-changed'));}
    if(seq===state.sequence&&kind!==representation(run))show(m,lead);return true;
   }catch(e){if(seq===state.sequence){status(state.active?'Previous forecast retained':'Forecast temporarily unavailable');document.querySelectorAll('#horizons button').forEach(b=>b.dataset.pending='false');}
    if(seq===state.sequence)state.pendingId=null;

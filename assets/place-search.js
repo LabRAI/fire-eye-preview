@@ -41,7 +41,7 @@
   render();
   await Promise.allSettled([places(query).then(r=>{state.places=r.results;state.metadata=r.metadata;render();},()=>{state.placeError=true;state.places=[];render();}),P.loadAsset('incidents').then(data=>{const q=query.toLocaleLowerCase();state.reports=data.features.filter(f=>typeof f.properties?.name==='string'&&f.properties.name.toLocaleLowerCase().includes(q)).slice(0,12);render();},()=>{state.reportError=true;state.reports=[];render();})]);
  }
- V.search=search;form.onsubmit=e=>{e.preventDefault();void search();};
+ V.search=search;V.lookup=places;form.onsubmit=e=>{e.preventDefault();void search();};
  input.addEventListener('input',()=>{clearTimeout(timer);sequence++;const query=input.value.trim();if(query.length<2){box.hidden=true;return;}timer=setTimeout(()=>void search(query),250);});
  input.addEventListener('keydown',e=>{if(e.key==='Escape'){hide();}else if(e.key==='ArrowDown'&&!box.hidden){e.preventDefault();box.querySelector('button')?.focus();}});
  box.addEventListener('keydown',e=>{if(e.key==='Escape'){hide();input.focus();return;}if(['ArrowDown','ArrowUp'].includes(e.key)){e.preventDefault();const list=Array.from(box.querySelectorAll('button')),i=list.indexOf(document.activeElement);if(list.length)list[(i+(e.key==='ArrowDown'?1:-1)+list.length)%list.length].focus();}});

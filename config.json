@@ -7,6 +7,7 @@
   "background_url": "https://huggingface.co/datasets/yx21e/fire-eye-forecasts-preview/resolve/main/background.json",
   "vectors_url": "https://huggingface.co/datasets/yx21e/fire-eye-forecasts-preview/resolve/main/vectors.json",
   "assistant_url": null,
+  "assistant_gateway_url": null,
   "visitor_url": null,
   "channel": "preview",
   "hurricanes_url": "https://huggingface.co/datasets/yx21e/fire-eye-forecasts-preview/resolve/main/hurricanes.json",
