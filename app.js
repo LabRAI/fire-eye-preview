@@ -126,7 +126,7 @@
  let clickSequence=0;map.on('click',async e=>{if(!state.active)return;if(state.onMapClick){state.onMapClick(e);return;}const seq=++clickSequence,active=state.active,lnglat=[e.lngLat.lng,e.lngLat.lat];try{const value=await valueAt(state.manifest,active.run,lnglat);if(seq!==clickSequence||state.active!==active)return;if(value===null){$('inspection').hidden=true;state.selected=null;return;}state.selected=lnglat;state.lastValue=value;$('coordinates').textContent=lnglat[1].toFixed(3)+'°, '+lnglat[0].toFixed(3)+'°';$('cell-value').textContent='Fire risk at selected location · '+value.toFixed(3);$('inspection').hidden=false;}catch{status('Location values temporarily unavailable');}});
  $('close-inspection').onclick=()=>{clickSequence++;$('inspection').hidden=true;state.selected=null;if(state.onCloseSelection)state.onCloseSelection();};
  map.on('zoomend',()=>{if(state.active&&!state.pendingId&&representation(state.active.run)!==state.active.kind)show(state.manifest,state.active.run.lead_hours);});
- await new Promise(r=>map.loaded()?r():map.once('load',r));map.fitBounds([[-125,24],[-66,50]],{padding:narrow?{top:30,bottom:175,left:20,right:20}:{top:40,bottom:180,left:335,right:40},duration:0});
+ await new Promise(r=>map.loaded()?r():map.once('load',r));map.fitBounds([[-125,24],[-66,50]],{padding:narrow?{top:30,bottom:35,left:20,right:20}:{top:40,bottom:40,left:335,right:40},duration:0});
  let refreshTask=null,initial=true;
  async function performRefresh(){status('Checking published forecast…');const attempted=new Set();
   async function attempt(m,saved=false){if(!m)return false;const key=m.release_id+'|'+new URL(m.asset_base,location.href).href;if(attempted.has(key))return false;attempted.add(key);

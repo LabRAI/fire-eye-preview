@@ -1,40 +1,40 @@
 {
   "schema_version": 1,
-  "published_at_utc": "2026-10-27T23:37:22.405288Z",
+  "published_at_utc": "2026-10-28T06:22:17.349202Z",
   "assets": {
     "incidents": {
       "path": "incidents.json",
-      "sha256": "51fc4979441e9cd7431c331c90ceaca3b49bf0a7b233dbde82da8db907f08d3a",
-      "bytes": 228155,
+      "sha256": "211e1c147b4f87d7d67cf8c62c0d55fb6306898377d692a7249629a3108a4e8e",
+      "bytes": 227428,
       "encoding": "identity",
-      "observed_at": "2026-10-27T23:30:01Z",
-      "record_count": 616,
-      "url": "./assets/platform/incidents.json?v=51fc4979441e9cd7"
+      "observed_at": "2026-10-28T06:15:01Z",
+      "record_count": 614,
+      "url": "./assets/platform/incidents.json?v=211e1c147b4f87d7"
     },
     "detections": {
       "path": "detections.json",
-      "sha256": "932cda603a06e5511c5ba824ce706145b954756f89fc437a1f9d328ea9a7389c",
-      "bytes": 943938,
+      "sha256": "ac8ea5213fcc2625dee07b0856b7531fa43ebff37b8a2fc1198fd29202f01db7",
+      "bytes": 692207,
       "encoding": "identity",
-      "observed_at": "2026-10-27T23:37:19.141000Z",
-      "record_count": 3156,
-      "url": "./assets/platform/detections.json?v=932cda603a06e551"
+      "observed_at": "2026-10-28T06:22:14.127000Z",
+      "record_count": 2317,
+      "url": "./assets/platform/detections.json?v=ac8ea5213fcc2625"
     },
     "perimeters": {
       "path": "perimeters.json",
-      "sha256": "3c60b5de0c742a24f8e411b77c1162933c5666cf972259644798bc4083ad11d5",
+      "sha256": "f4254e7f88e2810846dd08ab19966b927c60aa7dc395fbab912c9181f810783f",
       "bytes": 480563,
       "encoding": "identity",
-      "observed_at": "2026-10-27T23:30:01Z",
+      "observed_at": "2026-10-28T06:15:01Z",
       "record_count": 106,
-      "url": "./assets/platform/perimeters.json?v=3c60b5de0c742a24"
+      "url": "./assets/platform/perimeters.json?v=f4254e7f88e28108"
     },
     "status": {
       "path": "status.json",
-      "sha256": "831f36ec5766f86c8539cebe7d427f4bf54a99ca55b2a44851fd34535e9028f7",
-      "bytes": 1448,
+      "sha256": "3f0afec1c9df1b668dcb443b3c89b601f5bf10fc731cfa66ce4be9be83d043a3",
+      "bytes": 1449,
       "encoding": "identity",
-      "url": "./assets/platform/status.json?v=831f36ec5766f86c"
+      "url": "./assets/platform/status.json?v=3f0afec1c9df1b66"
     },
     "soil": {
       "path": "soil.json.gz",
@@ -411,11 +411,11 @@
     },
     "weather": {
       "path": "weather.json",
-      "sha256": "544cbffd9aa5f923a0528ba24c59450416a23ed5d5af9411e7a01554c0b94463",
-      "bytes": 882,
+      "sha256": "59c9873f665f8cd955d22945ad1320cbc225c8125a259ee291fe29cf0cac27f6",
+      "bytes": 445,
       "encoding": "identity",
-      "observed_at": "2026-10-27T23:30:02.000Z",
-      "url": "./assets/platform/weather.json?v=544cbffd9aa5f923"
+      "observed_at": "2026-10-28T06:15:02.000Z",
+      "url": "./assets/platform/weather.json?v=59c9873f665f8cd9"
     },
     "numeric-h12": {
       "path": "numeric-h12.f32",
