@@ -159,7 +159,7 @@
   const list = $('metadata-list'); list.replaceChildren();
   const rows = [['Result', entry.id], ['Created (UTC)', exactTime(r.createdAt)], ['Issued (UTC)', exactTime(r.issueTime)], ['Window ending (UTC)', exactTime(r.targetTime)], ['Lead', r.leadHours + ' hours'], ['Radius', r.spec.radiusKm + ' km'], ['Coordinates', r.spec.lat + ', ' + r.spec.lng], ['Fuel condition', r.spec.fuelCode + ' · ' + fuelName(r.spec.fuelCode)], ['Treatment date', r.spec.treatmentDate + ' · context only'], ['Baseline mean (stored)', r.summary.baseline], ['Scenario mean (stored)', r.summary.scenario], ['Delta (stored)', r.summary.delta], ['Selected cells', r.summary.selectedCells], ['Eligible cells', r.summary.eligibleCells], ['Changed cells', r.summary.changedCells], ['Changed area', r.summary.changedAreaKm2 + ' km²'], ['Original eligible fuels', r.summary.originalFuels.map(f => f.code + ': ' + f.cells + ' cells').join('; ') || 'None'], ['Scope', r.provenance.scope], ['Source', r.provenance.source], ['Checkpoint SHA256', r.provenance.checkpointSha256], ['Normalization SHA256', r.provenance.normalizationSha256], ['Input SHA256', r.provenance.inputSha256], ['Numeric SHA256', r.provenance.numericSha256], ['Baseline max. error', r.provenance.baselineMaxAbsError], ['Changed channels', r.provenance.changedChannels.join(', ')], ['Phases', r.provenance.phases], ['Verified asset SHA256', entry.asset.sha256]];
   for (const [k, v] of rows) list.append(element('dt', k), element('dd', v)); $('result-metadata').hidden = false;
-  $('download-result').disabled = false; $('copy-result-settings').disabled = false;
+  $('copy-result-settings').disabled = false;
   const share = new URL(location.href); share.search = ''; share.searchParams.set('case', entry.id); $('share-result').href = share.href; $('share-result').hidden = false;
   history.replaceState(null, '', share); put('cell-values', 'Tap a cell on either map to inspect both values.');
  }
@@ -341,14 +341,6 @@
  $('copy-result-settings').addEventListener('click', useDisplayedSettings);
  $('request-link').addEventListener('click', e => { updateRequest(); if ($('request-link').getAttribute('aria-disabled') === 'true') e.preventDefault(); });
  $('lookup-form').addEventListener('submit', lookupRequest); $('lookup-open').addEventListener('click', () => { if (lookupCase) selectCase(lookupCase); });
- $('download-result').addEventListener('click', async () => {
-  const selected = W.selected; if (!selected) return; const button = $('download-result'); button.disabled = true;
-  try {
-   const item = await verifiedCase(selected.entry, new AbortController().signal), blob = new Blob([item.bytes], {type: 'application/json'}), url = URL.createObjectURL(blob), a = element('a');
-   a.href = url; a.download = 'fire-eye-what-if-' + selected.id + '.json'; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
-  } catch { put('result-status', 'Verified download unavailable. Retry the result before downloading.'); }
-  finally { button.disabled = !W.selected; }
- });
  window.addEventListener('pagehide', () => { disposed = true; sequence++; activeController?.abort(); cache.clear(); for (const map of W.maps) { try { map.remove(); } catch {} } });
  window.addEventListener('pageshow', e => { if (e.persisted && disposed) location.reload(); });
  try { config = parse(await readBytes('config.json', 65536, null, 4000)); } catch { config = {}; }

@@ -1,7 +1,7 @@
 'use strict';
 (async function(){
  const $=id=>document.getElementById(id),narrow=matchMedia('(max-width:640px)').matches;
- const state={manifest:null,active:null,sequence:0,lru:[],errors:[],events:[],selected:null,ready:false,gridCache:new Map()};window.fireEyePreview=state;
+ const state={manifest:null,active:null,sequence:0,lru:[],errors:[],events:[],selected:null,ready:false,gridCache:new Map(),detailFailures:new Set()};window.fireEyePreview=state;
  const status=text=>{$('status').textContent=state.mode==='observations'&&text==='Published forecast'?'Published observations':text;};
  const pretty=value=>new Intl.DateTimeFormat('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'UTC'}).format(new Date(value))+' UTC';
  const field=['to-number',['get','prob_fire'],0];
@@ -37,12 +37,37 @@
  }));
  const map=new maplibregl.Map({container:'map',antialias:false,center:[-98,38],zoom:3.2,minZoom:2,maxZoom:12,pixelRatio:Math.min(devicePixelRatio,narrow?1.5:2),maxTileCacheSize:narrow?16:32,attributionControl:false,style:{version:8,sources:{land:{type:'geojson',data:'assets/land.geojson',attribution:'RAI Lab · NOAA HRRR · Natural Earth'}},layers:[{id:'ocean',type:'background',paint:{'background-color':'#dce9e9'}},{id:'land',type:'fill',source:'land',paint:{'fill-color':'#ebe8d9'}}]}});
  state.map=map;map.addControl(new maplibregl.AttributionControl({compact:true}));map.addControl(new maplibregl.NavigationControl({showCompass:false}),'bottom-right');
- map.on('error',e=>{state.errors.push({time:Date.now(),message:String(e.error?.message||'Map source failed').split('?')[0].slice(0,160)});});
+ map.on('error',e=>{state.errors.push({time:Date.now(),message:String(e.error?.message||'Map source failed').split('?')[0].slice(0,160)});if(e.sourceId?.startsWith('forecast-')&&!e.sourceId.endsWith('-overview')){state.detailFailures.add(e.sourceId);syncHeatmapDisplay();}});
  const urlFor=(m,path)=>new URL(path,new URL(m.asset_base,location.href)).href;
- const representation=run=>run.overview&&(!run.path||map.getZoom()<run.overview.detail_minzoom)?'overview':'vector';
+ const representation=run=>run.overview&&(!run.path||map.getZoom()<run.overview.detail_minzoom+(state.active?.kind==='vector'?-.25:.25))?'overview':'vector';
  const sourceId=(m,run,kind)=>'forecast-'+m.release_id+'-'+run.lead_hours+(kind==='overview'?'-overview':'');
- function drop(id){if(map.getLayer(id))map.removeLayer(id);if(map.getSource(id))map.removeSource(id);state.lru=state.lru.filter(x=>x!==id);}
- function prune(){const limit=narrow?2:4;while(state.lru.length>limit){const id=state.lru.shift();if(id===state.active?.id){state.lru.push(id);continue;}drop(id);}}
+ // Keep a same-window image available while detail tiles change with the view.
+ state.riskOpacity=1;state.riskVisible=true;
+ function syncHeatmapDisplay(){
+  const active=state.active;if(!active||!map.getLayer(active.id))return;
+  const a=state.riskOpacity,visible=state.riskVisible&&state.mode!=='observations',fallback=state.overviewFallbackId;
+  const detail=active.kind==='vector'&&(!fallback||(!state.detailFailures.has(active.id)&&!state.viewInMotion&&!map.isMoving()&&map.isSourceLoaded(active.id)));
+  const visibility=(id,show)=>{if(!id||!map.getLayer(id))return;const next=show?'visible':'none';if((map.getLayoutProperty(id,'visibility')||'visible')!==next)map.setLayoutProperty(id,'visibility',next);};
+  const paintKey=active.id+'|'+a+'|'+detail;
+  if(state.paintedActive!==paintKey){map.setPaintProperty(active.id,active.kind==='overview'?'raster-opacity':'fill-opacity',active.kind==='overview'?a:detail?['*',a,opacity]:.001*a);state.paintedActive=paintKey;}
+  if(fallback&&map.getLayer(fallback)&&state.paintedFallback!==fallback+'|'+a){map.setPaintProperty(fallback,'raster-opacity',a);state.paintedFallback=fallback+'|'+a;}
+  // A nearly transparent detail layer keeps requesting tiles behind the image.
+  visibility(active.id,visible);visibility(fallback,visible&&!detail&&active.kind==='vector');
+ }
+ state.syncHeatmapDisplay=syncHeatmapDisplay;
+ state.setRiskDisplay=(alpha,visible)=>{state.riskOpacity=alpha;state.riskVisible=visible;syncHeatmapDisplay();};
+ const syncDuringMove=()=>{if(!document.body.classList.contains('resolution-lab'))syncHeatmapDisplay();};
+ map.on('movestart',()=>{state.viewInMotion=true;syncDuringMove();});map.on('move',syncDuringMove);map.on('moveend',()=>{state.viewInMotion=false;syncDuringMove();});map.on('idle',syncDuringMove);
+ map.on('sourcedata',e=>{if(e.sourceId===state.active?.id||e.sourceId===state.overviewFallbackId)syncDuringMove();});
+ async function prepareFallback(m,run){
+  if(!run.overview||document.body.classList.contains('resolution-lab'))return null;
+  const id=sourceId(m,run,'overview');
+  if(!map.getSource(id)){map.addSource(id,{type:'image',url:urlFor(m,run.overview.image.path),coordinates:run.overview.coordinates});map.addLayer({id,type:'raster',source:id,paint:{'raster-opacity':.001,'raster-opacity-transition':{duration:0,delay:0},'raster-fade-duration':0,'raster-resampling':'nearest'}},state.active?.id);}
+  else{if(id!==state.active?.id&&id!==state.overviewFallbackId)map.setPaintProperty(id,'raster-opacity',.001);map.setLayoutProperty(id,'visibility','visible');}
+  await ensureLoaded(id);return id;
+ }
+ function drop(id){if(map.getLayer(id))map.removeLayer(id);if(map.getSource(id))map.removeSource(id);state.lru=state.lru.filter(x=>x!==id);state.detailFailures.delete(id);}
+ function prune(){const limit=narrow?3:5;let guard=state.lru.length;while(state.lru.length>limit&&guard--){const id=state.lru.shift();if([state.active?.id,state.pendingId,state.overviewFallbackId].includes(id)){state.lru.push(id);continue;}drop(id);}}
  function ensureLoaded(id){return new Promise((resolve,reject)=>{let timer,settled=false;const finish=e=>{if(settled)return;settled=true;clearTimeout(timer);map.off('render',check);map.off('sourcedata',check);map.off('error',failed);e?reject(e):resolve();};const check=()=>{if(map.getSource(id)&&map.isSourceLoaded(id))finish();};const failed=e=>{if(e.sourceId===id)finish(Error('Forecast assets unavailable'));};timer=setTimeout(()=>finish(Error('Forecast assets timed out')),18000);map.on('render',check);map.on('sourcedata',check);map.on('error',failed);map.triggerRepaint();});}
  async function ensureGrid(m,run){
   if(!run.overview)return null;const key=urlFor(m,run.overview.values.path);
@@ -67,17 +92,21 @@
  async function show(m,lead){
   const run=m.runs.find(r=>r.lead_hours===lead);if(!run)return false;const kind=representation(run),id=sourceId(m,run,kind);
   if(state.active?.id===id&&!state.pendingId)return true;
-  const seq=++state.sequence,started=performance.now();state.pendingId=id;status('Loading +'+lead+'h…');document.querySelectorAll('#horizons button').forEach(b=>b.dataset.pending=String(Number(b.dataset.lead)===lead));
+  const sameSelection=m.release_id===state.manifest?.release_id&&lead===state.active?.run.lead_hours&&!!m.archive===!!state.manifest?.archive;
+  const seq=++state.sequence,started=performance.now();state.pendingId=id;if(!sameSelection)status('Loading +'+lead+'h…');document.querySelectorAll('#horizons button').forEach(b=>b.dataset.pending=String(Number(b.dataset.lead)===lead));
   try{
+   if(kind==='vector'&&state.detailFailures.has(id)&&id!==state.active?.id){drop(id);state.detailFailures.delete(id);}
    if(!map.getSource(id)){
-    if(kind==='overview'){map.addSource(id,{type:'image',url:urlFor(m,run.overview.image.path),coordinates:run.overview.coordinates});map.addLayer({id,type:'raster',source:id,paint:{'raster-opacity':0.001,'raster-fade-duration':0,'raster-resampling':'nearest'}},state.active?.id);}
-    else{map.addSource(id,{type:'vector',url:'pmtiles://'+urlFor(m,run.path),minzoom:run.minzoom,maxzoom:run.maxzoom});map.addLayer({id,type:'fill',source:id,'source-layer':'day1',layout:{'fill-sort-key':['to-number',['get','value'],0]},paint:{'fill-antialias':false,'fill-color':color,'fill-opacity':0.001}},state.active?.id);}
+    if(kind==='overview'){map.addSource(id,{type:'image',url:urlFor(m,run.overview.image.path),coordinates:run.overview.coordinates});map.addLayer({id,type:'raster',source:id,paint:{'raster-opacity':0.001,'raster-opacity-transition':{duration:0,delay:0},'raster-fade-duration':0,'raster-resampling':'nearest'}},state.active?.id);}
+    else{map.addSource(id,{type:'vector',url:'pmtiles://'+urlFor(m,run.path),minzoom:run.minzoom,maxzoom:run.maxzoom});map.addLayer({id,type:'fill',source:id,'source-layer':'day1',layout:{'fill-sort-key':['to-number',['get','value'],0]},paint:{'fill-antialias':false,'fill-color':color,'fill-opacity':0.001,'fill-opacity-transition':{duration:0,delay:0}}},state.active?.id);}
    }else map.setLayoutProperty(id,'visibility','visible');
-   await ensureLoaded(id);const sourceMs=performance.now()-started;
-   if(seq!==state.sequence){if(id!==state.active?.id&&id!==state.pendingId)drop(id);return false;}
+   const [,fallback]=await Promise.all([ensureLoaded(id),kind==='vector'?prepareFallback(m,run):Promise.resolve(null)]);const sourceMs=performance.now()-started;
+   if(seq!==state.sequence){if(id!==state.active?.id&&id!==state.pendingId)drop(id);if(fallback&&![state.active?.id,state.overviewFallbackId,state.pendingId,state.pendingId+'-overview'].includes(fallback))drop(fallback);return false;}
    if(state.active&&state.active.id!==id&&map.getLayer(state.active.id))map.setLayoutProperty(state.active.id,'visibility','none');
    map.setPaintProperty(id,kind==='overview'?'raster-opacity':'fill-opacity',kind==='overview'?1:opacity);
-   state.active={id,run,kind};state.pendingId=null;state.manifest=m;if(!m.archive)state.latestManifest=m;state.lru=state.lru.filter(x=>x!==id);state.lru.push(id);prune();
+   if(state.overviewFallbackId&&state.overviewFallbackId!==fallback&&state.overviewFallbackId!==id&&map.getLayer(state.overviewFallbackId))map.setLayoutProperty(state.overviewFallbackId,'visibility','none');
+   state.overviewFallbackId=fallback;state.paintedFallback=null;if(fallback){map.moveLayer(fallback,id);state.lru=state.lru.filter(x=>x!==fallback);state.lru.push(fallback);}
+   state.active={id,run,kind};state.pendingId=null;state.manifest=m;if(!m.archive)state.latestManifest=m;state.lru=state.lru.filter(x=>x!==id);state.lru.push(id);syncHeatmapDisplay();prune();
    $('heading').textContent='Forecast +'+lead+'h';$('issue').textContent='Issued '+pretty(m.issue_time_utc);$('valid').textContent='12-hour window ending '+pretty(run.target_time_utc);
    document.querySelectorAll('#horizons button').forEach(b=>{const available=m.runs.some(r=>r.lead_hours===Number(b.dataset.lead));b.disabled=!available;b.title=available?'':'Not archived for this issue';b.setAttribute('aria-pressed',String(Number(b.dataset.lead)===lead));b.dataset.pending='false';});
    state.delivery=new URL(m.asset_base,location.href).hostname==='huggingface.co'?'huggingface':'bundled';status('Published forecast');state.ready=true;
@@ -85,10 +114,13 @@
    if(seq!==state.sequence)return false;
    state.events.push({lead,release:m.release_id,kind,delivery:state.delivery,source_ready_ms:sourceMs,ready_ms:performance.now()-started});
    try{if(!m.archive)localStorage.setItem('fire-eye-preview-last-good-v1',JSON.stringify(m));}catch{}
-   ensureGrid(m,run).catch(()=>{});updateSelection();if(state.onForecastChange)state.onForecastChange();
+   ensureGrid(m,run).catch(()=>{});updateSelection();if(!sameSelection&&state.onForecastChange)state.onForecastChange();
    if(seq===state.sequence&&kind!==representation(run))show(m,lead);return true;
   }catch(e){if(seq===state.sequence){status(state.active?'Previous forecast retained':'Forecast temporarily unavailable');document.querySelectorAll('#horizons button').forEach(b=>b.dataset.pending='false');}
-   if(id!==state.active?.id&&(seq===state.sequence||id!==state.pendingId))drop(id);if(seq===state.sequence)state.pendingId=null;return false;}
+   if(seq===state.sequence)state.pendingId=null;
+   const protectedIds=[state.active?.id,state.overviewFallbackId,state.pendingId,state.pendingId?state.pendingId+'-overview':null];
+   for(const candidate of [id,kind==='vector'&&run.overview?sourceId(m,run,'overview'):null])if(candidate&&!protectedIds.includes(candidate))drop(candidate);
+   syncHeatmapDisplay();return false;}
  }
  for(const lead of [12,24,36,48]){const b=document.createElement('button');b.textContent='+'+lead+'h';b.dataset.lead=lead;b.setAttribute('aria-pressed','false');b.onclick=()=>{if(state.manifest)show(state.manifest,lead);};$('horizons').append(b);}
  let clickSequence=0;map.on('click',async e=>{if(!state.active)return;if(state.onMapClick){state.onMapClick(e);return;}const seq=++clickSequence,active=state.active,lnglat=[e.lngLat.lng,e.lngLat.lat];try{const value=await valueAt(state.manifest,active.run,lnglat);if(seq!==clickSequence||state.active!==active)return;if(value===null){$('inspection').hidden=true;state.selected=null;return;}state.selected=lnglat;state.lastValue=value;$('coordinates').textContent=lnglat[1].toFixed(3)+'°, '+lnglat[0].toFixed(3)+'°';$('cell-value').textContent='Fire risk at selected location · '+value.toFixed(3);$('inspection').hidden=false;}catch{status('Location values temporarily unavailable');}});

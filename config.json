@@ -52,11 +52,12 @@
   "gazetteer_assets": {
     "351820cdfef1a8578f3727b261bc508042e227df0816c60cb064bd0e307a2513": "./assets/places/351820cdfef1a8578f3727b261bc508042e227df0816c60cb064bd0e307a2513.json.gz"
   },
+  "fire_snapshots_url": "https://huggingface.co/datasets/yx21e/fire-eye-forecasts-preview/resolve/main/fire-snapshots.json",
   "archive_catalog_url": "https://huggingface.co/datasets/yx21e/fire-eye-forecasts-preview/resolve/main/archive-catalog.json",
   "archive_catalog_assets": {
     "f26e678ca94da1b4df863e828e9d8793f364c4ef87fbbaa08df1e45ef50660c7": "./assets/history-catalog/f26e678ca94da1b4df863e828e9d8793f364c4ef87fbbaa08df1e45ef50660c7.json",
     "82d0b0fccee649f3593745e0d41e22eeb4207ec5e9f259d34e4e3df42d1af2ef": "./assets/history-catalog/82d0b0fccee649f3593745e0d41e22eeb4207ec5e9f259d34e4e3df42d1af2ef.json",
     "e1e4e029b9d8debb4a72db7a78be3c1d08ce49258a88aa8c99f0729714e1fccf": "./assets/history-catalog/e1e4e029b9d8debb4a72db7a78be3c1d08ce49258a88aa8c99f0729714e1fccf.json",
-    "e7e45c1f3b6714994e8527bda492c2452cbae867e9960d78ab1170aef2e616bf": "./assets/history-catalog/e7e45c1f3b6714994e8527bda492c2452cbae867e9960d78ab1170aef2e616bf.json"
+    "b8c6927e42a2c450a7440ce155815e88cc89f00aa73f5fd8c52cfec0ec1c93c0": "./assets/history-catalog/b8c6927e42a2c450a7440ce155815e88cc89f00aa73f5fd8c52cfec0ec1c93c0.json"
   }
 }

@@ -47,7 +47,7 @@
   if(layer.citation?.Title)details.append(text('p',String(layer.citation.Title)));
   const doi=layer.citation?.DOI;
   if(typeof doi==='string'&&new RegExp('^https://doi[.]org/[A-Za-z0-9./_-]+$').test(doi)){const a=text('a','Source reference ↗');a.href=doi;a.target='_blank';a.rel='noopener noreferrer';details.append(a);}
-  const a=text('a','Download display tiles ('+Math.round(layer.asset.bytes/1e6)+' MB) ↗');a.href=layer.asset.url;a.target='_blank';a.rel='noopener noreferrer';details.append(a);container.append(details);
+  container.append(details);
  }
  function fail(){
   if(!B.selected)return;clearTimeout(timeout);B.status='unavailable';
