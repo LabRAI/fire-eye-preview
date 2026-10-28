@@ -1,5 +1,5 @@
 'use strict';
-importScripts('regional-worker.js?v=c7a68fe954284c92','risk-matching.js?v=2ca5972bd9d65530','risk-geometry.js?v=1c0440a3a10b1bfe');
+importScripts('regional-worker.js?v=1dda24e6ca5f3517','risk-matching.js?v=2ca5972bd9d65530','risk-geometry.js?v=1c0440a3a10b1bfe');
 let requestGeneration=0;
 onmessage=async e=>{
  const req=e.data;requestGeneration=req.id;
