@@ -64,7 +64,7 @@ $('assistant-form').onsubmit=async e=>{
  finally{clearTimeout(deadline);if(controller===abort)controller=null;$('assistant-send').disabled=false;$('assistant-stop').hidden=true;}
 };
 function changed(){if(toolDepth)return;const key=contextKey();if(controller&&key!==expectedContext)cancel('Map selection changed. Ask again for the current region and date.');if(renderedContext&&renderedContext!==key){turns=[];$('assistant-messages').replaceChildren();$('assistant-forecast').hidden=true;$('assistant-forecast').replaceChildren();if(!panel.hidden)status('Selection changed. New questions use the current region and date.');}renderedContext=key;}
-for(const event of ['fire-eye:selection-changed','fire-eye:selection-closed','fire-eye:mode-changed','fire-eye:platform-updated','fire-eye:forecast-changed'])window.addEventListener(event,changed);
+for(const event of ['fire-eye:selection-changed','fire-eye:selection-closed','fire-eye:mode-changed','fire-eye:fire-overlay-changed','fire-eye:platform-updated','fire-eye:forecast-changed'])window.addEventListener(event,changed);
 // A user interaction outside the assistant cancels in-flight tool work, even during an awaited map operation.
 for(const event of ['pointerdown','keydown'])document.addEventListener(event,e=>{if(controller&&!panel.contains(e.target)&&!$('assistant-global-open').contains(e.target))cancel('Map interaction paused this answer. Ask again when your selection is ready.');},true);
 window.addEventListener('pagehide',()=>{controller?.abort();connection=null;$('assistant-password').value='';$('assistant-key').value='';});
