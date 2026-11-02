@@ -6,7 +6,7 @@
   catalogURL:'assets/geography/catalog.json',
   ensureStreet:async()=>{const select=document.getElementById('basemap');if(select.value!=='street'){select.value='street';await select.onchange();}},
   onDetailScale:factor=>{S.geographyRiskFactor=factor;S.syncHeatmapDisplay?.();},
-  openIllustration:()=>window.fireEyeScene?.openIllustrative?.(),
+  openSimulation:selection=>window.fireEyeScene?.openAt?.(selection.lnglat),
   onObject:detail=>window.dispatchEvent(new CustomEvent('fire-eye:mapped-object',{detail}))
  });
  window.fireEyeGeography=controller;

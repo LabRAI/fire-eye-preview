@@ -24,14 +24,16 @@
   const top=create('div',null,'mapped-scene-heading'),title=create('strong','Digital local scene'),back=create('button','Regional view');back.type='button';
   top.append(title,back);panel.append(top);
   const status=create('p','Zoom in to explore mapped buildings and streets.','mapped-scene-status');status.setAttribute('role','status');panel.append(status);
-  const actions=create('div',null,'mapped-scene-actions'),tilt=create('button','3D'),illustration=create('button','Illustration');
-  for(const b of [tilt,illustration]){b.type='button';actions.append(b);}panel.append(actions);
+  const actions=create('div',null,'mapped-scene-actions'),tilt=create('button','3D'),simulation=create('button','Simulation');
+  for(const b of [tilt,simulation]){b.type='button';actions.append(b);}panel.append(actions);
   tilt.setAttribute('aria-pressed','false');
   const note=create('p','Mapped footprints and streets. Building heights are display estimates; tree shapes are schematic.','mapped-scene-note');panel.append(note);
   const detail=create('div',null,'mapped-scene-detail');detail.hidden=true;panel.append(detail);
   (options.container||document.body).append(panel);
   let ready=false,disposed=false,installing=false,previous=null,popup=null,requested=false,terrainTilt=false,metricsTimer=null;
   let catalogTask=null,areaId=null,area=null,areaData=null,areaController=null,areaSequence=0;
+  let selectedObject=null;
+  const emitObject=value=>{selectedObject=value;options.onObject?.(value);};
   const objectSource=PREFIX+'objects',objectLayers=[PREFIX+'object-areas',PREFIX+'object-buildings',PREFIX+'object-height',PREFIX+'object-roads',PREFIX+'object-trees',PREFIX+'object-footprints'];
   const treeSource=PREFIX+'tree-symbols',treeLayer=PREFIX+'tree-models';let treeData=null;
   const areaCache=new Map(),empty={type:'FeatureCollection',features:[]};
@@ -116,7 +118,7 @@
   const capture=()=>({center:map.getCenter().toArray(),zoom:map.getZoom(),pitch:map.getPitch(),bearing:map.getBearing()});
   async function enter(lnglat){
    if(!Array.isArray(lnglat)||lnglat.length!==2||!lnglat.every(Number.isFinite))return false;
-   previous=capture();requested=true;detail.hidden=true;panel.hidden=false;
+   previous=capture();requested=true;selectedObject=null;detail.hidden=true;panel.hidden=false;
    await options.ensureStreet?.();ensure();terrainTilt=true;
    map.flyTo({center:lnglat,zoom:17.1,pitch:52,bearing:map.getBearing(),duration:matchMedia('(prefers-reduced-motion: reduce)').matches?0:1600,essential:false});
    sync();return true;
@@ -141,22 +143,24 @@
     if(p.kind==='tree')detail.append(create('p','Location follows a source tree record. Shape and crown size are schematic; unrecorded height uses an 8 m display symbol.'));
     if(p.kind==='transportation')detail.append(create('p','Mapped centerline; display width is schematic.'));
     detail.append(create('p','Extract retrieved '+area.retrieved_at_utc.slice(0,10)+'. Source edit date is not survey date.'));detail.hidden=false;
-    options.onObject?.({kind:p.kind,selected_wgs84:[e.lngLat.lng,e.lngLat.lat],source:'OpenStreetMap',source_feature_id:p.source_id,geometry_is_display_tile:false,geometry:original?.geometry||null,properties:original?.properties||p});return true;
+    emitObject({kind:p.kind,selected_wgs84:[e.lngLat.lng,e.lngLat.lat],source:'OpenStreetMap',source_feature_id:p.source_id,geometry_is_display_tile:false,geometry:original?.geometry||null,properties:original?.properties||p});return true;
    }
    const building=feature.sourceLayer==='building',p=feature.properties||{},name=p.name||p['name:en']||(building?'Mapped building':'Mapped street / path');
    detail.replaceChildren(create('strong',name),create('p',e.lngLat.lat.toFixed(6)+'°, '+e.lngLat.lng.toFixed(6)),create('p',building?'Outline: OpenStreetMap / OpenMapTiles. Display height is not a surveyed measurement.':'Mapped centerline. Display width is a styling choice, not surveyed pavement width.'));detail.hidden=false;
    const hint=create('p','Source geometry is tiled for display; this selection is not a complete survey or a building-level fire prediction.');detail.append(hint);
-   options.onObject?.({kind:building?'building':'transportation',selected_wgs84:[e.lngLat.lng,e.lngLat.lat],source:'OpenStreetMap / OpenMapTiles',source_feature_id:feature.id??null,geometry_is_display_tile:true,verified_height_m:null});
+   emitObject({kind:building?'building':'transportation',selected_wgs84:[e.lngLat.lng,e.lngLat.lat],source:'OpenStreetMap / OpenMapTiles',source_feature_id:feature.id??null,geometry_is_display_tile:true,verified_height_m:null});
    return true;
   }
   back.onclick=regional;tilt.onclick=()=>{terrainTilt=map.getPitch()<15;map.easeTo({pitch:terrainTilt?52:0,duration:450});};
-  illustration.onclick=()=>options.openIllustration?.();if(!options.openIllustration)illustration.hidden=true;
+  const launchSimulation=options.openSimulation||options.openIllustration;
+  simulation.onclick=()=>launchSimulation?.({lnglat:[...(selectedObject?.selected_wgs84||map.getCenter().toArray())],object:selectedObject});simulation.hidden=!launchSimulation;
+  const clearSelection=()=>{selectedObject=null;detail.hidden=true;};
   const styled=()=>ensure();
   const moved=()=>{scheduleMetrics();loadArea();};
   const failed=e=>{if(e.sourceId===SOURCE)status.textContent='Street tiles are temporarily unavailable; the regional map remains available.';};
-  map.on('zoom',sync);map.on('zoomend',onZoomEnd);map.on('pitchend',sync);map.on('moveend',moved);map.on('styledata',styled);map.on('error',failed);
+  map.on('movestart',clearSelection);map.on('zoom',sync);map.on('zoomend',onZoomEnd);map.on('pitchend',sync);map.on('moveend',moved);map.on('styledata',styled);map.on('error',failed);
   map.setMaxZoom(20);ensure();sync();
-  return {ready:true,enter,regional,onMapClick,panel,get geometryReady(){return ready;},get selectedArea(){return area?.id||null;},dispose(){disposed=true;areaSequence++;areaController?.abort();clearTimeout(metricsTimer);map.off('zoom',sync);map.off('zoomend',onZoomEnd);map.off('pitchend',sync);map.off('moveend',moved);map.off('styledata',styled);map.off('error',failed);popup?.remove();panel.remove();for(const id of [...layers,...objectLayers,treeLayer])if(map.getLayer(id))map.removeLayer(id);if(map.getSource(treeSource))map.removeSource(treeSource);if(map.getSource(objectSource))map.removeSource(objectSource);options.onDetailScale?.(1);}};
+  return {ready:true,enter,regional,onMapClick,panel,get geometryReady(){return ready;},get selectedArea(){return area?.id||null;},dispose(){disposed=true;areaSequence++;areaController?.abort();clearTimeout(metricsTimer);map.off('movestart',clearSelection);map.off('zoom',sync);map.off('zoomend',onZoomEnd);map.off('pitchend',sync);map.off('moveend',moved);map.off('styledata',styled);map.off('error',failed);popup?.remove();panel.remove();for(const id of [...layers,...objectLayers,treeLayer])if(map.getLayer(id))map.removeLayer(id);if(map.getSource(treeSource))map.removeSource(treeSource);if(map.getSource(objectSource))map.removeSource(objectSource);options.onDetailScale?.(1);}};
  }
  global.FireEyeGeographicScene={mount};
 })(window);
