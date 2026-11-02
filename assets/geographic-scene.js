@@ -2,22 +2,38 @@
 (function(global){
  'use strict';
  const PREFIX='mapped-scene-',SOURCE='openmaptiles';
+ // Render-only symbols: original point geometry and unknown dimensions stay
+ // untouched in the source collection and in the simulation handoff.
+ function treeSymbols(collection){
+  const features=[];
+  for(const f of collection.features){
+   if(f.properties?.kind!=='tree'||f.geometry?.type!=='Point')continue;
+   const [lon,lat]=f.geometry.coordinates;if(!Number.isFinite(lon)||!Number.isFinite(lat)||Math.abs(lat)>85)continue;
+   const tagged=f.properties.height_m,h=typeof tagged==='number'&&tagged>0&&tagged<=120?tagged:8;
+   const parts=[['trunk',.18,0,h*.45],['lower',1.7,h*.36,h*.53],['crown',2.4,h*.53,h*.82],['upper',1.6,h*.82,h]];
+   for(const [part,radius,base,height] of parts){
+    const ring=[];for(let i=0;i<8;i++){const angle=i*Math.PI/4;ring.push([lon+radius*Math.cos(angle)/(111320*Math.cos(lat*Math.PI/180)),lat+radius*Math.sin(angle)/111320]);}ring.push([...ring[0]]);
+    features.push({type:'Feature',geometry:{type:'Polygon',coordinates:[ring]},properties:{kind:'tree',source_id:f.properties.source_id,render_part:part,render_base_m:base,render_height_m:height,display_only:true}});
+   }
+  }
+  return {type:'FeatureCollection',features};
+ }
  function mount(map,options={}){
   const create=(tag,text,cls)=>{const e=document.createElement(tag);if(text)e.textContent=text;if(cls)e.className=cls;return e;};
-  const panel=create('section',null,'mapped-scene-panel');panel.hidden=true;panel.setAttribute('aria-label','Mapped local scene');
-  const top=create('div',null,'mapped-scene-heading'),title=create('strong','Mapped local scene'),back=create('button','Regional view');back.type='button';
+  const panel=create('section',null,'mapped-scene-panel');panel.hidden=true;panel.setAttribute('aria-label','Digital local scene');
+  const top=create('div',null,'mapped-scene-heading'),title=create('strong','Digital local scene'),back=create('button','Regional view');back.type='button';
   top.append(title,back);panel.append(top);
   const status=create('p','Zoom in to explore mapped buildings and streets.','mapped-scene-status');status.setAttribute('role','status');panel.append(status);
-  const actions=create('div',null,'mapped-scene-actions'),tilt=create('button','3D'),aerial=create('button','Aerial'),illustration=create('button','Illustration');
-  for(const b of [tilt,aerial,illustration]){b.type='button';actions.append(b);}panel.append(actions);
-  tilt.setAttribute('aria-pressed','false');aerial.setAttribute('aria-pressed','false');
-  const note=create('p','Building footprints and streets are mapped. Heights are display estimates unless independently verified.','mapped-scene-note');panel.append(note);
-  const imageryNote=create('p','USGS / USDA orthophotography · imagery dates vary by location; not live.','mapped-scene-note');imageryNote.hidden=true;panel.append(imageryNote);
+  const actions=create('div',null,'mapped-scene-actions'),tilt=create('button','3D'),illustration=create('button','Illustration');
+  for(const b of [tilt,illustration]){b.type='button';actions.append(b);}panel.append(actions);
+  tilt.setAttribute('aria-pressed','false');
+  const note=create('p','Mapped footprints and streets. Building heights are display estimates; tree shapes are schematic.','mapped-scene-note');panel.append(note);
   const detail=create('div',null,'mapped-scene-detail');detail.hidden=true;panel.append(detail);
   (options.container||document.body).append(panel);
-  let ready=false,disposed=false,installing=false,previous=null,popup=null,requested=false,aerialEnabled=false,terrainTilt=false,metricsTimer=null,imageryFailed=false;
+  let ready=false,disposed=false,installing=false,previous=null,popup=null,requested=false,terrainTilt=false,metricsTimer=null;
   let catalogTask=null,areaId=null,area=null,areaData=null,areaController=null,areaSequence=0;
   const objectSource=PREFIX+'objects',objectLayers=[PREFIX+'object-areas',PREFIX+'object-buildings',PREFIX+'object-height',PREFIX+'object-roads',PREFIX+'object-trees',PREFIX+'object-footprints'];
+  const treeSource=PREFIX+'tree-symbols',treeLayer=PREFIX+'tree-models';let treeData=null;
   const areaCache=new Map(),empty={type:'FeatureCollection',features:[]};
   const layers=[PREFIX+'areas',PREFIX+'water',PREFIX+'paths',PREFIX+'roads',PREFIX+'buildings',PREFIX+'outlines'];
   const opacity=['interpolate',['linear'],['zoom'],13,0,15,1];
@@ -33,7 +49,7 @@
     add(layers[1],'fill','water',{'fill-color':'#79b3c4','fill-opacity':['interpolate',['linear'],['zoom'],13,0,15,.7]});
     add(layers[2],'line','transportation',{'line-color':'#e8d6b4','line-width':['interpolate',['exponential',1.5],['zoom'],13,.7,16,2,20,12],'line-opacity':opacity},['all',['!=',['get','brunnel'],'tunnel'],['match',['get','class'],['path','track','pedestrian'],true,false]]);
     add(layers[3],'line','transportation',{'line-color':'#fbf8ef','line-width':['interpolate',['exponential',1.5],['zoom'],13,1,16,3,20,20],'line-opacity':opacity},['all',['!=',['get','brunnel'],'tunnel'],['match',['get','class'],['motorway','trunk','primary','secondary','tertiary','minor','service','street'],true,false]]);
-    add(layers[4],'fill-extrusion','building',{'fill-extrusion-color':'#c4b39e','fill-extrusion-opacity':['interpolate',['linear'],['zoom'],14,0,15.5,.9],'fill-extrusion-height':['interpolate',['linear'],['zoom'],14.8,0,16,['max',0,['min',1000,['to-number',['get','render_height'],0]]]],'fill-extrusion-base':['max',0,['to-number',['get','render_min_height'],0]]},['!=',['get','hide_3d'],true]);
+    add(layers[4],'fill-extrusion','building',{'fill-extrusion-color':'#c4b39e','fill-extrusion-opacity':['interpolate',['linear'],['zoom'],14,0,15.5,1],'fill-extrusion-height':['interpolate',['linear'],['zoom'],14.8,0,16,['max',0,['min',1000,['to-number',['get','render_height'],0]]]],'fill-extrusion-base':['max',0,['to-number',['get','render_min_height'],0]]},['!=',['get','hide_3d'],true]);
     add(layers[5],'line','building',{'line-color':'#705e4d','line-width':['interpolate',['linear'],['zoom'],14,.3,18,1.1],'line-opacity':opacity});
     if(options.catalogURL){
      if(!map.getSource(objectSource))map.addSource(objectSource,{type:'geojson',data:areaData||empty,attribution:'© OpenStreetMap contributors · ODbL 1.0 · dated research extracts'});
@@ -44,7 +60,10 @@
      // Use one extrusion surface; duplicate, near-identical meshes produce
      // depth flicker. Complete source geometry/height remains in the contract.
      objectLayer(objectLayers[3],'line',{'line-color':'#fff4df','line-width':['interpolate',['linear'],['zoom'],14,1,19,4]},['all',['==',['get','kind'],'transportation'],['!=',['get','below_ground'],true],['!=',['get','indoor'],true]]);
-     objectLayer(objectLayers[4],'circle',{'circle-radius':['interpolate',['linear'],['zoom'],14,1.4,18,3.8,20,5],'circle-color':'#346f3d','circle-stroke-width':.7,'circle-stroke-color':'#e3efcf'},['==',['get','kind'],'tree']);
+     const pointFade=['interpolate',['linear'],['zoom'],16,1,17,0];
+     objectLayer(objectLayers[4],'circle',{'circle-radius':['interpolate',['linear'],['zoom'],14,1.4,18,3.8,20,5],'circle-color':'#346f3d','circle-opacity':pointFade,'circle-stroke-opacity':pointFade,'circle-stroke-width':.7,'circle-stroke-color':'#e3efcf'},['==',['get','kind'],'tree']);
+     if(!map.getSource(treeSource))map.addSource(treeSource,{type:'geojson',data:treeData||empty});
+     if(!map.getLayer(treeLayer))map.addLayer({id:treeLayer,type:'fill-extrusion',source:treeSource,minzoom:16,paint:{'fill-extrusion-color':['match',['get','render_part'],'trunk','#806249','lower','#4a7759','crown','#628f69','#85a67d'],'fill-extrusion-opacity':['interpolate',['linear'],['zoom'],16,0,17,1],'fill-extrusion-base':['get','render_base_m'],'fill-extrusion-height':['get','render_height_m']}},firstSymbol());
     }
     // Ground lines and point symbols belong below buildings, not over roofs.
     for(const id of [layers[5],...objectLayers]){
@@ -55,18 +74,9 @@
    }catch{status.textContent='Local map detail is loading; the regional map remains available.';}
    finally{installing=false;}
   }
-  function hideAerial(){if(map.getLayer(PREFIX+'aerial'))map.setPaintProperty(PREFIX+'aerial','raster-opacity',0);}
-  function applyAerial(){
-   if(!aerialEnabled){hideAerial();return;}
-   try{
-    if(!map.getSource(PREFIX+'aerial'))map.addSource(PREFIX+'aerial',{type:'raster',tiles:['https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}'],tileSize:256,minzoom:13,maxzoom:16,attribution:'USGS / USDA The National Map orthophotography; acquisition dates vary'});
-    if(!map.getLayer(PREFIX+'aerial'))map.addLayer({id:PREFIX+'aerial',type:'raster',source:PREFIX+'aerial',minzoom:13,paint:{'raster-opacity':.92,'raster-fade-duration':200}},map.getLayer(layers[0])?layers[0]:firstSymbol());
-    const alpha=imageryFailed?0:.92;if(map.getPaintProperty(PREFIX+'aerial','raster-opacity')!==alpha)map.setPaintProperty(PREFIX+'aerial','raster-opacity',alpha);
-   }catch{imageryFailed=true;hideAerial();}
-  }
   function metrics(){
    if(disposed||panel.hidden||!ready)return;
-   try{const ids=new Set(map.queryRenderedFeatures({layers:[layers[4]]}).map(f=>String(f.id??JSON.stringify(f.geometry.coordinates))));status.textContent=imageryFailed?'Aerial imagery could not load; mapped geometry remains visible.':area?area.title+' · dated object extract'+(area.feature_counts.tree?' · mapped tree points':''):ids.size?ids.size.toLocaleString()+' mapped building parts in view · select an outline to inspect':'Mapped local detail · zoom or pan to a built-up area';}catch{}
+   try{const ids=new Set(map.queryRenderedFeatures({layers:[layers[4]]}).map(f=>String(f.id??JSON.stringify(f.geometry.coordinates))));status.textContent=area?area.title+' · mapped objects'+(area.feature_counts.tree?' · 3D tree symbols':' · no tree inventory in this extract'):ids.size?ids.size.toLocaleString()+' mapped building parts in view · select an outline to inspect':'Mapped local detail · zoom or pan to a built-up area';}catch{}
   }
   async function loadArea(){
    if(disposed||!options.catalogURL||map.getZoom()<14)return;
@@ -76,7 +86,7 @@
     const catalog=await catalogTask;if(disposed||map.getZoom()<14)return;
     if(catalog.schema_version!==1||catalog.kind!=='geographic-scene-catalog'||!Array.isArray(catalog.areas)||catalog.areas.length>50)throw Error('Unsupported object catalog');
     const bounds=map.getBounds(),found=catalog.areas.find(a=>{const b=a.bbox_wgs84;return b&&b.length===4&&b.every(Number.isFinite)&&b[0]<bounds.getEast()&&b[2]>bounds.getWest()&&b[1]<bounds.getNorth()&&b[3]>bounds.getSouth();});
-    const next=found?.id||null;if(areaId===next)return;areaId=next;const seq=++areaSequence;areaController?.abort();area=null;areaData=null;map.getSource(objectSource)?.setData(empty);
+    const next=found?.id||null;if(areaId===next)return;areaId=next;const seq=++areaSequence;areaController?.abort();area=null;areaData=null;treeData=null;map.getSource(objectSource)?.setData(empty);map.getSource(treeSource)?.setData(empty);
     if(!found){scheduleMetrics();return;}
     let data=areaCache.get(found.id);
     if(!data){
@@ -87,7 +97,7 @@
      data=JSON.parse(new TextDecoder().decode(bytes));if(data.type!=='FeatureCollection'||!Array.isArray(data.features)||data.features.length>10000)throw Error('Invalid object collection');
      areaCache.set(found.id,data);while(areaCache.size>3)areaCache.delete(areaCache.keys().next().value);
     }
-    if(disposed||seq!==areaSequence)return;area=found;areaData=data;ensure();map.getSource(objectSource)?.setData(data);scheduleMetrics();
+    if(disposed||seq!==areaSequence)return;area=found;areaData=data;treeData=treeSymbols(data);ensure();map.getSource(objectSource)?.setData(data);map.getSource(treeSource)?.setData(treeData);scheduleMetrics();
    }catch(e){if(e.name!=='AbortError'){areaId=null;status.textContent='Detailed object extract is unavailable; the mapped basemap remains usable.';}}
   }
   function scheduleMetrics(){clearTimeout(metricsTimer);metricsTimer=setTimeout(metrics,350);}
@@ -120,14 +130,15 @@
    if(disposed||map.getZoom()<14||!ready)return false;
    const rendered=map.queryRenderedFeatures(e.point);
    if(rendered.some(f=>['WF','RX','CX','detection'].includes(f.properties?.kind)))return false;
-   const feature=rendered.find(f=>f.layer.id===objectLayers[4])||rendered.find(f=>f.source===objectSource&&f.properties?.kind==='building')||rendered.find(f=>objectLayers.includes(f.layer.id))||rendered.find(f=>[layers[4],layers[5],layers[3],layers[2]].includes(f.layer.id));
+   const feature=rendered.find(f=>f.layer.id===treeLayer)||rendered.find(f=>f.layer.id===objectLayers[4])||rendered.find(f=>f.source===objectSource&&f.properties?.kind==='building')||rendered.find(f=>objectLayers.includes(f.layer.id))||rendered.find(f=>[layers[4],layers[5],layers[3],layers[2]].includes(f.layer.id));
    if(!feature)return false;
-   if(feature.source===objectSource){
-    const p=feature.properties||{},original=areaData?.features.find(f=>f.properties.source_id===p.source_id),heading=p.name||p.address||({tree:'Mapped tree point',building:'Mapped building',pedestrian_area:'Mapped pedestrian area',land_area:'Mapped land use',transportation:'Mapped street / path',water:'Mapped water'}[p.kind]||'Mapped object');
+   if(feature.source===objectSource||feature.source===treeSource){
+    if(!area)return false;
+    const original=areaData?.features.find(f=>f.properties.source_id===feature.properties?.source_id),p=original?.properties||feature.properties||{},heading=p.name||p.address||({tree:'Mapped tree location',building:'Mapped building',pedestrian_area:'Mapped pedestrian area',land_area:'Mapped land use',transportation:'Mapped street / path',water:'Mapped water'}[p.kind]||'Mapped object');
     detail.replaceChildren(create('strong',heading),create('p',p.source_id+' · OpenStreetMap'),create('p',e.lngLat.lat.toFixed(6)+'°, '+e.lngLat.lng.toFixed(6)));
     if(p.address)detail.append(create('p',p.address));
     if(['tree','building'].includes(p.kind))detail.append(create('p',typeof p.height_m==='number'?'Source-tagged height: '+p.height_m+' m; not independently surveyed here.':'Height is not mapped.'));
-    if(p.kind==='tree')detail.append(create('p','Point denotes a recorded tree location; symbol size does not represent crown diameter.'));
+    if(p.kind==='tree')detail.append(create('p','Location follows a source tree record. Shape and crown size are schematic; unrecorded height uses an 8 m display symbol.'));
     if(p.kind==='transportation')detail.append(create('p','Mapped centerline; display width is schematic.'));
     detail.append(create('p','Extract retrieved '+area.retrieved_at_utc.slice(0,10)+'. Source edit date is not survey date.'));detail.hidden=false;
     options.onObject?.({kind:p.kind,selected_wgs84:[e.lngLat.lng,e.lngLat.lat],source:'OpenStreetMap',source_feature_id:p.source_id,geometry_is_display_tile:false,geometry:original?.geometry||null,properties:original?.properties||p});return true;
@@ -139,14 +150,13 @@
    return true;
   }
   back.onclick=regional;tilt.onclick=()=>{terrainTilt=map.getPitch()<15;map.easeTo({pitch:terrainTilt?52:0,duration:450});};
-  aerial.onclick=()=>{aerialEnabled=!aerialEnabled;imageryFailed=false;aerial.setAttribute('aria-pressed',String(aerialEnabled));imageryNote.hidden=!aerialEnabled;applyAerial();};
   illustration.onclick=()=>options.openIllustration?.();if(!options.openIllustration)illustration.hidden=true;
-  const styled=()=>{ensure();if(aerialEnabled&&ready)applyAerial();};
+  const styled=()=>ensure();
   const moved=()=>{scheduleMetrics();loadArea();};
-  const failed=e=>{if(e.sourceId===PREFIX+'aerial'){imageryFailed=true;hideAerial();scheduleMetrics();}else if(e.sourceId===SOURCE)status.textContent='Street tiles are temporarily unavailable; the regional map remains available.';};
+  const failed=e=>{if(e.sourceId===SOURCE)status.textContent='Street tiles are temporarily unavailable; the regional map remains available.';};
   map.on('zoom',sync);map.on('zoomend',onZoomEnd);map.on('pitchend',sync);map.on('moveend',moved);map.on('styledata',styled);map.on('error',failed);
   map.setMaxZoom(20);ensure();sync();
-  return {ready:true,enter,regional,onMapClick,panel,get geometryReady(){return ready;},get selectedArea(){return area?.id||null;},dispose(){disposed=true;areaSequence++;areaController?.abort();clearTimeout(metricsTimer);map.off('zoom',sync);map.off('zoomend',onZoomEnd);map.off('pitchend',sync);map.off('moveend',moved);map.off('styledata',styled);map.off('error',failed);popup?.remove();panel.remove();for(const id of [...layers,...objectLayers,PREFIX+'aerial'])if(map.getLayer(id))map.removeLayer(id);if(map.getSource(PREFIX+'aerial'))map.removeSource(PREFIX+'aerial');if(map.getSource(objectSource))map.removeSource(objectSource);options.onDetailScale?.(1);}};
+  return {ready:true,enter,regional,onMapClick,panel,get geometryReady(){return ready;},get selectedArea(){return area?.id||null;},dispose(){disposed=true;areaSequence++;areaController?.abort();clearTimeout(metricsTimer);map.off('zoom',sync);map.off('zoomend',onZoomEnd);map.off('pitchend',sync);map.off('moveend',moved);map.off('styledata',styled);map.off('error',failed);popup?.remove();panel.remove();for(const id of [...layers,...objectLayers,treeLayer])if(map.getLayer(id))map.removeLayer(id);if(map.getSource(treeSource))map.removeSource(treeSource);if(map.getSource(objectSource))map.removeSource(objectSource);options.onDetailScale?.(1);}};
  }
  global.FireEyeGeographicScene={mount};
 })(window);
