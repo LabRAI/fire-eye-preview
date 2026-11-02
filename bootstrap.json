@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "release_id": "20261027T120000Z-5cb899db002cc75c",
-  "issue_time_utc": "2026-10-27T12:00:00Z",
-  "published_at_utc": "2026-10-27T19:17:50.278357Z",
+  "release_id": "20261102T000000Z-78748c4bf5ef5b50",
+  "issue_time_utc": "2026-11-02T00:00:00Z",
+  "published_at_utc": "2026-11-02T08:18:31.955468Z",
   "bounds": [
     -125,
     24,
@@ -14,23 +14,23 @@
   "runs": [
     {
       "lead_hours": 12,
-      "target_time_utc": "2026-10-28T00:00:00Z",
+      "target_time_utc": "2026-11-02T12:00:00Z",
       "path": "forecast-h12.pmtiles",
-      "source_id": "firewxfm_forecast_20261027T120000Z_va9dbbc68ade75db8",
+      "source_id": "firewxfm_forecast_20261102T000000Z_v39a32d94e7aa8279",
       "source_layer": "day1",
-      "sha256": "e44f8f750572c28bbebe2c4bd2162d40b55c302c301db70d7289d556a86c43a2",
-      "bytes": 32820060,
+      "sha256": "f003f1362d41015e764f535071a9372696acfbccfce8dcc371839bcdaeb1ca85",
+      "bytes": 30664257,
       "minzoom": 2,
       "maxzoom": 10,
       "overview": {
         "image": {
           "path": "overview-h12.png",
-          "sha256": "1fe52371345aacd69d74aef74f4637952d958c5435d404ff1d74837db65d5f4a",
-          "bytes": 664216
+          "sha256": "4ad70055efa275d310add3af16a1955a715a997c3b5bcf605407d7a6e6abf9a3",
+          "bytes": 645459
         },
         "values": {
           "path": "values-h12.bin",
-          "sha256": "40fc334e8d259f15d9a1abed7045fd22c91f26465fd34b01e8822a68ffad8f69",
+          "sha256": "eac4770cae541562ea97ef012f5a9e0f89c2ec8d74ed7d30a41c199edb3a9233",
           "bytes": 1142484
         },
         "grid": {
@@ -78,23 +78,23 @@
     },
     {
       "lead_hours": 24,
-      "target_time_utc": "2026-10-28T12:00:00Z",
+      "target_time_utc": "2026-11-03T00:00:00Z",
       "path": "forecast-h24.pmtiles",
-      "source_id": "firewxfm_forecast_20261027T120000Z_h24_va5493841b72447c6",
+      "source_id": "firewxfm_forecast_20261102T000000Z_h24_vb92c161338e0feaf",
       "source_layer": "day1",
-      "sha256": "8e0738c928f2e017f681df79516dbacd2c72ab7699f11658fdfab21a1411dd1d",
-      "bytes": 32004691,
+      "sha256": "0a852b3998f395d361601f1b15a054522436cd55adc6d1ef966b5db3ecae602c",
+      "bytes": 31457931,
       "minzoom": 2,
       "maxzoom": 10,
       "overview": {
         "image": {
           "path": "overview-h24.png",
-          "sha256": "079d986bed43c929d58f177e006d360569634b9f1752a6100adcbcb39fb968bb",
-          "bytes": 660045
+          "sha256": "a02c50119da5f6008bce6d1ed067a56f67fde5d2aca035f57aa68d13a7435df4",
+          "bytes": 654425
         },
         "values": {
           "path": "values-h24.bin",
-          "sha256": "ff8de05761fe14d96e8887387d9daefa4c45d5615e29d812db89522e9ed326bf",
+          "sha256": "bde6103251b64716a1afc19a8fa6657d59411787363e97ed6dec5c71b37cad27",
           "bytes": 1142484
         },
         "grid": {
@@ -142,23 +142,23 @@
     },
     {
       "lead_hours": 36,
-      "target_time_utc": "2026-10-29T00:00:00Z",
+      "target_time_utc": "2026-11-03T12:00:00Z",
       "path": "forecast-h36.pmtiles",
-      "source_id": "firewxfm_forecast_20261027T120000Z_h36_v363da2302a7fa363",
+      "source_id": "firewxfm_forecast_20261102T000000Z_h36_v6e5738dfd33fccf0",
       "source_layer": "day1",
-      "sha256": "55f3eeec189e5737f8a7542b1e814d5a7c730b4dc34ce54cb84f36ae2eb81020",
-      "bytes": 33021150,
+      "sha256": "6f30d38b52e6fcf92ce16ad1a58f0bc2eb244664017f586c21d92a664b5e9cfd",
+      "bytes": 32598155,
       "minzoom": 2,
       "maxzoom": 10,
       "overview": {
         "image": {
           "path": "overview-h36.png",
-          "sha256": "718e58e778d74aee3e3c6c5214f2f7e816c19ef6cf53a99376e80c2ec30f2218",
-          "bytes": 661118
+          "sha256": "a60f2a0abadd024c95b4f72190caef7286707d20efc60d7e2128273920e5d1d5",
+          "bytes": 687194
         },
         "values": {
           "path": "values-h36.bin",
-          "sha256": "1edd2cf1771d717dc020adbd461c1f6517a7d5a49563e21bed63fd82dfc738f9",
+          "sha256": "ee2338ec4019773966789a6f2fdd7b99ba651be330a55278946b7b207cc41390",
           "bytes": 1142484
         },
         "grid": {
@@ -206,23 +206,23 @@
     },
     {
       "lead_hours": 48,
-      "target_time_utc": "2026-10-29T12:00:00Z",
+      "target_time_utc": "2026-11-04T00:00:00Z",
       "path": "forecast-h48.pmtiles",
-      "source_id": "firewxfm_forecast_20261027T120000Z_h48_vc7a64f34d8a1fbd6",
+      "source_id": "firewxfm_forecast_20261102T000000Z_h48_v55136f860c7298fa",
       "source_layer": "day1",
-      "sha256": "4ab617d3ce36c732b36a3a9a01b0ac124498e46cb2cb988366f26e11d43ec0d5",
-      "bytes": 32388736,
+      "sha256": "4c9de0efd047b73d96bf34b9ae610f9f911a9637c0521d1254d2a278c9d8e957",
+      "bytes": 33347946,
       "minzoom": 2,
       "maxzoom": 10,
       "overview": {
         "image": {
           "path": "overview-h48.png",
-          "sha256": "0dc89377ff662b3978818795f80b306b7dc58a2d743a1f5ce28eaa57f86af383",
-          "bytes": 662474
+          "sha256": "87ee8fa1d07e8981b37fdf5e6e2dc0216cfac463193ce7d354162aa39cb62dca",
+          "bytes": 700081
         },
         "values": {
           "path": "values-h48.bin",
-          "sha256": "bc2646c1714e63eaf76aff47a1d961eeb83ccedcf6cebf1fc78d115e0fdba29c",
+          "sha256": "684bd9d4415ffd46c51cff96dcf7ce4f258916e570e18049f888ce55d62c7643",
           "bytes": 1142484
         },
         "grid": {
@@ -269,5 +269,5 @@
       }
     }
   ],
-  "asset_base": "./releases/20261027T120000Z-5cb899db002cc75c/"
+  "asset_base": "./releases/20261102T000000Z-78748c4bf5ef5b50/"
 }

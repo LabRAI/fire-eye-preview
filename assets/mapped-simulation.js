@@ -22,7 +22,7 @@
   catch(e){if(p)gl.deleteProgram(p);throw e;}finally{shaders.forEach(s=>gl.deleteShader(s));}
  }
  function mount(map,options={}){
-  const C={phase:'mapped',alpha:0,treeCount:0,renderedTrees:0,frames:0,elapsed:0,paused:matchMedia('(prefers-reduced-motion: reduce)').matches,fireEnabled:true,ignition:null,assetBytes:0,error:null};
+  const C={phase:'mapped',alpha:0,treeCount:0,renderedTrees:0,frames:0,elapsed:0,paused:matchMedia('(prefers-reduced-motion: reduce)').matches,fireEnabled:true,ignition:null,forecastRequired:false,forecast:null,fireEmphasis:1,assetBytes:0,error:null};
   let disposed=false,area=null,collection=null,assets=null,assetTask=null,controller=new AbortController(),layer=null,gpu=null,origin=null,metres=1,groups=[],fireGroups=[],timer=null,last=null,cooldown=0,lastState='',replacement=-1,installing=false,ignitionAttempted=false,ignitionView=null,sceneMatrix=null;
   const merc=p=>global.maplibregl.MercatorCoordinate.fromLngLat(p,0);
   const local=p=>{const q=merc(p);return [(q.x-origin.x)/metres,0,(q.y-origin.y)/metres];};
@@ -30,7 +30,7 @@
   const canIgnite=()=>map.getZoom()>=END&&!map.isMoving()&&map.getSource('openmaptiles')&&(map.isSourceLoaded('openmaptiles')||map.queryRenderedFeatures({layers:['mapped-scene-buildings']}).length>0)&&ignitionView!==viewKey();
   const viewKey=()=>map.getCenter().toArray().join(',')+'|'+map.getZoom()+'|'+map.getBearing()+'|'+map.getPitch();
   const setReplacement=value=>{if(Math.abs(value-replacement)>.002){replacement=value;options.onReplacement?.(value);}};
-  function notify(){const state=[C.phase,C.paused,C.fireEnabled,C.treeCount,!!C.ignition,C.error].join('|');if(state!==lastState){lastState=state;options.onChange?.({...C});}}
+  function notify(){const state=[C.phase,C.paused,C.fireEnabled,C.treeCount,C.ignition?.source_id,C.forecastRequired,C.forecast?.key,C.forecast?.status,C.forecast?.risk,C.error].join('|');if(state!==lastState){lastState=state;options.onChange?.({...C});}}
   function clearTimer(){clearTimeout(timer);timer=null;}
   function fail(){clearTimer();C.error='Scene detail is unavailable';C.phase='fallback';C.alpha=0;cooldown=Date.now()+30000;setReplacement(0);notify();}
   async function loadAssets(){
@@ -63,8 +63,8 @@
    }
    const visible=p=>{const q=project(p,.2);if(!q||q[0]<32||q[1]<32||q[0]>canvas.clientWidth-32||q[1]>canvas.clientHeight-32)return false;return !faces.some(({rings,b})=>q[0]>=b[0]&&q[0]<=b[2]&&q[1]>=b[1]&&q[1]<=b[3]&&ringContains(rings[0],q)&&!rings.slice(1).some(r=>ringContains(r,q)));};
    const distance=p=>(p[0]-center[0])**2*Math.cos(center[1]*Math.PI/180)**2+(p[1]-center[1])**2;
-   const tree=trees.filter(f=>eligible(f.geometry.coordinates)&&visible(f.geometry.coordinates)).sort((a,b)=>distance(a.geometry.coordinates)-distance(b.geometry.coordinates))[0];
-   if(tree)return {lnglat:[...tree.geometry.coordinates],source_id:tree.properties.source_id,kind:'demonstration',ground_height_m:0};
+   const tree=[...trees,...collection.features.filter(f=>f.properties?.kind==='scenario_anchor'&&f.geometry?.type==='Point')].filter(f=>eligible(f.geometry.coordinates)&&visible(f.geometry.coordinates)).sort((a,b)=>distance(a.geometry.coordinates)-distance(b.geometry.coordinates))[0];
+   if(tree)return {lnglat:[...tree.geometry.coordinates],source_id:tree.properties.source_id,kind:area?.prediction_linked?'forecast-scenario':'demonstration',ground_height_m:0};
    // An interior point of recorded greenspace; never create replacement trees.
    const candidates=[];
    for(const f of collection.features.filter(f=>['land_area','woodland_area'].includes(f.properties?.kind)&&['park','garden','grass','forest','wood','recreation_ground'].includes(f.properties?.class))){
@@ -80,7 +80,7 @@
    if(trees.length>2000)throw Error('Scene object budget exceeded');C.treeCount=trees.length;
    groups=assets.map((asset,index)=>{
     const selected=trees.filter(f=>hash(f.properties.source_id)%assets.length===index),values=[];
-    for(const f of selected){const p=f.properties,h=typeof p.height_m==='number'&&p.height_m>0&&p.height_m<=120?p.height_m:8,angle=hash(p.source_id)/4294967296*Math.PI*2;values.push(...local(f.geometry.coordinates),4.8/asset.crown_diameter_m,h/asset.height_m,Math.sin(angle),Math.cos(angle));}
+    for(const f of selected){const p=f.properties,h=typeof p.height_m==='number'&&p.height_m>0&&p.height_m<=120?p.height_m:(p.synthetic?p.display_height_m:8)||8,angle=hash(p.source_id)/4294967296*Math.PI*2;values.push(...local(f.geometry.coordinates),(p.synthetic?p.display_crown_m||4.8:4.8)/asset.crown_diameter_m,h/asset.height_m,Math.sin(angle),Math.cos(angle));}
     return {asset,instances:new Float32Array(values),count:selected.length};
    });
    if(ignite&&!ignitionAttempted&&canIgnite()){C.ignition=chooseIgnition(trees);ignitionAttempted=!!C.ignition;ignitionView=viewKey();}
@@ -116,12 +116,12 @@
      for(const m of g.meshes){if(!m.count)continue;gl.bindBuffer(gl.ARRAY_BUFFER,m.vertex);attribute(gl,p.a.position,3,36,0);attribute(gl,p.a.normal,3,36,12);attribute(gl,p.a.color,3,36,24);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,m.index);gl.bindBuffer(gl.ARRAY_BUFFER,m.instance);attribute(gl,p.a.offset,3,28,0);attribute(gl,p.a.size,2,28,12);attribute(gl,p.a.rotation,2,28,20);for(const name of ['offset','size','rotation'])g.instanced.vertexAttribDivisorANGLE(p.a[name],1);g.instanced.drawElementsInstancedANGLE(gl.TRIANGLES,m.asset.index_count,gl.UNSIGNED_SHORT,0,m.count);for(const name of ['offset','size','rotation'])g.instanced.vertexAttribDivisorANGLE(p.a[name],0);}
      for(const a of Object.values(p.a))if(a>=0)gl.disableVertexAttribArray(a);
     }
-    if(C.fireEnabled&&C.ignition){const p=g.fireProgram;gl.useProgram(p.id);gl.uniformMatrix4fv(p.u.matrix,false,projection);gl.uniform2f(p.u.viewport,gl.drawingBufferWidth,gl.drawingBufferHeight);gl.uniform1f(p.u.time,C.elapsed);gl.uniform1f(p.u.opacity,C.alpha);gl.depthMask(false);
+    if(C.fireEnabled&&C.ignition&&C.fireEmphasis>0){const p=g.fireProgram;gl.useProgram(p.id);gl.uniformMatrix4fv(p.u.matrix,false,projection);gl.uniform2f(p.u.viewport,gl.drawingBufferWidth,gl.drawingBufferHeight);gl.uniform1f(p.u.time,C.elapsed);gl.uniform1f(p.u.opacity,C.alpha*C.fireEmphasis);gl.depthMask(false);
      for(const f of g.fire){gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.bindBuffer(gl.ARRAY_BUFFER,f.buffer);attribute(gl,p.a.position,3,16,0);attribute(gl,p.a.seed,1,16,12);gl.uniform1f(p.u.rise,f.rise);gl.uniform1f(p.u.size,f.size);gl.uniform1f(p.u.smoke,f.smoke?1:0);gl.drawArrays(gl.POINTS,0,f.count);}
      for(const a of Object.values(p.a))if(a>=0)gl.disableVertexAttribArray(a);
     }
     gl.depthMask(true);g.vaoExt?.bindVertexArrayOES(null);gl.bindBuffer(gl.ARRAY_BUFFER,null);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,null);C.frames++;
-    if(!C.paused&&C.fireEnabled&&C.ignition&&!timer)timer=setTimeout(()=>{timer=null;if(!disposed&&C.alpha>.001&&!document.hidden)map.triggerRepaint();},innerWidth<600?50:33);
+    if(!C.paused&&C.fireEnabled&&C.ignition&&C.fireEmphasis>0&&!timer)timer=setTimeout(()=>{timer=null;if(!disposed&&C.alpha>.001&&!document.hidden)map.triggerRepaint();},innerWidth<600?50:33);
    }catch{fail();}
   }
   function install(){
@@ -141,7 +141,7 @@
   const visibility=()=>{clearTimer();last=null;if(!document.hidden)update();};
   const styled=()=>{if(assets&&area&&!map.getLayer(ID)){install();update();}};
   map.on('sourcedata',sourceReady);map.on('zoom',update);map.on('moveend',update);map.on('styledata',styled);document.addEventListener('visibilitychange',visibility);
-  return {state:C,setArea(snapshot){const next=snapshot?.area;if(next?.id===area?.id&&snapshot?.collection===collection)return;area=next||null;collection=snapshot?.collection||null;C.ignition=null;ignitionAttempted=false;ignitionView=null;C.elapsed=0;last=null;try{rebuild();}catch{fail();return;}update();},pause(value){C.paused=!!value;clearTimer();last=null;notify();map.triggerRepaint();},fire(value){C.fireEnabled=!!value;clearTimer();last=null;notify();map.triggerRepaint();},retry(){C.error=null;cooldown=0;if(!gpu&&map.getLayer(ID))map.removeLayer(ID);update();},dispose(){disposed=true;controller.abort();clearTimer();map.off('sourcedata',sourceReady);map.off('zoom',update);map.off('moveend',update);map.off('styledata',styled);document.removeEventListener('visibilitychange',visibility);if(map.getLayer(ID))map.removeLayer(ID);release();setReplacement(0);}};
+  return {state:C,setArea(snapshot){const next=snapshot?.area;if(next?.id===area?.id&&snapshot?.collection===collection)return;const previous=C.ignition,keep=next?.prediction_linked&&area?.id===next.id&&snapshot?.collection?.features.some(f=>f.properties?.source_id===previous?.source_id);area=next||null;collection=snapshot?.collection||null;C.forecastRequired=!!area?.prediction_linked;if(!keep){C.forecast=null;C.fireEmphasis=C.forecastRequired?0:1;}C.ignition=keep?previous:null;ignitionAttempted=!!C.ignition;ignitionView=null;if(!keep)C.elapsed=0;last=null;try{rebuild();}catch{fail();return;}update();},setForecast(value){if(!C.forecastRequired)return;C.forecast={...value};if(value?.status==='ready'&&!(typeof value.risk==='number'&&Number.isFinite(value.risk)&&value.risk>=0&&value.risk<=1))C.forecast.status='missing';C.fireEmphasis=C.forecast.status==='ready'?Math.sqrt(C.forecast.risk):0;clearTimer();last=null;notify();map.triggerRepaint();},pause(value){C.paused=!!value;clearTimer();last=null;notify();map.triggerRepaint();},fire(value){C.fireEnabled=!!value;clearTimer();last=null;notify();map.triggerRepaint();},retry(){C.error=null;cooldown=0;if(!gpu&&map.getLayer(ID))map.removeLayer(ID);update();},dispose(){disposed=true;controller.abort();clearTimer();map.off('sourcedata',sourceReady);map.off('zoom',update);map.off('moveend',update);map.off('styledata',styled);document.removeEventListener('visibilitychange',visibility);if(map.getLayer(ID))map.removeLayer(ID);release();setReplacement(0);}};
  }
  global.FireEyeMappedSimulation={mount};
 })(window);
