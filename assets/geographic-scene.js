@@ -24,8 +24,8 @@
   const top=create('div',null,'mapped-scene-heading'),title=create('strong','Digital local scene'),back=create('button','Regional view');back.type='button';
   top.append(title,back);panel.append(top);
   const status=create('p','Zoom in to explore mapped buildings and streets.','mapped-scene-status');status.setAttribute('role','status');panel.append(status);
-  const actions=create('div',null,'mapped-scene-actions'),tilt=create('button','3D'),pause=create('button','Pause'),fire=create('button','Scenario fire'),retry=create('button','Retry detail');
-  for(const b of [tilt,pause,fire,retry]){b.type='button';actions.append(b);}panel.append(actions);pause.hidden=fire.hidden=retry.hidden=true;
+  const actions=create('div',null,'mapped-scene-actions'),tilt=create('button','3D'),pause=create('button','Pause'),fire=create('button','Fire'),findFire=create('button','Find fire'),retry=create('button','Retry detail');
+  for(const b of [tilt,pause,fire,findFire,retry]){b.type='button';actions.append(b);}panel.append(actions);pause.hidden=fire.hidden=findFire.hidden=retry.hidden=true;findFire.title="Center the illustrative fire in the visible map";fire.setAttribute("aria-label","Scenario fire");fire.title="Toggle illustrative scenario fire";
   const simulationNote=create('p','','mapped-simulation-status');simulationNote.hidden=true;simulationNote.setAttribute('role','status');panel.append(simulationNote);
   tilt.setAttribute('aria-pressed','false');
   const note=create('p','Mapped footprints and streets. Building heights are display estimates; tree shapes are schematic.','mapped-scene-note');panel.append(note);
@@ -45,14 +45,15 @@
   const opacity=['interpolate',['linear'],['zoom'],13,0,15,1];
   const live=options.simulationAssetsURL&&global.FireEyeMappedSimulation?global.FireEyeMappedSimulation.mount(map,{
    manifestURL:options.simulationAssetsURL,
+   occlusionElements:()=>document.querySelectorAll('.panel, .mapped-scene-panel, .maplibregl-ctrl, .maplibregl-popup'),
    onReplacement:alpha=>{if(map.getLayer(treeLayer))map.setPaintProperty(treeLayer,'fill-extrusion-opacity',['interpolate',['linear'],['zoom'],16,0,17,1-alpha]);},
-   onChange:state=>{const active=state.phase==='simulation',linked=state.forecastRequired,f=state.forecast;title.textContent=active?'Local simulation':'Digital local scene';pause.hidden=fire.hidden=!active;fire.disabled=!state.ignition||(linked&&!(f?.status==='ready'&&f.risk>0));pause.textContent=state.paused?'Resume':'Pause';pause.setAttribute('aria-pressed',String(state.paused));fire.setAttribute('aria-pressed',String(state.fireEnabled));retry.hidden=state.phase!=='fallback';simulationNote.hidden=!active&&state.phase!=='loading'&&state.phase!=='fallback';simulationNote.textContent=state.phase==='loading'?'Preparing local simulation…':state.phase==='fallback'?'Mapped view remains available. Retry scene detail.':linked?(f?.status==='ready'?'Forecast scenario · fire risk '+f.risk.toFixed(3)+(f.risk===0?' · no flame drawn':''):f?.status==='missing'||f?.status==='error'?'Scenario unavailable for this forecast':'Preparing selected forecast…'):state.ignition&&state.fireEnabled?'Illustrative fire scenario · not a reported fire':'Local scene models · zoom out to return';
+   onChange:state=>{const active=state.phase==='simulation',linked=state.forecastRequired,f=state.forecast;title.textContent=active?'Local simulation':'Digital local scene';pause.hidden=fire.hidden=findFire.hidden=!active;findFire.disabled=fire.disabled=!state.ignition||(linked&&!(f?.status==='ready'&&f.risk>0));pause.textContent=state.paused?'Resume':'Pause';pause.setAttribute('aria-pressed',String(state.paused));fire.setAttribute('aria-pressed',String(state.fireEnabled));retry.hidden=state.phase!=='fallback';simulationNote.hidden=!active&&state.phase!=='loading'&&state.phase!=='fallback';simulationNote.textContent=state.phase==='loading'?'Preparing local simulation…':state.phase==='fallback'?'Mapped view remains available. Retry scene detail.':linked?(f?.status==='ready'?'Forecast scenario · fire risk '+f.risk.toFixed(3)+(f.risk===0?' · no flame drawn':''):f?.status==='missing'||f?.status==='error'?'Scenario unavailable for this forecast':'Preparing selected forecast…'):state.ignition&&state.fireEnabled?'Illustrative fire scenario · not a reported fire':'Local scene models · zoom out to return';
     forecastLine.hidden=!linked;forecastLine.textContent=linked&&f?.target_time_utc?'+'+f.lead_hours+'h · Window ending '+new Date(f.target_time_utc).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'UTC'})+' UTC · scenario, not a reported fire':linked?'Vegetation from 2020 land cover · illustrative placements':'';
     forecastLine.title=linked?'Flame visibility follows the selected 5 km model score; it does not predict ignition location, physical intensity or spread.':'';
     options.onSimulationChange?.(state);
    }
   }):null;
-  pause.onclick=()=>live?.pause(!live.state.paused);fire.onclick=()=>live?.fire(!live.state.fireEnabled);retry.onclick=()=>{local?.invalidate();loadArea();live?.retry();};
+  pause.onclick=()=>live?.pause(!live.state.paused);fire.onclick=()=>live?.fire(!live.state.fireEnabled);findFire.onclick=()=>live?.focusFire();retry.onclick=()=>{local?.invalidate();loadArea();live?.retry();};
   const firstSymbol=()=>map.getStyle()?.layers?.find(l=>l.type==='symbol')?.id;
   function ensure(){
    // Other forecast/overlay sources can still be loading or unavailable.

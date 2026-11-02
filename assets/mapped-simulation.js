@@ -47,8 +47,26 @@
     if(disposed)return null;assets=meshes;C.assetBytes=meshes.reduce((n,m)=>n+m.bytes,0);C.error=null;rebuild();install();update();return meshes;
    })().catch(()=>{assetTask=null;if(!disposed)fail();return null;});return assetTask;
   }
+  function visibleMapLayout(){
+   const canvas=map.getCanvas(),bounds=canvas.getBoundingClientRect(),width=canvas.clientWidth,height=canvas.clientHeight,obstacles=[];
+   // Read layout only when placing/finding the scenario, never per frame.
+   for(const element of options.occlusionElements?.()||[]){
+    if(!element.getClientRects().length)continue;const style=getComputedStyle(element);if(style.visibility==='hidden'||Number(style.opacity)===0)continue;
+    const r=element.getBoundingClientRect(),b=[Math.max(0,r.left-bounds.left),Math.max(0,r.top-bounds.top),Math.min(width,r.right-bounds.left),Math.min(height,r.bottom-bounds.top)];
+    if(b[0]<b[2]&&b[1]<b[3])obstacles.push(b);
+   }
+   const clear=b=>b[0]>=16&&b[1]>=16&&b[2]<=width-16&&b[3]<=height-16&&!obstacles.some(r=>b[0]<r[2]+12&&b[2]>r[0]-12&&b[1]<r[3]+12&&b[3]>r[1]-12);
+   let target=[width/2,height*.45],best=Infinity;
+   for(let x=1;x<20;x++)for(let y=1;y<20;y++){const p=[width*x/20,height*y/20];if(!clear([p[0]-32,p[1]-55,p[0]+32,p[1]+16]))continue;const score=(p[0]-width/2)**2+(p[1]-height*.45)**2;if(score<best){best=score;target=p;}}
+   return {width,height,clear,target};
+  }
+  function focusFire(){
+   if(!C.ignition||(C.forecastRequired&&C.fireEmphasis<=0))return false;
+   const {width,height,target}=visibleMapLayout();C.fireEnabled=true;notify();
+   map.easeTo({center:C.ignition.lnglat,zoom:Math.max(END,map.getZoom()),pitch:48,offset:[target[0]-width/2,target[1]-height/2],duration:matchMedia('(prefers-reduced-motion: reduce)').matches?0:600});return true;
+  }
   function chooseIgnition(trees){
-   if(!collection||!origin)return null;const center=map.getCenter().toArray(),blocked=collection.features.filter(f=>['building','water'].includes(f.properties?.kind));
+   if(!collection||!origin)return null;const blocked=collection.features.filter(f=>['building','water'].includes(f.properties?.kind));
    const eligible=p=>!blocked.some(f=>contains(f.geometry,p));
    // Vector tiles merge separate buildings into MultiPolygons. Their query
    // bounding boxes overestimate occlusion; test the actual projected faces.
@@ -61,17 +79,23 @@
      for(let j=0;j<rings.length;j++)for(let i=1;i<rings[j].length;i++)face([[bottom[j][i-1],bottom[j][i],top[j][i],top[j][i-1]]]);
     }
    }
-   const visible=p=>{const q=project(p,.2);if(!q||q[0]<32||q[1]<32||q[0]>canvas.clientWidth-32||q[1]>canvas.clientHeight-32)return false;return !faces.some(({rings,b})=>q[0]>=b[0]&&q[0]<=b[2]&&q[1]>=b[1]&&q[1]<=b[3]&&ringContains(rings[0],q)&&!rings.slice(1).some(r=>ringContains(r,q)));};
-   const distance=p=>(p[0]-center[0])**2*Math.cos(center[1]*Math.PI/180)**2+(p[1]-center[1])**2;
-   const tree=[...trees,...collection.features.filter(f=>f.properties?.kind==='scenario_anchor'&&f.geometry?.type==='Point')].filter(f=>eligible(f.geometry.coordinates)&&visible(f.geometry.coordinates)).sort((a,b)=>distance(a.geometry.coordinates)-distance(b.geometry.coordinates))[0];
-   if(tree)return {lnglat:[...tree.geometry.coordinates],source_id:tree.properties.source_id,kind:area?.prediction_linked?'forecast-scenario':'demonstration',ground_height_m:0};
+   const layout=visibleMapLayout();
+   // The whole flame needs clearance from HTML panels, not only its ground
+   // point. Reserve room for the scenario notice when it becomes visible.
+   const visible=(p,avoidUI=true)=>{const q=project(p,.2),top=project(p,18);if(!q||q[0]<32||q[1]<32||q[0]>canvas.clientWidth-32||q[1]>canvas.clientHeight-32)return false;if(avoidUI&&(!top||!layout.clear([Math.min(q[0],top[0])-28,Math.min(q[1],top[1])-28,Math.max(q[0],top[0])+28,Math.max(q[1],top[1])+16])))return false;return !faces.some(({rings,b})=>q[0]>=b[0]&&q[0]<=b[2]&&q[1]>=b[1]&&q[1]<=b[3]&&ringContains(rings[0],q)&&!rings.slice(1).some(r=>ringContains(r,q)));};
+   const distance=p=>{const q=project(p,.2);return q?(q[0]-layout.target[0])**2+(q[1]-layout.target[1])**2:Infinity;};
+   const available=[...trees,...collection.features.filter(f=>f.properties?.kind==='scenario_anchor'&&f.geometry?.type==='Point')].filter(f=>eligible(f.geometry.coordinates)&&visible(f.geometry.coordinates,false)).sort((a,b)=>distance(a.geometry.coordinates)-distance(b.geometry.coordinates));
+   const ignition=f=>({lnglat:[...f.geometry.coordinates],source_id:f.properties.source_id,kind:area?.prediction_linked?'forecast-scenario':'demonstration',ground_height_m:0});
+   const tree=available.find(f=>visible(f.geometry.coordinates));if(tree)return ignition(tree);
    // An interior point of recorded greenspace; never create replacement trees.
    const candidates=[];
    for(const f of collection.features.filter(f=>['land_area','woodland_area'].includes(f.properties?.kind)&&['park','garden','grass','forest','wood','recreation_ground'].includes(f.properties?.class))){
     const rings=f.geometry.type==='Polygon'?[f.geometry.coordinates]:f.geometry.type==='MultiPolygon'?f.geometry.coordinates:[];
     for(const r of rings){const xs=r[0].map(p=>p[0]),ys=r[0].map(p=>p[1]),b=[Math.min(...xs),Math.min(...ys),Math.max(...xs),Math.max(...ys)];for(let i=1;i<8;i++)for(let j=1;j<8;j++){const p=[b[0]+(b[2]-b[0])*i/8,b[1]+(b[3]-b[1])*j/8];if(contains(f.geometry,p)&&eligible(p)&&visible(p))candidates.push({lnglat:p,source_id:f.properties.source_id,kind:'demonstration',ground_height_m:0});}}
    }
-   return candidates.sort((a,b)=>distance(a.lnglat)-distance(b.lnglat))[0]||null;
+   // A crowded viewport must not turn a valid forecast into missing data.
+   // Keep an eligible anchor; Find fire can bring it into the clear map area.
+   return candidates.sort((a,b)=>distance(a.lnglat)-distance(b.lnglat))[0]||(available[0]?ignition(available[0]):null);
   }
   function rebuild(ignite=false){
    if(!area||!collection||!assets){groups=[];fireGroups=[];C.treeCount=0;C.renderedTrees=0;C.ignition=null;if(gpu)uploadInstances();return;}
@@ -141,7 +165,7 @@
   const visibility=()=>{clearTimer();last=null;if(!document.hidden)update();};
   const styled=()=>{if(assets&&area&&!map.getLayer(ID)){install();update();}};
   map.on('sourcedata',sourceReady);map.on('zoom',update);map.on('moveend',update);map.on('styledata',styled);document.addEventListener('visibilitychange',visibility);
-  return {state:C,setArea(snapshot){const next=snapshot?.area;if(next?.id===area?.id&&snapshot?.collection===collection)return;const previous=C.ignition,keep=next?.prediction_linked&&area?.id===next.id&&snapshot?.collection?.features.some(f=>f.properties?.source_id===previous?.source_id);area=next||null;collection=snapshot?.collection||null;C.forecastRequired=!!area?.prediction_linked;if(!keep){C.forecast=null;C.fireEmphasis=C.forecastRequired?0:1;}C.ignition=keep?previous:null;ignitionAttempted=!!C.ignition;ignitionView=null;if(!keep)C.elapsed=0;last=null;try{rebuild();}catch{fail();return;}update();},setForecast(value){if(!C.forecastRequired)return;C.forecast={...value};if(value?.status==='ready'&&!(typeof value.risk==='number'&&Number.isFinite(value.risk)&&value.risk>=0&&value.risk<=1))C.forecast.status='missing';C.fireEmphasis=C.forecast.status==='ready'?Math.sqrt(C.forecast.risk):0;clearTimer();last=null;notify();map.triggerRepaint();},pause(value){C.paused=!!value;clearTimer();last=null;notify();map.triggerRepaint();},fire(value){C.fireEnabled=!!value;clearTimer();last=null;notify();map.triggerRepaint();},retry(){C.error=null;cooldown=0;if(!gpu&&map.getLayer(ID))map.removeLayer(ID);update();},dispose(){disposed=true;controller.abort();clearTimer();map.off('sourcedata',sourceReady);map.off('zoom',update);map.off('moveend',update);map.off('styledata',styled);document.removeEventListener('visibilitychange',visibility);if(map.getLayer(ID))map.removeLayer(ID);release();setReplacement(0);}};
+  return {state:C,focusFire,setArea(snapshot){const next=snapshot?.area;if(next?.id===area?.id&&snapshot?.collection===collection)return;const previous=C.ignition,keep=next?.prediction_linked&&area?.id===next.id&&snapshot?.collection?.features.some(f=>f.properties?.source_id===previous?.source_id);area=next||null;collection=snapshot?.collection||null;C.forecastRequired=!!area?.prediction_linked;if(!keep){C.forecast=null;C.fireEmphasis=C.forecastRequired?0:1;}C.ignition=keep?previous:null;ignitionAttempted=!!C.ignition;ignitionView=null;if(!keep)C.elapsed=0;last=null;try{rebuild();}catch{fail();return;}update();},setForecast(value){if(!C.forecastRequired)return;C.forecast={...value};if(value?.status==='ready'&&!(typeof value.risk==='number'&&Number.isFinite(value.risk)&&value.risk>=0&&value.risk<=1))C.forecast.status='missing';C.fireEmphasis=C.forecast.status==='ready'?Math.sqrt(C.forecast.risk):0;clearTimer();last=null;notify();map.triggerRepaint();},pause(value){C.paused=!!value;clearTimer();last=null;notify();map.triggerRepaint();},fire(value){C.fireEnabled=!!value;clearTimer();last=null;notify();map.triggerRepaint();},retry(){C.error=null;cooldown=0;if(!gpu&&map.getLayer(ID))map.removeLayer(ID);update();},dispose(){disposed=true;controller.abort();clearTimer();map.off('sourcedata',sourceReady);map.off('zoom',update);map.off('moveend',update);map.off('styledata',styled);document.removeEventListener('visibilitychange',visibility);if(map.getLayer(ID))map.removeLayer(ID);release();setReplacement(0);}};
  }
  global.FireEyeMappedSimulation={mount};
 })(window);
