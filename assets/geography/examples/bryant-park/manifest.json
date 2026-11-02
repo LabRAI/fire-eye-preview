@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "kind": "geographic-scene-extract",
+  "bbox_wgs84": [
+    -73.985,
+    40.751,
+    -73.981,
+    40.755
+  ],
+  "source_url": "https://api.openstreetmap.org/api/0.6/map.json?bbox=-73.985,40.751,-73.981,40.755",
+  "retrieved_at_utc": "2026-11-02T03:43:11.189Z",
+  "prepared_at_utc": "2026-11-02T03:57:48.043Z",
+  "source": "OpenStreetMap contributors",
+  "license": "ODbL-1.0",
+  "attribution_url": "https://www.openstreetmap.org/copyright",
+  "source_payload_sha256": "760e9d15cd9e35cca1908c29f896fab05bfe5f76a8ca74bec2ae0de82802fc13",
+  "source_elements": 5420,
+  "feature_counts": {
+    "land_area": 80,
+    "building": 326,
+    "water": 16,
+    "pedestrian_area": 44,
+    "transportation": 166,
+    "address": 110,
+    "tree": 565
+  },
+  "omitted_incomplete_features": 1,
+  "geometry_units": "longitude_latitude_degrees",
+  "horizontal_crs": "EPSG:4326",
+  "height_units": "metres_above_local_ground_when_tagged",
+  "survey_date": null,
+  "limits": [
+    "Research bbox snapshot, not a complete national inventory.",
+    "Missing trees or buildings do not establish absence.",
+    "Road lines are centerlines, not surveyed widths.",
+    "Building/tree heights are source tags, not independently surveyed by this project.",
+    "Source edit timestamps are not survey dates.",
+    "No procedural objects are added."
+  ],
+  "asset": {
+    "path": "features.geojson",
+    "bytes": 839858,
+    "sha256": "e182ca256c14572a7d8e21f7de60da24ef6a045ac7c83d8a3db2c2f490c39b1b"
+  }
+}

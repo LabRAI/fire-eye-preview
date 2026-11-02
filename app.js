@@ -45,7 +45,7 @@
  state.riskOpacity=1;state.riskVisible=true;
  function syncHeatmapDisplay(){
   const active=state.active;if(!active||!map.getLayer(active.id))return;
-  const a=state.riskOpacity,visible=state.riskVisible,fallback=state.overviewFallbackId;
+  const a=state.riskOpacity*(state.geographyRiskFactor??1),visible=state.riskVisible,fallback=state.overviewFallbackId;
   const detail=active.kind==='vector'&&(!fallback||(!state.detailFailures.has(active.id)&&!state.viewInMotion&&!map.isMoving()&&map.isSourceLoaded(active.id)));
   const visibility=(id,show)=>{if(!id||!map.getLayer(id))return;const next=show?'visible':'none';if((map.getLayoutProperty(id,'visibility')||'visible')!==next)map.setLayoutProperty(id,'visibility',next);};
   const paintKey=active.id+'|'+a+'|'+detail;
@@ -123,7 +123,7 @@
    syncHeatmapDisplay();return false;}
  }
  for(const lead of [12,24,36,48]){const b=document.createElement('button');b.textContent='+'+lead+'h';b.dataset.lead=lead;b.setAttribute('aria-pressed','false');b.onclick=()=>{if(state.manifest)show(state.manifest,lead);};$('horizons').append(b);}
- let clickSequence=0;map.on('click',async e=>{if(!state.active)return;if(state.onMapClick){state.onMapClick(e);return;}const seq=++clickSequence,active=state.active,lnglat=[e.lngLat.lng,e.lngLat.lat];try{const value=await valueAt(state.manifest,active.run,lnglat);if(seq!==clickSequence||state.active!==active)return;if(value===null){$('inspection').hidden=true;state.selected=null;return;}state.selected=lnglat;state.lastValue=value;$('coordinates').textContent=lnglat[1].toFixed(3)+'°, '+lnglat[0].toFixed(3)+'°';$('cell-value').textContent='Fire risk at selected location · '+value.toFixed(3);$('inspection').hidden=false;}catch{status('Location values temporarily unavailable');}});
+ let clickSequence=0;map.on('click',async e=>{if(window.fireEyeGeography?.onMapClick?.(e))return;if(!state.active)return;if(state.onMapClick){state.onMapClick(e);return;}const seq=++clickSequence,active=state.active,lnglat=[e.lngLat.lng,e.lngLat.lat];try{const value=await valueAt(state.manifest,active.run,lnglat);if(seq!==clickSequence||state.active!==active)return;if(value===null){$('inspection').hidden=true;state.selected=null;return;}state.selected=lnglat;state.lastValue=value;$('coordinates').textContent=lnglat[1].toFixed(3)+'°, '+lnglat[0].toFixed(3)+'°';$('cell-value').textContent='Fire risk at selected location · '+value.toFixed(3);$('inspection').hidden=false;}catch{status('Location values temporarily unavailable');}});
  $('close-inspection').onclick=()=>{clickSequence++;$('inspection').hidden=true;state.selected=null;if(state.onCloseSelection)state.onCloseSelection();};
  map.on('zoomend',()=>{if(state.active&&!state.pendingId&&representation(state.active.run)!==state.active.kind)show(state.manifest,state.active.run.lead_hours);});
  await new Promise(r=>map.loaded()?r():map.once('load',r));map.fitBounds([[-125,24],[-66,50]],{padding:narrow?{top:30,bottom:35,left:20,right:20}:{top:40,bottom:40,left:335,right:40},duration:0});

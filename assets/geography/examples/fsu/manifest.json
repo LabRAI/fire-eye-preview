@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "kind": "geographic-scene-extract",
+  "bbox_wgs84": [
+    -84.3,
+    30.441,
+    -84.295,
+    30.445
+  ],
+  "source_url": "https://api.openstreetmap.org/api/0.6/map.json?bbox=-84.3,30.441,-84.295,30.445",
+  "retrieved_at_utc": "2026-11-02T03:37:52.333Z",
+  "prepared_at_utc": "2026-11-02T03:57:47.905Z",
+  "source": "OpenStreetMap contributors",
+  "license": "ODbL-1.0",
+  "attribution_url": "https://www.openstreetmap.org/copyright",
+  "source_payload_sha256": "26ea5f9aae2e881315896270633fcae464d864eb6be85861b2b7bcc594e23064",
+  "source_elements": 2490,
+  "feature_counts": {
+    "land_area": 3,
+    "building": 29,
+    "water": 1,
+    "transportation": 271,
+    "address": 6
+  },
+  "omitted_incomplete_features": 0,
+  "geometry_units": "longitude_latitude_degrees",
+  "horizontal_crs": "EPSG:4326",
+  "height_units": "metres_above_local_ground_when_tagged",
+  "survey_date": null,
+  "limits": [
+    "Research bbox snapshot, not a complete national inventory.",
+    "Missing trees or buildings do not establish absence.",
+    "Road lines are centerlines, not surveyed widths.",
+    "Building/tree heights are source tags, not independently surveyed by this project.",
+    "Source edit timestamps are not survey dates.",
+    "No procedural objects are added."
+  ],
+  "asset": {
+    "path": "features.geojson",
+    "bytes": 217702,
+    "sha256": "6af7399eb81bfb0e76735e93119308c5f36e7ffcd030119f20fc6cc293058c1b"
+  }
+}
