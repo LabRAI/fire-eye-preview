@@ -1,0 +1,6 @@
+Original scene meshes: llll0630/wildfire-simulation.
+Pinned revision: eed7ae1e7b9109d1b9d13ea0f172e14900551fc3
+Packed without changing vertex positions, normals, colors or indices.
+No upstream license file accompanied this revision; no license is inferred.
+Map fire/smoke shaders adapt the existing Fire-eye simulation viewer.
+Illustrative scenario; not an observed incident or validated spread forecast.

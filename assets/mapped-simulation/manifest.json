@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "kind": "mapped-simulation-assets",
+  "upstream_revision": "eed7ae1e7b9109d1b9d13ea0f172e14900551fc3",
+  "meshes": [
+    {
+      "id": "tree_oak_01",
+      "path": "tree_oak_01.mesh",
+      "bytes": 76308,
+      "sha256": "73cb9b92887c6ce785f5f40ff10cba60590655b89fea87ce07ca68ef46085265",
+      "vertex_count": 1621,
+      "index_count": 8976,
+      "index_offset": 58356,
+      "stride_bytes": 36,
+      "height_m": 9.64,
+      "crown_diameter_m": 9.37,
+      "source_sha256": "9c831b24e3b9ab014709fa1f4f19eaa520975c7bf55a15b6f54f4a406b579dee",
+      "geometry": "original positions, normals, colors and indices; no simplification"
+    },
+    {
+      "id": "tree_oak_02",
+      "path": "tree_oak_02.mesh",
+      "bytes": 60192,
+      "sha256": "10bdfac2502a420b48b4b77d2f9ad06f6034752dc1423ba1c66ad745aededf53",
+      "vertex_count": 1280,
+      "index_count": 7056,
+      "index_offset": 46080,
+      "stride_bytes": 36,
+      "height_m": 11.26,
+      "crown_diameter_m": 8.29,
+      "source_sha256": "ab45a97a324370d1322869d4f13bfeb75370cc4a11182081852579b9b28883a5",
+      "geometry": "original positions, normals, colors and indices; no simplification"
+    }
+  ],
+  "source": "https://github.com/llll0630/wildfire-simulation",
+  "license_notice": "The pinned upstream revision contains no license file. Existing attribution is retained; no new license is granted.",
+  "use": "Display meshes only. Species, height and crown size are not surveyed properties of the mapped tree points."
+}
