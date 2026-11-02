@@ -31,10 +31,33 @@
   const note=create('p','Mapped footprints and streets. Building heights are display estimates; tree shapes are schematic.','mapped-scene-note');panel.append(note);
   const forecastLine=create('p','','mapped-scene-forecast');forecastLine.hidden=true;panel.append(forecastLine);
   const detail=create('div',null,'mapped-scene-detail');detail.hidden=true;panel.append(detail);
+  const ground=create('section',null,'mapped-ground-detail'),groundButton=create('button','Load ground detail'),groundClear=create('button','Clear'),groundStatus=create('p','Select a spot for optional ground detail.');
+  ground.hidden=true;ground.setAttribute('aria-label','Optional ground detail');groundButton.type=groundClear.type='button';groundButton.disabled=true;groundClear.hidden=true;groundStatus.setAttribute('role','status');ground.append(groundButton,groundClear,groundStatus);panel.append(ground);
   (options.container||document.body).append(panel);
   let ready=false,disposed=false,installing=false,previous=null,popup=null,requested=false,terrainTilt=false,metricsTimer=null;
   let catalogTask=null,areaId=null,area=null,areaData=null,areaController=null,areaSequence=0;
   let selectedObject=null;
+  let groundPoint=null,groundSequence=0,groundTask=null,groundView=null,groundScript=null,groundTimer=null;
+  function resetGround(){groundSequence++;ground.hidden=true;groundPoint=null;groundView?.clear();groundButton.disabled=true;groundButton.textContent='Load ground detail';groundClear.hidden=true;groundStatus.textContent='Select a spot for optional ground detail.';}
+  function chooseGround(point){resetGround();ground.hidden=false;groundPoint=point.slice();groundButton.disabled=false;groundStatus.textContent=point[1].toFixed(5)+'°, '+point[0].toFixed(5)+'° · on request only';}
+  function groundModule(){
+   if(global.FireEyeSurfaceDetail)return Promise.resolve(global.FireEyeSurfaceDetail);
+   if(groundTask)return groundTask;
+   groundTask=new Promise((resolve,reject)=>{
+    const script=document.createElement('script');groundScript=script;script.src='assets/surface-detail.js?v=20261102-ground-1';
+    const finish=error=>{clearTimeout(groundTimer);script.onload=script.onerror=null;script.remove();groundScript=null;if(error){groundTask=null;reject(error);}else resolve(global.FireEyeSurfaceDetail);};
+    script.onload=()=>finish(global.FireEyeSurfaceDetail?null:Error('Ground detail unavailable'));script.onerror=()=>finish(Error('Ground detail unavailable'));groundTimer=setTimeout(()=>finish(Error('Ground detail timeout')),8000);document.head.append(script);
+   });return groundTask;
+  }
+  groundButton.onclick=async()=>{
+   if(!groundPoint||disposed)return;const point=groundPoint.slice(),seq=++groundSequence;groundButton.disabled=true;groundStatus.textContent='Loading ground detail…';
+   try{const module=await groundModule();if(disposed||seq!==groundSequence||map.getZoom()<15)return;
+    groundView ||= module.mount(map);const result=groundView.show(point,areaData);groundClear.hidden=false;groundButton.textContent='Refresh ground detail';
+    groundStatus.textContent=result.features?result.kinds.join(' · ')+'. Mapped features near the selected spot; outlines may be tile-clipped.':'No grass or playground detail is mapped here in the current data.';
+   }catch{if(!disposed&&seq===groundSequence){groundView?.clear();groundButton.textContent='Retry ground detail';groundStatus.textContent='Ground detail is temporarily unavailable. The map remains ready.';}}
+   finally{if(!disposed&&seq===groundSequence)groundButton.disabled=false;}
+  };
+  groundClear.onclick=()=>{const point=groundPoint?.slice();resetGround();if(point)chooseGround(point);};
   const emitObject=value=>{selectedObject=value;options.onObject?.(value);};
   const objectSource=PREFIX+'objects',objectLayers=[PREFIX+'object-areas',PREFIX+'object-buildings',PREFIX+'object-height',PREFIX+'object-roads',PREFIX+'object-trees',PREFIX+'object-footprints'];
   const treeSource=PREFIX+'tree-symbols',treeLayer=PREFIX+'tree-models';let treeData=null;
@@ -156,7 +179,8 @@
   function onMapClick(e){
    if(disposed||map.getZoom()<14||!ready)return false;
    const rendered=map.queryRenderedFeatures(e.point);
-   if(rendered.some(f=>['WF','RX','CX','detection'].includes(f.properties?.kind)))return false;
+   if(rendered.some(f=>['WF','RX','CX','detection'].includes(f.properties?.kind))){resetGround();return false;}
+   if(map.getZoom()>=15)chooseGround([e.lngLat.lng,e.lngLat.lat]);
    const feature=rendered.find(f=>f.layer.id===treeLayer)||rendered.find(f=>f.layer.id===objectLayers[4])||rendered.find(f=>f.source===objectSource&&f.properties?.kind==='building')||rendered.find(f=>objectLayers.includes(f.layer.id))||rendered.find(f=>[layers[4],layers[5],layers[3],layers[2]].includes(f.layer.id));
    if(!feature)return false;
    if(feature.source===objectSource||feature.source===treeSource){
@@ -180,14 +204,14 @@
    return true;
   }
   back.onclick=regional;tilt.onclick=()=>{terrainTilt=map.getPitch()<15;map.easeTo({pitch:terrainTilt?52:0,duration:450});};
-  const clearSelection=()=>{selectedObject=null;detail.hidden=true;};
+  const clearSelection=()=>{selectedObject=null;detail.hidden=true;resetGround();};
   const styled=()=>ensure();
   const moved=()=>{scheduleMetrics();loadArea();};
   const failed=e=>{if(e.sourceId===SOURCE)status.textContent='Street tiles are temporarily unavailable; the regional map remains available.';};
   const localReady=e=>{if(e.sourceId==='openmaptiles'&&e.isSourceLoaded&&local?.contains()&&map.getZoom()>=15.5){clearTimeout(localTimer);localTimer=setTimeout(loadArea,180);}};map.on('sourcedata',localReady);
   map.on('movestart',clearSelection);map.on('zoom',sync);map.on('zoomend',onZoomEnd);map.on('pitchend',sync);map.on('moveend',moved);map.on('styledata',styled);map.on('error',failed);
   map.setMaxZoom(20);ensure();sync();loadArea();
-  return {ready:true,enter,regional,onMapClick,panel,simulation:live,get geometryReady(){return ready;},get selectedArea(){return area?.id||null;},get localScene(){return area?.prediction_linked?{area,collection:areaData}:null;},dispose(){disposed=true;clearTimeout(localTimer);map.off('sourcedata',localReady);live?.dispose();areaSequence++;areaController?.abort();clearTimeout(metricsTimer);map.off('movestart',clearSelection);map.off('zoom',sync);map.off('zoomend',onZoomEnd);map.off('pitchend',sync);map.off('moveend',moved);map.off('styledata',styled);map.off('error',failed);popup?.remove();panel.remove();for(const [id,paint] of localSymbolPaint)if(map.getLayer(id))for(const [name,value] of Object.entries(paint))map.setPaintProperty(id,name,value);for(const id of [...layers,...objectLayers,treeLayer])if(map.getLayer(id))map.removeLayer(id);if(map.getSource(treeSource))map.removeSource(treeSource);if(map.getSource(objectSource))map.removeSource(objectSource);options.onDetailScale?.(1);}};
+  return {ready:true,enter,regional,onMapClick,panel,simulation:live,get geometryReady(){return ready;},get selectedArea(){return area?.id||null;},get localScene(){return area?.prediction_linked?{area,collection:areaData}:null;},dispose(){disposed=true;groundSequence++;groundView?.dispose();clearTimeout(groundTimer);if(groundScript){groundScript.onload=groundScript.onerror=null;groundScript.remove();groundScript=null;}clearTimeout(localTimer);map.off('sourcedata',localReady);live?.dispose();areaSequence++;areaController?.abort();clearTimeout(metricsTimer);map.off('movestart',clearSelection);map.off('zoom',sync);map.off('zoomend',onZoomEnd);map.off('pitchend',sync);map.off('moveend',moved);map.off('styledata',styled);map.off('error',failed);popup?.remove();panel.remove();for(const [id,paint] of localSymbolPaint)if(map.getLayer(id))for(const [name,value] of Object.entries(paint))map.setPaintProperty(id,name,value);for(const id of [...layers,...objectLayers,treeLayer])if(map.getLayer(id))map.removeLayer(id);if(map.getSource(treeSource))map.removeSource(treeSource);if(map.getSource(objectSource))map.removeSource(objectSource);options.onDetailScale?.(1);}};
  }
  global.FireEyeGeographicScene={mount};
 })(window);
