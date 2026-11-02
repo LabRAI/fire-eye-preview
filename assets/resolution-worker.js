@@ -20,6 +20,16 @@ async function getField(run){
  if(width!==g.width||height!==g.height||width>1200||height>1000||ox!==g.origin[0]||oy!==g.origin[1]||size!==5000||weightsRevision!==query.manifest.weights_revision||raw.length!==72+width*height*16)throw Error('Experimental grid mismatch');
  const f={width,height,ox,oy,size,weightsRevision,values:new Float32Array(raw.buffer,72,width*height*4)};fields.set(run.revision,f);while(fields.size>(query.mobile?1:2))fields.delete(fields.keys().next().value);return f;
 }
+async function getNativeField(native){
+ const a=native.asset,g=query.manifest.grid,key=a.sha256+'/'+query.manifest.weights_revision;
+ if(fields.has(key))return fields.get(key);
+ const u=new URL(a.url,self.location.href),remote=u.protocol==='https:'&&u.hostname==='huggingface.co'&&/^\/datasets\/[^/]+\/[^/]+\/resolve\/[a-f0-9]{40}\/(platform|archive)\//.test(u.pathname),local=u.origin===self.location.origin&&u.pathname.includes('/assets/platform/');
+ if((!remote&&!local)||u.username||u.password||!/^([a-f0-9]{64})$/.test(a.sha256)||a.bytes!==g.width*g.height*4||a.format!=='float32-le'||a.encoding!=='identity')throw Error('Invalid selected numeric field');
+ const r=await fetch(u.href,{credentials:'omit',signal:aborter.signal});if(!r.ok)throw Error('Selected field unavailable');const raw=await readBody(r,a.bytes);if(await hash(raw)!==a.sha256)throw Error('Selected numeric checksum mismatch');metrics.fullBytes+=raw.length;
+ const source=new Float32Array(raw.buffer,raw.byteOffset,g.width*g.height);if(source.some(v=>Number.isFinite(v)&&(v<0||v>1)))throw Error('Invalid native values');
+ const values=new Float32Array(g.width*g.height*4);values.set(source);values.fill(NaN,g.width*g.height*3);
+ const f={width:g.width,height:g.height,ox:g.origin[0],oy:g.origin[1],size:5000,weightsRevision:query.manifest.weights_revision,values,dynamic:true};fields.set(key,f);while(fields.size>(query.mobile?1:2))fields.delete(fields.keys().next().value);return f;
+}
 async function getIndex(){
  const a=query.manifest.assets.index;if(index&&indexHash===a.sha256)return index;
  const bytes=await full(a,4*1024*1024,query.localIndex),raw=await unzip(bytes,8*1024*1024),value=JSON.parse(new TextDecoder().decode(raw)),pack=query.manifest.assets.weights;
@@ -40,10 +50,10 @@ async function getChunk(id,f){
  const bytes=await readBody(r,m.bytes);if(await hash(bytes)!==m.sha256)throw Error('Experimental weight checksum mismatch');const resolved=new URL(r.url);if(resolved.protocol==='https:'&&resolved.hostname==='us.aws.cdn.hf.co'&&!resolved.username&&!resolved.password)deliveryUrl=resolved.href;
  const raw=await unzip(bytes,1024*1024),v=new DataView(raw.buffer),row=Number(id.slice(1,5)),col=Number(id.slice(6,10)),nr=v.getUint32(16,true),nc=v.getUint32(20,true);
  if(new TextDecoder().decode(raw.subarray(0,8))!=='FIRE50W1'||v.getUint32(8,true)!==row||v.getUint32(12,true)!==col||nr!==m.rows||nc!==m.cols||raw.length!==32+nr*nc*10510||v.getFloat32(24,true)!==-6||v.getFloat32(28,true)!==6)throw Error('Experimental weight format mismatch');
- chunks.set(key,{row,col,rows:nr,cols:nc,codes:raw.subarray(32,32+nr*nc*10000)});
+ chunks.set(key,{row,col,rows:nr,cols:nc,codes:raw.subarray(32,32+nr*nc*10000),hist:new Uint16Array(raw.buffer,32+nr*nc*10000,nr*nc*255)});
 }
 function needed(f,job){
- const keys=new Set(),add=(row,col)=>{if(row<0||col<0||row>=f.height||col>=f.width)return;const i=row*f.width+col,c=f.values[i],bias=f.values[3*f.width*f.height+i];if(Number.isFinite(c)&&c!==0&&c!==1&&Number.isFinite(bias))keys.add(keyFor(row,col));};
+ const keys=new Set(),add=(row,col)=>{if(row<0||col<0||row>=f.height||col>=f.width)return;const i=row*f.width+col,c=f.values[i],bias=f.values[3*f.width*f.height+i];if(Number.isFinite(c)&&c!==0&&c!==1&&(f.dynamic||Number.isFinite(bias)))keys.add(keyFor(row,col));};
  if(job.type==='probe'){for(const p of job.points){const [x,y]=project.forward(p);add(Math.floor((f.oy-y)/f.size),Math.floor((x-f.ox)/f.size));}return keys;}
  if(job.z<10)return keys;const world=40075016.68557849,tile=world/(2**job.z),left=-world/2+job.x*tile,top=world/2-job.y*tile,points=[];
  for(let i=0;i<=16;i++){const t=i/16;for(const p of [[left+t*tile,top],[left+t*tile,top-tile],[left,top-t*tile],[left+tile,top-t*tile]])points.push(project.forward(p));}
@@ -55,15 +65,15 @@ function crc(bytes){let c=0xffffffff;for(const b of bytes)c=table[(c^b)&255]^(c>
 function join(parts){const out=new Uint8Array(parts.reduce((a,p)=>a+p.length,0));let off=0;for(const p of parts){out.set(p,off);off+=p.length;}return out;}
 function chunk(name,body){const tag=new TextEncoder().encode(name),data=join([tag,body]),length=new Uint8Array(4),sum=new Uint8Array(4);new DataView(length.buffer).setUint32(0,body.length);new DataView(sum.buffer).setUint32(0,crc(data));return join([length,data,sum]);}
 function png(rgba){const header=new Uint8Array(13),d=new DataView(header.buffer);d.setUint32(0,256);d.setUint32(4,256);header[8]=8;header[9]=6;const rows=new Uint8Array(256*1025);for(let y=0;y<256;y++)rows.set(rgba.subarray(y*1024,(y+1)*1024),y*1025+1);return join([new Uint8Array([137,80,78,71,13,10,26,10]),chunk('IHDR',header),chunk('IDAT',fflate.zlibSync(rows,{level:3})),chunk('IEND',new Uint8Array(0))]);}
-importScripts('resolution-math.js?v=77964490e07e5b44');
+importScripts('resolution-math.js?v=555a657f5f696f69');
 self.onmessage=async event=>{
  if(event.data.type==='cancel'){if(query?.id===event.data.id){cancelRequested=true;aborter?.abort();}return;}
  query=event.data;cancelRequested=false;aborter=new AbortController();const started=performance.now(),before={...metrics},timer=setTimeout(()=>aborter.abort(),24000);
  try{
-  const m=query.manifest,run=m.runs.find(r=>r.revision===query.revision);if(!run||m.method!=='learned-conditional-50m-v1'||m.retrospective!==true||m.grid.fine_metres!==50)throw Error('Unsupported experimental request');
+  const m=query.manifest,run=query.native?{revision:query.revision}:m.runs.find(r=>r.revision===query.revision);if(!run||m.method!=='learned-conditional-50m-v1'||m.retrospective!==true||m.grid.fine_metres!==50)throw Error('Unsupported experimental request');
   if(query.type==='probe'){if(!Array.isArray(query.points)||query.points.length>256||query.points.some(p=>p.length!==2||!p.every(Number.isFinite)))throw Error('Invalid experimental probes');}
   else if(![query.z,query.x,query.y].every(Number.isInteger)||query.z<2||query.z>12||query.x<0||query.y<0||query.x>=2**query.z||query.y>=2**query.z)throw Error('Invalid experimental tile');
-  const f=await getField(run),keys=[...needed(f,query)];if(keys.length){await getIndex();let next=0;const outcomes=await Promise.allSettled(Array.from({length:Math.min(query.mobile?2:4,keys.length)},async()=>{try{while(next<keys.length){aborter.signal.throwIfAborted();const id=keys[next++];await getChunk(id,f);}}catch(error){aborter.abort();throw error;}}));if(outcomes.some(r=>r.status==='rejected'))throw Error('Experimental block unavailable');}aborter.signal.throwIfAborted();
+  const f=query.native?await getNativeField(query.native):await getField(run),keys=[...needed(f,query)];if(keys.length){await getIndex();let next=0;const outcomes=await Promise.allSettled(Array.from({length:Math.min(query.mobile?2:4,keys.length)},async()=>{try{while(next<keys.length){aborter.signal.throwIfAborted();const id=keys[next++];await getChunk(id,f);}}catch(error){aborter.abort();throw error;}}));if(outcomes.some(r=>r.status==='rejected'))throw Error('Experimental block unavailable');}aborter.signal.throwIfAborted();
   if(query.type==='probe'){const values=query.points.map(p=>{const [a,b]=project.forward(p),col=Math.floor((a-f.ox)/f.size),row=Math.floor((f.oy-b)/f.size),native=col<0||row<0||col>=f.width||row>=f.height?NaN:f.values[row*f.width+col];return {fine:sample(f,p[0],p[1],true),native};});self.postMessage({id:query.id,status:'ready',values});}
   else{const data=render(query,f);self.postMessage({id:query.id,status:'ready',data,ms:performance.now()-started,metrics:Object.fromEntries(Object.entries(metrics).map(([k,v])=>[k,v-before[k]]))},[data.buffer]);}
   while(chunks.size>(query.mobile?24:80))chunks.delete(chunks.keys().next().value);

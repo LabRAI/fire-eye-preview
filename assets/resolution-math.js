@@ -1,11 +1,21 @@
 'use strict';
 // Sampling and color rules retained from the established experiment renderer.
+// Reapply the existing conditional field to the selected native mean.
+// Missing fine-input pixels retain the native value; valid pixels preserve it in aggregate.
+function solveBias(counts,target){
+ if(!(target>0&&target<1))return 0;
+ const entries=[];let total=0;for(let i=0;i<255;i++)if(counts[i]){entries.push([-6+i/254*12,counts[i]]);total+=counts[i];}
+ if(!total)return 0;const center=Math.log(target)-Math.log1p(-target);let low=center-6,high=center+6;
+ for(let k=0;k<42;k++){const mid=(low+high)/2;let mean=0;for(const [weight,n]of entries)mean+=n/(1+Math.exp(-(weight+mid)));if(mean/total>target)high=mid;else low=mid;}
+ return (low+high)/2;
+}
+
 function sample(f,x,y,fine){
  const [a,b]=project.forward([x,y]);const xx=(a-f.ox)/f.size,yy=(f.oy-b)/f.size;
  const col=Math.floor(xx),row=Math.floor(yy);if(col<0||row<0||col>=f.width||row>=f.height)return NaN;
  const n=f.width*f.height,i=row*f.width+col,c=f.values[i];if(!Number.isFinite(c))return NaN;
  if(fine&&f.weightsRevision){
-  if(c===0||c===1)return c;const bias=f.values[3*n+i];if(!Number.isFinite(bias))return c;
+  if(c===0||c===1)return c;let bias=f.values[3*n+i];if(f.dynamic&&!Number.isFinite(bias)){const weights=weightChunk(f,row,col),start=((row-weights.row)*weights.cols+col-weights.col)*255;bias=f.values[3*n+i]=solveBias(weights.hist.subarray(start,start+255),c);}if(!Number.isFinite(bias))return c;
   const chunk=weightChunk(f,row,col),sr=Math.min(99,Math.floor((yy-row)*100)),sc=Math.min(99,Math.floor((xx-col)*100));
   const code=chunk.codes[((row-chunk.row)*100+sr)*chunk.cols*100+(col-chunk.col)*100+sc];
   if(code===255)return c;

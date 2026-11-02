@@ -15,7 +15,7 @@
  const meshVertex='precision highp float; attribute vec3 position; attribute vec3 normal; attribute vec3 color; attribute vec3 offset; attribute vec2 size; attribute vec2 rotation; uniform mat4 matrix; varying mediump vec3 shade; void main(){vec3 p=position*vec3(size.x,size.y,size.x);p.xz=mat2(rotation.y,rotation.x,-rotation.x,rotation.y)*p.xz;vec3 n=normal/vec3(size.x,size.y,size.x);n.xz=mat2(rotation.y,rotation.x,-rotation.x,rotation.y)*n.xz;float light=0.57+0.43*max(0.0,dot(normalize(n),normalize(vec3(-0.4,0.85,0.3))));shade=pow(max(color*light,vec3(0.0)),vec3(0.454545));gl_Position=matrix*vec4(p+offset,1.0);}';
  const meshFragment='precision mediump float; varying mediump vec3 shade; uniform float opacity; void main(){gl_FragColor=vec4(shade*opacity,opacity);}';
  const particleVertex='precision highp float; attribute vec3 position; attribute float seed; uniform mat4 matrix; uniform vec2 viewport; uniform float time; uniform float rise; uniform mediump float smoke; uniform float size; varying mediump float life; void main(){life=fract(seed+time*(smoke>0.5?0.085:0.42));vec3 p=position;p.y+=life*rise;p.x+=sin(seed*30.0+time*0.8)*life*(smoke>0.5?8.0:0.4);p.z+=cos(seed*24.0+time*0.5)*life*(smoke>0.5?6.0:0.4);vec4 clip=matrix*vec4(p,1.0);vec4 side=matrix*vec4(p+vec3(size,0.0,0.0),1.0);vec4 other=matrix*vec4(p+vec3(0.0,0.0,size),1.0);float pixels=max(length((side.xy/side.w-clip.xy/clip.w)*viewport*0.5),length((other.xy/other.w-clip.xy/clip.w)*viewport*0.5));gl_Position=clip;gl_PointSize=clamp(pixels*(smoke>0.5?0.4+life:1.0-life*0.65),1.0,160.0);}';
- const particleFragment='precision mediump float; uniform mediump float smoke; uniform float opacity; varying mediump float life; void main(){vec2 p=gl_PointCoord-0.5;float d=length(p*vec2(1.0,smoke>0.5?1.0:0.75));float soft=1.0-smoothstep(0.12,0.5,d);float alpha=soft*sin(life*3.14159)*opacity;if(smoke>0.5){alpha*=0.19;gl_FragColor=vec4(vec3(0.38,0.35,0.31)*alpha,alpha);}else{alpha*=0.85;vec3 c=mix(vec3(1.0,0.75,0.16),vec3(0.95,0.15,0.01),life);gl_FragColor=vec4(c*alpha,alpha);}}';
+ const particleFragment='precision mediump float; uniform mediump float smoke; uniform float opacity; varying mediump float life; void main(){vec2 p=gl_PointCoord-0.5;float d=length(p*vec2(1.0,smoke>0.5?1.0:0.75));float soft=1.0-smoothstep(0.12,0.5,d);float alpha=soft*sin(life*3.14159)*opacity;if(smoke>0.5){alpha*=0.075;gl_FragColor=vec4(vec3(0.38,0.35,0.31)*alpha,alpha);}else{alpha*=0.9;vec3 c=mix(vec3(1.0,0.75,0.16),vec3(0.95,0.15,0.01),life);gl_FragColor=vec4(c*alpha,alpha);}}';
  function program(gl,vertex,fragment,attributes,uniforms){
   const shaders=[];let p=null;
   try{for(const [type,code] of [[gl.VERTEX_SHADER,vertex],[gl.FRAGMENT_SHADER,fragment]]){const shader=gl.createShader(type);shaders.push(shader);gl.shaderSource(shader,code);gl.compileShader(shader);if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS))throw Error('Scene shader unavailable');}p=gl.createProgram();shaders.forEach(s=>gl.attachShader(p,s));gl.linkProgram(p);if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw Error('Scene program unavailable');return {id:p,a:Object.fromEntries(attributes.map(n=>[n,gl.getAttribLocation(p,n)])),u:Object.fromEntries(uniforms.map(n=>[n,gl.getUniformLocation(p,n)]))};}
@@ -23,11 +23,12 @@
  }
  function mount(map,options={}){
   const C={phase:'mapped',alpha:0,treeCount:0,renderedTrees:0,frames:0,elapsed:0,paused:matchMedia('(prefers-reduced-motion: reduce)').matches,fireEnabled:true,ignition:null,assetBytes:0,error:null};
-  let disposed=false,area=null,collection=null,assets=null,assetTask=null,controller=new AbortController(),layer=null,gpu=null,origin=null,metres=1,groups=[],fireGroups=[],timer=null,last=null,cooldown=0,lastState='',replacement=-1,installing=false,ignitionAttempted=false,sceneMatrix=null;
+  let disposed=false,area=null,collection=null,assets=null,assetTask=null,controller=new AbortController(),layer=null,gpu=null,origin=null,metres=1,groups=[],fireGroups=[],timer=null,last=null,cooldown=0,lastState='',replacement=-1,installing=false,ignitionAttempted=false,ignitionView=null,sceneMatrix=null;
   const merc=p=>global.maplibregl.MercatorCoordinate.fromLngLat(p,0);
   const local=p=>{const q=merc(p);return [(q.x-origin.x)/metres,0,(q.y-origin.y)/metres];};
   const fade=()=>smooth((map.getZoom()-START)/(END-START));
-  const canIgnite=()=>map.getZoom()>=START&&!map.isMoving()&&map.getSource('openmaptiles')&&map.isSourceLoaded('openmaptiles');
+  const canIgnite=()=>map.getZoom()>=END&&!map.isMoving()&&map.getSource('openmaptiles')&&(map.isSourceLoaded('openmaptiles')||map.queryRenderedFeatures({layers:['mapped-scene-buildings']}).length>0)&&ignitionView!==viewKey();
+  const viewKey=()=>map.getCenter().toArray().join(',')+'|'+map.getZoom()+'|'+map.getBearing()+'|'+map.getPitch();
   const setReplacement=value=>{if(Math.abs(value-replacement)>.002){replacement=value;options.onReplacement?.(value);}};
   function notify(){const state=[C.phase,C.paused,C.fireEnabled,C.treeCount,!!C.ignition,C.error].join('|');if(state!==lastState){lastState=state;options.onChange?.({...C});}}
   function clearTimer(){clearTimeout(timer);timer=null;}
@@ -82,11 +83,11 @@
     for(const f of selected){const p=f.properties,h=typeof p.height_m==='number'&&p.height_m>0&&p.height_m<=120?p.height_m:8,angle=hash(p.source_id)/4294967296*Math.PI*2;values.push(...local(f.geometry.coordinates),4.8/asset.crown_diameter_m,h/asset.height_m,Math.sin(angle),Math.cos(angle));}
     return {asset,instances:new Float32Array(values),count:selected.length};
    });
-   if(ignite&&!ignitionAttempted&&canIgnite()){C.ignition=chooseIgnition(trees);ignitionAttempted=true;}
+   if(ignite&&!ignitionAttempted&&canIgnite()){C.ignition=chooseIgnition(trees);ignitionAttempted=!!C.ignition;ignitionView=viewKey();}
    fireGroups=[];
    if(C.ignition){
     const point=local(C.ignition.lnglat),rng=random(hash(C.ignition.source_id)),make=(count,radius,base,rise,size,smoke)=>{const values=[];for(let i=0;i<count;i++){const angle=rng()*Math.PI*2,d=Math.sqrt(rng())*radius;values.push(point[0]+Math.cos(angle)*d,base,point[2]+Math.sin(angle)*d,rng());}return {values:new Float32Array(values),count,rise,size,smoke};};
-    fireGroups=[make(320,6,0,4.5,1.4,false),make(130,4,0,28,14,true)];
+    fireGroups=[make(180,4.5,.3,11,4.2,false),make(80,3,9,25,9,true)];
    }
    if(gpu)uploadInstances();
   }
@@ -116,7 +117,7 @@
      for(const a of Object.values(p.a))if(a>=0)gl.disableVertexAttribArray(a);
     }
     if(C.fireEnabled&&C.ignition){const p=g.fireProgram;gl.useProgram(p.id);gl.uniformMatrix4fv(p.u.matrix,false,projection);gl.uniform2f(p.u.viewport,gl.drawingBufferWidth,gl.drawingBufferHeight);gl.uniform1f(p.u.time,C.elapsed);gl.uniform1f(p.u.opacity,C.alpha);gl.depthMask(false);
-     for(const f of g.fire){gl.blendFunc(gl.ONE,f.smoke?gl.ONE_MINUS_SRC_ALPHA:gl.ONE);gl.bindBuffer(gl.ARRAY_BUFFER,f.buffer);attribute(gl,p.a.position,3,16,0);attribute(gl,p.a.seed,1,16,12);gl.uniform1f(p.u.rise,f.rise);gl.uniform1f(p.u.size,f.size);gl.uniform1f(p.u.smoke,f.smoke?1:0);gl.drawArrays(gl.POINTS,0,f.count);}
+     for(const f of g.fire){gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.bindBuffer(gl.ARRAY_BUFFER,f.buffer);attribute(gl,p.a.position,3,16,0);attribute(gl,p.a.seed,1,16,12);gl.uniform1f(p.u.rise,f.rise);gl.uniform1f(p.u.size,f.size);gl.uniform1f(p.u.smoke,f.smoke?1:0);gl.drawArrays(gl.POINTS,0,f.count);}
      for(const a of Object.values(p.a))if(a>=0)gl.disableVertexAttribArray(a);
     }
     gl.depthMask(true);g.vaoExt?.bindVertexArrayOES(null);gl.bindBuffer(gl.ARRAY_BUFFER,null);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,null);C.frames++;
@@ -140,7 +141,7 @@
   const visibility=()=>{clearTimer();last=null;if(!document.hidden)update();};
   const styled=()=>{if(assets&&area&&!map.getLayer(ID)){install();update();}};
   map.on('sourcedata',sourceReady);map.on('zoom',update);map.on('moveend',update);map.on('styledata',styled);document.addEventListener('visibilitychange',visibility);
-  return {state:C,setArea(snapshot){const next=snapshot?.area;if(next?.id===area?.id&&snapshot?.collection===collection)return;area=next||null;collection=snapshot?.collection||null;C.ignition=null;ignitionAttempted=false;C.elapsed=0;last=null;try{rebuild();}catch{fail();return;}update();},pause(value){C.paused=!!value;clearTimer();last=null;notify();map.triggerRepaint();},fire(value){C.fireEnabled=!!value;clearTimer();last=null;notify();map.triggerRepaint();},retry(){C.error=null;cooldown=0;if(!gpu&&map.getLayer(ID))map.removeLayer(ID);update();},dispose(){disposed=true;controller.abort();clearTimer();map.off('sourcedata',sourceReady);map.off('zoom',update);map.off('moveend',update);map.off('styledata',styled);document.removeEventListener('visibilitychange',visibility);if(map.getLayer(ID))map.removeLayer(ID);release();setReplacement(0);}};
+  return {state:C,setArea(snapshot){const next=snapshot?.area;if(next?.id===area?.id&&snapshot?.collection===collection)return;area=next||null;collection=snapshot?.collection||null;C.ignition=null;ignitionAttempted=false;ignitionView=null;C.elapsed=0;last=null;try{rebuild();}catch{fail();return;}update();},pause(value){C.paused=!!value;clearTimer();last=null;notify();map.triggerRepaint();},fire(value){C.fireEnabled=!!value;clearTimer();last=null;notify();map.triggerRepaint();},retry(){C.error=null;cooldown=0;if(!gpu&&map.getLayer(ID))map.removeLayer(ID);update();},dispose(){disposed=true;controller.abort();clearTimer();map.off('sourcedata',sourceReady);map.off('zoom',update);map.off('moveend',update);map.off('styledata',styled);document.removeEventListener('visibilitychange',visibility);if(map.getLayer(ID))map.removeLayer(ID);release();setReplacement(0);}};
  }
  global.FireEyeMappedSimulation={mount};
 })(window);

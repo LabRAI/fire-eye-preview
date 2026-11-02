@@ -118,7 +118,7 @@
   function scheduleMetrics(){clearTimeout(metricsTimer);metricsTimer=setTimeout(metrics,350);}
   function sync(){
    if(disposed)return;const z=map.getZoom();panel.hidden=z<13&&!requested;
-   const factor=1-.78*Math.max(0,Math.min(1,(z-13)/3));options.onDetailScale?.(factor);
+   const factor=1-.35*Math.max(0,Math.min(1,(z-13)/3));options.onDetailScale?.(factor);
    tilt.setAttribute('aria-pressed',String(map.getPitch()>15));
    if(z<12.5){requested=false;panel.hidden=true;popup?.remove();popup=null;detail.hidden=true;}
    scheduleMetrics();

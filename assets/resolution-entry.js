@@ -1,17 +1,17 @@
 'use strict';
-// The standard map does not fetch experimental assets until this link is followed.
+// Preserve old deep links; high-resolution display now follows map zoom.
 (function(){
- const experimental=document.body.classList.contains('resolution-lab'),link=document.getElementById('resolution-lab-link');if(!link)return;
+ const experimental=document.body.classList.contains('resolution-lab'),link=document.getElementById('resolution-lab-link');
  function destination(){
   const S=window.fireEyePreview,url=new URL(experimental?'./':'resolution.html',location.href);if(!S?.ready||!S.map)return url.href;
   const center=S.map.getCenter();if(S.active?.run?.source_id)url.searchParams.set('source',S.active.run.source_id);
   if(experimental&&S.manifest?.issue_time_utc)url.searchParams.set('issue',S.manifest.issue_time_utc);
   url.searchParams.set('view',[center.lng.toFixed(5),center.lat.toFixed(5),S.map.getZoom().toFixed(2)].join(','));return url.href;
  }
- for(const item of [link,...document.querySelectorAll('.resolution-return')])for(const event of ['pointerenter','focus','click'])item.addEventListener(event,()=>{item.href=destination();});
+ for(const item of [link,...document.querySelectorAll('.resolution-return')].filter(Boolean))for(const event of ['pointerenter','focus','click'])item.addEventListener(event,()=>{item.href=destination();});
  if(experimental){document.getElementById('archive-open')?.addEventListener('click',event=>{event.preventDefault();event.stopImmediatePropagation();location.href=destination();},true);return;}
  const params=new URL(location.href).searchParams,source=params.get('source'),issue=params.get('issue'),view=(params.get('view')||'').split(',').map(Number);
- const validView=view.length===3&&view.every(Number.isFinite)&&view[0]>=-128.4&&view[0]<=-64&&view[1]>=22&&view[1]<=53&&view[2]>=2&&view[2]<=16;
+ const validView=view.length===3&&view.every(Number.isFinite)&&view[0]>=-128.4&&view[0]<=-64&&view[1]>=22&&view[1]<=53&&view[2]>=2&&view[2]<=20;
  if(!source&&!validView)return;
  (async()=>{
   for(let i=0;i<600;i++){if(window.fireEyePreview?.ready&&window.fireEyePlatform?.ready&&window.fireEyeForecastHistory?.ready)break;await new Promise(r=>setTimeout(r,100));}

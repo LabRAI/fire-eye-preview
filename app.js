@@ -44,8 +44,8 @@
  // Keep a same-window image available while detail tiles change with the view.
  state.riskOpacity=1;state.riskVisible=true;
  function syncHeatmapDisplay(){
-  const active=state.active;if(!active||!map.getLayer(active.id))return;
-  const a=state.riskOpacity*(state.geographyRiskFactor??1),visible=state.riskVisible,fallback=state.overviewFallbackId;
+  const active=state.active;if(!active||!map.getLayer(active.id))return;state.onRefinementSelection?.();
+  const a=state.riskOpacity*(state.geographyRiskFactor??1)*(1-(state.refinementMix??0)),visible=state.riskVisible,fallback=state.overviewFallbackId;
   const detail=active.kind==='vector'&&(!fallback||(!state.detailFailures.has(active.id)&&!state.viewInMotion&&!map.isMoving()&&map.isSourceLoaded(active.id)));
   const visibility=(id,show)=>{if(!id||!map.getLayer(id))return;const next=show?'visible':'none';if((map.getLayoutProperty(id,'visibility')||'visible')!==next)map.setLayoutProperty(id,'visibility',next);};
   const paintKey=active.id+'|'+a+'|'+detail;
