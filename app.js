@@ -49,10 +49,10 @@
   const detail=active.kind==='vector'&&(!fallback||(!state.detailFailures.has(active.id)&&!state.viewInMotion&&!map.isMoving()&&map.isSourceLoaded(active.id)));
   const visibility=(id,show)=>{if(!id||!map.getLayer(id))return;const next=show?'visible':'none';if((map.getLayoutProperty(id,'visibility')||'visible')!==next)map.setLayoutProperty(id,'visibility',next);};
   const paintKey=active.id+'|'+a+'|'+detail;
-  if(state.paintedActive!==paintKey){map.setPaintProperty(active.id,active.kind==='overview'?'raster-opacity':'fill-opacity',active.kind==='overview'?a:detail?['*',a,opacity]:.001*a);state.paintedActive=paintKey;}
+  if(state.paintedActive!==paintKey){map.setPaintProperty(active.id,active.kind==='overview'?'raster-opacity':'fill-opacity',active.kind==='overview'?a:detail?['*',a,opacity]:0);state.paintedActive=paintKey;}
   if(fallback&&map.getLayer(fallback)&&state.paintedFallback!==fallback+'|'+a){map.setPaintProperty(fallback,'raster-opacity',a);state.paintedFallback=fallback+'|'+a;}
-  // A nearly transparent detail layer keeps requesting tiles behind the image.
-  visibility(active.id,visible);visibility(fallback,visible&&!detail&&active.kind==='vector');
+  // Stage detail at zero opacity; its source still loads behind the image.
+  const nativeVisible=visible&&(state.refinementMix??0)<1;visibility(active.id,nativeVisible);visibility(fallback,nativeVisible&&!detail&&active.kind==='vector');
  }
  state.syncHeatmapDisplay=syncHeatmapDisplay;
  state.setRiskDisplay=(alpha,visible)=>{state.riskOpacity=alpha;state.riskVisible=visible;syncHeatmapDisplay();};
@@ -62,8 +62,8 @@
  async function prepareFallback(m,run){
   if(!run.overview||document.body.classList.contains('resolution-lab'))return null;
   const id=sourceId(m,run,'overview');
-  if(!map.getSource(id)){map.addSource(id,{type:'image',url:urlFor(m,run.overview.image.path),coordinates:run.overview.coordinates});map.addLayer({id,type:'raster',source:id,paint:{'raster-opacity':.001,'raster-opacity-transition':{duration:0,delay:0},'raster-fade-duration':0,'raster-resampling':'nearest'}},state.active?.id);}
-  else{if(id!==state.active?.id&&id!==state.overviewFallbackId)map.setPaintProperty(id,'raster-opacity',.001);map.setLayoutProperty(id,'visibility','visible');}
+  if(!map.getSource(id)){map.addSource(id,{type:'image',url:urlFor(m,run.overview.image.path),coordinates:run.overview.coordinates});map.addLayer({id,type:'raster',source:id,paint:{'raster-opacity':0,'raster-opacity-transition':{duration:0,delay:0},'raster-fade-duration':0,'raster-resampling':'nearest'}},state.active?.id);}
+  else{if(id!==state.active?.id&&id!==state.overviewFallbackId)map.setPaintProperty(id,'raster-opacity',0);map.setLayoutProperty(id,'visibility','visible');}
   await ensureLoaded(id);return id;
  }
  function drop(id){if(map.getLayer(id))map.removeLayer(id);if(map.getSource(id))map.removeSource(id);state.lru=state.lru.filter(x=>x!==id);state.detailFailures.delete(id);}
@@ -97,8 +97,8 @@
   try{
    if(kind==='vector'&&state.detailFailures.has(id)&&id!==state.active?.id){drop(id);state.detailFailures.delete(id);}
    if(!map.getSource(id)){
-    if(kind==='overview'){map.addSource(id,{type:'image',url:urlFor(m,run.overview.image.path),coordinates:run.overview.coordinates});map.addLayer({id,type:'raster',source:id,paint:{'raster-opacity':0.001,'raster-opacity-transition':{duration:0,delay:0},'raster-fade-duration':0,'raster-resampling':'nearest'}},state.active?.id);}
-    else{map.addSource(id,{type:'vector',url:'pmtiles://'+urlFor(m,run.path),minzoom:run.minzoom,maxzoom:run.maxzoom});map.addLayer({id,type:'fill',source:id,'source-layer':'day1',layout:{'fill-sort-key':['to-number',['get','value'],0]},paint:{'fill-antialias':false,'fill-color':color,'fill-opacity':0.001,'fill-opacity-transition':{duration:0,delay:0}}},state.active?.id);}
+    if(kind==='overview'){map.addSource(id,{type:'image',url:urlFor(m,run.overview.image.path),coordinates:run.overview.coordinates});map.addLayer({id,type:'raster',source:id,paint:{'raster-opacity':0,'raster-opacity-transition':{duration:0,delay:0},'raster-fade-duration':0,'raster-resampling':'nearest'}},state.active?.id);}
+    else{map.addSource(id,{type:'vector',url:'pmtiles://'+urlFor(m,run.path),minzoom:run.minzoom,maxzoom:run.maxzoom});map.addLayer({id,type:'fill',source:id,'source-layer':'day1',layout:{'fill-sort-key':['to-number',['get','value'],0]},paint:{'fill-antialias':false,'fill-color':color,'fill-opacity':0,'fill-opacity-transition':{duration:0,delay:0}}},state.active?.id);}
    }else map.setLayoutProperty(id,'visibility','visible');
    const [,fallback]=await Promise.all([ensureLoaded(id),kind==='vector'?prepareFallback(m,run):Promise.resolve(null)]);const sourceMs=performance.now()-started;
    if(seq!==state.sequence){if(id!==state.active?.id&&id!==state.pendingId)drop(id);if(fallback&&![state.active?.id,state.overviewFallbackId,state.pendingId,state.pendingId+'-overview'].includes(fallback))drop(fallback);return false;}

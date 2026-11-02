@@ -44,12 +44,12 @@
   const layers=[PREFIX+'areas',PREFIX+'water',PREFIX+'paths',PREFIX+'roads',PREFIX+'buildings',PREFIX+'outlines'];
   const opacity=['interpolate',['linear'],['zoom'],13,0,15,1];
   const live=options.simulationAssetsURL&&global.FireEyeMappedSimulation?global.FireEyeMappedSimulation.mount(map,{
-   manifestURL:options.simulationAssetsURL,
+   manifestURL:options.simulationAssetsURL,forecastLinked:options.forecastLinked,
    occlusionElements:()=>document.querySelectorAll('.panel, .mapped-scene-panel, .maplibregl-ctrl, .maplibregl-popup'),
    onReplacement:alpha=>{if(map.getLayer(treeLayer))map.setPaintProperty(treeLayer,'fill-extrusion-opacity',['interpolate',['linear'],['zoom'],16,0,17,1-alpha]);},
-   onChange:state=>{const active=state.phase==='simulation',linked=state.forecastRequired,f=state.forecast;title.textContent=active?'Local simulation':'Digital local scene';pause.hidden=fire.hidden=findFire.hidden=!active;findFire.disabled=fire.disabled=!state.ignition||(linked&&!(f?.status==='ready'&&f.risk>0));pause.textContent=state.paused?'Resume':'Pause';pause.setAttribute('aria-pressed',String(state.paused));fire.setAttribute('aria-pressed',String(state.fireEnabled));retry.hidden=state.phase!=='fallback';simulationNote.hidden=!active&&state.phase!=='loading'&&state.phase!=='fallback';simulationNote.textContent=state.phase==='loading'?'Preparing local simulation…':state.phase==='fallback'?'Mapped view remains available. Retry scene detail.':linked?(f?.status==='ready'?'Forecast scenario · fire risk '+f.risk.toFixed(3)+(f.risk===0?' · no flame drawn':''):f?.status==='missing'||f?.status==='error'?'Scenario unavailable for this forecast':'Preparing selected forecast…'):state.ignition&&state.fireEnabled?'Illustrative fire scenario · not a reported fire':'Local scene models · zoom out to return';
-    forecastLine.hidden=!linked;forecastLine.textContent=linked&&f?.target_time_utc?'+'+f.lead_hours+'h · Window ending '+new Date(f.target_time_utc).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'UTC'})+' UTC · scenario, not a reported fire':linked?'Vegetation from 2020 land cover · illustrative placements':'';
-    forecastLine.title=linked?'Flame visibility follows the selected 5 km model score; it does not predict ignition location, physical intensity or spread.':'';
+   onChange:state=>{const active=state.phase==='simulation',linked=state.forecastRequired,f=state.forecast;title.textContent=active?'Local simulation':'Digital local scene';pause.hidden=fire.hidden=findFire.hidden=!active;findFire.disabled=fire.disabled=linked?!state.emitters.length:!state.ignition;pause.textContent=state.paused?'Resume':'Pause';pause.setAttribute('aria-pressed',String(state.paused));fire.setAttribute('aria-pressed',String(state.fireEnabled));retry.hidden=state.phase!=='fallback';simulationNote.hidden=!active&&state.phase!=='loading'&&state.phase!=='fallback';simulationNote.textContent=state.phase==='loading'?'Preparing local simulation…':state.phase==='fallback'?'Mapped view remains available. Retry scene detail.':linked?(f?.status==='ready'?(state.emitters.length?'Risk-driven fire illustration':'No flames sampled for this view')+' · '+(f.resolution===50?'50 m experimental field':'5 km forecast'):!state.candidates.length?'No mapped vegetation samples in this view':f?.status==='missing'||f?.status==='error'?'Fire illustration unavailable for this selection':'Preparing selected risk field…'):state.ignition&&state.fireEnabled?'Illustrative fire scenario · not a reported fire':'Local scene models · zoom out to return';
+    forecastLine.hidden=!linked;forecastLine.textContent=linked&&f?.target_time_utc?'+'+f.lead_hours+'h · Window ending '+new Date(f.target_time_utc).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'UTC'})+' UTC · illustration, not reported fires':linked?'Vegetation from 2020 land cover · illustrative placements':'';
+    forecastLine.title=linked?'Stable random sampling follows the selected risk field. Visual sampling weights are not ignition probabilities, fire intensity or spread predictions. All rendering runs on this device.':'';
     options.onSimulationChange?.(state);
    }
   }):null;
@@ -105,7 +105,7 @@
    try{
     if(local?.contains()&&map.getZoom()>=15.5){
      const seq=++areaSequence;areaController?.abort();const snapshot=await local.build();if(disposed||seq!==areaSequence||!snapshot||!local.contains())return;
-     if(areaData!==snapshot.collection){area=snapshot.area;areaId=area.id;areaData=snapshot.collection;treeData=empty;ensure();map.getSource(objectSource)?.setData(areaData);map.getSource(treeSource)?.setData(empty);retry.hidden=live?.state.phase!=='fallback';note.textContent='Mapped buildings and roads. Schematic vegetation from 2020 land cover; flat ground. No individual-tree or spread prediction.';live?.setArea(snapshot);scheduleMetrics();}return;
+     if(areaData!==snapshot.collection){area=snapshot.area;areaId=area.id;areaData=snapshot.collection;treeData=empty;ensure();map.getSource(objectSource)?.setData(areaData);map.getSource(treeSource)?.setData(empty);retry.hidden=live?.state.phase!=='fallback';note.textContent='Mapped buildings and roads. Schematic vegetation from 2020 land cover; flat ground. No individual-tree or spread prediction.';live?.setArea(snapshot);metrics();scheduleMetrics();}return;
     }
     note.textContent='Mapped footprints and streets. Building heights are display estimates; tree shapes are schematic.';
     const catalogURL=new URL(options.catalogURL,document.baseURI);if(catalogURL.origin!==location.origin)throw Error('Unexpected object catalog origin');
@@ -124,7 +124,7 @@
      data=JSON.parse(new TextDecoder().decode(bytes));if(data.type!=='FeatureCollection'||!Array.isArray(data.features)||data.features.length>10000)throw Error('Invalid object collection');
      areaCache.set(found.id,data);while(areaCache.size>3)areaCache.delete(areaCache.keys().next().value);
     }
-    if(disposed||seq!==areaSequence)return;area=found;areaData=data;treeData=treeSymbols(data);ensure();map.getSource(objectSource)?.setData(data);map.getSource(treeSource)?.setData(treeData);live?.setArea({area,collection:data});scheduleMetrics();
+    if(disposed||seq!==areaSequence)return;area=found;areaData=data;treeData=treeSymbols(data);ensure();map.getSource(objectSource)?.setData(data);map.getSource(treeSource)?.setData(treeData);live?.setArea({area,collection:data});metrics();scheduleMetrics();
    }catch(e){if(e.name!=='AbortError'){areaId=null;status.textContent='Local detail is loading; the mapped basemap remains usable.';if(local?.contains()&&map.getZoom()>=15.5){retry.hidden=false;clearTimeout(localTimer);localTimer=setTimeout(loadArea,5000);}}}
   }
   function scheduleMetrics(){clearTimeout(metricsTimer);metricsTimer=setTimeout(metrics,350);}
