@@ -97,11 +97,20 @@
   const treeSource=PREFIX+'tree-symbols',treeLayer=PREFIX+'tree-models';let treeData=null;
   const localSymbolPaint=new Map();
   const areaCache=new Map(),empty={type:'FeatureCollection',features:[]};
-  const local=options.localCoverURL&&global.FireEyeTallahassee?global.FireEyeTallahassee.create(map,options.localCoverURL):null;let localTimer=null;
+  let environmentKey='';
+  const environment=options.environmentURL&&global.FireEyeSceneEnvironment?global.FireEyeSceneEnvironment.mount(map,{
+   url:options.environmentURL,
+   onChange:state=>{const key=[state.area,state.terrain,state.buildings].join('|');if(key===environmentKey)return;environmentKey=key;
+    queueMicrotask(()=>{if(disposed)return;local?.invalidate();loadArea();live?.refreshTerrain();});},
+   onTerrain:()=>live?.refreshTerrain()
+  }):null;
+  const local=options.localCoverURL&&global.FireEyeTallahassee?global.FireEyeTallahassee.create(map,options.localCoverURL,{extraFeatures:()=>environment?.features()||[]}):null;let localTimer=null;
   const layers=[PREFIX+'areas',PREFIX+'water',PREFIX+'paths',PREFIX+'roads',PREFIX+'buildings',PREFIX+'outlines'];
   const opacity=['interpolate',['linear'],['zoom'],13,0,15,1];
   const live=options.simulationAssetsURL&&global.FireEyeMappedSimulation?global.FireEyeMappedSimulation.mount(map,{
    manifestURL:options.simulationAssetsURL,forecastLinked:options.forecastLinked,
+   height:point=>environment?.height(point)||0,
+   exclusions:()=>environment?.features()||[],
    occlusionElements:()=>document.querySelectorAll('.panel, .mapped-scene-panel, .maplibregl-ctrl, .maplibregl-popup'),
    onReplacement:alpha=>{if(map.getLayer(treeLayer))map.setPaintProperty(treeLayer,'fill-extrusion-opacity',['interpolate',['linear'],['zoom'],16,0,17,1-alpha]);},
    onChange:state=>{const active=state.phase==='simulation',linked=state.forecastRequired,f=state.forecast;title.textContent=active?'Local simulation':'Digital local scene';pause.hidden=fire.hidden=findFire.hidden=!active;findFire.disabled=fire.disabled=linked?!state.emitters.length:!state.ignition;pause.textContent=state.paused?'Resume':'Pause';pause.setAttribute('aria-pressed',String(state.paused));fire.setAttribute('aria-pressed',String(state.fireEnabled));retry.hidden=state.phase!=='fallback';simulationNote.hidden=!active&&state.phase!=='loading'&&state.phase!=='fallback';simulationNote.textContent=state.phase==='loading'?'Preparing local simulation…':state.phase==='fallback'?'Mapped view remains available. Retry scene detail.':linked?(f?.status==='ready'?(state.emitters.length?'Risk-driven fire illustration':'No flames sampled for this view')+' · '+(f.resolution===50?'50 m experimental field':'5 km forecast'):!state.candidates.length?'No mapped vegetation samples in this view':f?.status==='missing'||f?.status==='error'?'Fire illustration unavailable for this selection':'Preparing selected risk field…'):state.ignition&&state.fireEnabled?'Illustrative fire scenario · not a reported fire':'Local scene models · zoom out to return';
@@ -162,9 +171,9 @@
    try{
     if(local?.contains()&&map.getZoom()>=15.5){
      const seq=++areaSequence;areaController?.abort();const snapshot=await local.build();if(disposed||seq!==areaSequence||!snapshot||!local.contains())return;
-     if(areaData!==snapshot.collection){area=snapshot.area;areaId=area.id;areaData=snapshot.collection;treeData=empty;ensure();map.getSource(objectSource)?.setData(areaData);map.getSource(treeSource)?.setData(empty);retry.hidden=live?.state.phase!=='fallback';note.textContent='Mapped buildings and roads. Schematic vegetation from 2020 land cover; flat ground. No individual-tree or spread prediction.';live?.setArea(snapshot);metrics();scheduleMetrics();}return;
+     if(areaData!==snapshot.collection){area=snapshot.area;areaId=area.id;areaData=snapshot.collection;treeData=empty;ensure();map.getSource(objectSource)?.setData(areaData);map.getSource(treeSource)?.setData(empty);retry.hidden=live?.state.phase!=='fallback';note.textContent=environment?.state.terrain?'LANDFIRE terrain · mapped buildings and roads. Vegetation is schematic; fire is a risk-driven illustration.':'Mapped buildings and roads. Schematic vegetation from 2020 land cover; flat ground. No individual-tree or spread prediction.';live?.setArea(snapshot);metrics();scheduleMetrics();}return;
     }
-    note.textContent='Mapped footprints and streets. Building heights are display estimates; tree shapes are schematic.';
+    note.textContent=environment?.state.buildings?'LANDFIRE terrain · Overture buildings and streets. Heights use recorded values or labeled estimates; tree shapes are schematic.':'Mapped footprints and streets. Building heights are display estimates; tree shapes are schematic.';
     const catalogURL=new URL(options.catalogURL,document.baseURI);if(catalogURL.origin!==location.origin)throw Error('Unexpected object catalog origin');
     catalogTask ||= fetch(catalogURL,{credentials:'omit',signal:AbortSignal.timeout(8000)}).then(r=>{if(!r.ok)throw Error('Object catalog unavailable');return r.json();}).catch(e=>{catalogTask=null;throw e;});
     const catalog=await catalogTask;if(disposed||map.getZoom()<14)return;
@@ -216,6 +225,16 @@
    const rendered=map.queryRenderedFeatures(e.point);
    if(rendered.some(f=>['WF','RX','CX','detection'].includes(f.properties?.kind))){resetGround();return false;}
    if(map.getZoom()>=15)chooseGround([e.lngLat.lng,e.lngLat.lat]);
+   const mapped=environment?.inspect(e.point);
+   if(mapped){const p=mapped.properties,building=p.kind==='building';
+    detail.replaceChildren(create('strong',p.name||(building?'Mapped building':'Mapped street / path')),
+     create('p','Overture Maps · '+p.release),create('p',e.lngLat.lat.toFixed(6)+'°, '+e.lngLat.lng.toFixed(6)));
+    if(building)detail.append(create('p',p.height_source==='height'?'Source-reported height: '+p.height_m+' m.':
+     'Display height: '+p.height_m+' m · '+(p.height_source==='floors'?'estimated from floors':'estimated from building category')+'.'));
+    else detail.append(create('p','Mapped centerline; width may use a road-class estimate.'));
+    detail.hidden=false;emitObject({kind:p.kind,selected_wgs84:[e.lngLat.lng,e.lngLat.lat],source:'Overture Maps',
+     source_feature_id:p.source_id,properties:p,geometry_is_display_tile:false});return true;
+   }
    const feature=rendered.find(f=>f.layer.id===treeLayer)||rendered.find(f=>f.layer.id===objectLayers[4])||rendered.find(f=>f.source===objectSource&&f.properties?.kind==='building')||rendered.find(f=>objectLayers.includes(f.layer.id))||rendered.find(f=>[layers[4],layers[5],layers[3],layers[2]].includes(f.layer.id));
    if(!feature)return false;
    if(feature.source===objectSource||feature.source===treeSource){
@@ -246,7 +265,7 @@
   const localReady=e=>{if(e.sourceId==='openmaptiles'&&e.isSourceLoaded&&local?.contains()&&map.getZoom()>=15.5){clearTimeout(localTimer);localTimer=setTimeout(loadArea,180);}};map.on('sourcedata',localReady);
   map.on('movestart',clearSelection);map.on('zoom',sync);map.on('zoomend',onZoomEnd);map.on('pitchend',sync);map.on('moveend',moved);map.on('styledata',styled);map.on('error',failed);
   map.setMaxZoom(20);ensure();sync();loadArea();
-  return {ready:true,enter,regional,onMapClick,panel,openControls,closeControls,simulation:live,get geometryReady(){return ready;},get selectedArea(){return area?.id||null;},get localScene(){return area?.prediction_linked?{area,collection:areaData}:null;},dispose(){disposed=true;panelObserver.disconnect();compactScreen.removeEventListener("change",layoutChanged);reopen.remove();groundSequence++;groundView?.dispose();clearTimeout(groundTimer);if(groundScript){groundScript.onload=groundScript.onerror=null;groundScript.remove();groundScript=null;}clearTimeout(localTimer);map.off('sourcedata',localReady);live?.dispose();areaSequence++;areaController?.abort();clearTimeout(metricsTimer);map.off('movestart',clearSelection);map.off('zoom',sync);map.off('zoomend',onZoomEnd);map.off('pitchend',sync);map.off('moveend',moved);map.off('styledata',styled);map.off('error',failed);popup?.remove();panel.remove();for(const [id,paint] of localSymbolPaint)if(map.getLayer(id))for(const [name,value] of Object.entries(paint))map.setPaintProperty(id,name,value);for(const id of [...layers,...objectLayers,treeLayer])if(map.getLayer(id))map.removeLayer(id);if(map.getSource(treeSource))map.removeSource(treeSource);if(map.getSource(objectSource))map.removeSource(objectSource);options.onDetailScale?.(1);}};
+  return {ready:true,enter,regional,onMapClick,panel,openControls,closeControls,simulation:live,environment,get geometryReady(){return ready;},get selectedArea(){return area?.id||null;},get localScene(){return area?.prediction_linked?{area,collection:areaData}:null;},dispose(){disposed=true;environment?.dispose();panelObserver.disconnect();compactScreen.removeEventListener("change",layoutChanged);reopen.remove();groundSequence++;groundView?.dispose();clearTimeout(groundTimer);if(groundScript){groundScript.onload=groundScript.onerror=null;groundScript.remove();groundScript=null;}clearTimeout(localTimer);map.off('sourcedata',localReady);live?.dispose();areaSequence++;areaController?.abort();clearTimeout(metricsTimer);map.off('movestart',clearSelection);map.off('zoom',sync);map.off('zoomend',onZoomEnd);map.off('pitchend',sync);map.off('moveend',moved);map.off('styledata',styled);map.off('error',failed);popup?.remove();panel.remove();for(const [id,paint] of localSymbolPaint)if(map.getLayer(id))for(const [name,value] of Object.entries(paint))map.setPaintProperty(id,name,value);for(const id of [...layers,...objectLayers,treeLayer])if(map.getLayer(id))map.removeLayer(id);if(map.getSource(treeSource))map.removeSource(treeSource);if(map.getSource(objectSource))map.removeSource(objectSource);options.onDetailScale?.(1);}};
  }
  global.FireEyeGeographicScene={mount};
 })(window);

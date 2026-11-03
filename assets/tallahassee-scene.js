@@ -15,7 +15,7 @@
   for(const l of lines)for(let i=1;i<l.length;i++){const a=[(l[i-1][0]-p[0])*scale*cos,(l[i-1][1]-p[1])*scale],b=[(l[i][0]-p[0])*scale*cos,(l[i][1]-p[1])*scale],dx=b[0]-a[0],dy=b[1]-a[1],d=dx*dx+dy*dy,t=d?Math.max(0,Math.min(1,-(a[0]*dx+a[1]*dy)/d)):0;best=Math.min(best,Math.hypot(a[0]+t*dx,a[1]+t*dy));}return best;
  }
  function sample(m,data,p){const t=m.grid.transform,col=Math.floor((p[0]-t[2])/t[0]),row=Math.floor((p[1]-t[5])/t[4]);return inBox(p,m.bbox_wgs84)&&row>=0&&col>=0&&row<m.grid.height&&col<m.grid.width?data[row*m.grid.width+col]:0;}
- function create(map,url){
+ function create(map,url,options={}){
   let manifest=null,data=null,task=null,last=null;const mobile=matchMedia('(max-width:640px)').matches;
   async function load(){
    if(data)return;if(task)return task;
@@ -41,7 +41,13 @@
      if(['building','water'].includes(kind))features.push({type:'Feature',geometry,properties:{kind,source_id:'map/'+String(f.id??seen.size),class:p.class}});
     }
    }
-   if(polygons.length>5000||roads.length>4000)throw Error('Local object budget');
+   for(const f of options.extraFeatures?.()||[]){
+    const geometry=f.geometry,b=bounds(geometry),p=f.properties;
+    if(b[0]>box[2]||b[2]<box[0]||b[1]>box[3]||b[3]<box[1])continue;
+    if(p.kind==='building'){polygons.push({geometry,b,kind:'building',properties:p});features.push(f);}
+    else if(p.kind==='transportation')roads.push({geometry,b,kind:'transportation',properties:p,gap:p.width_m/2+1});
+   }
+   if(polygons.length>8000||roads.length>6000)throw Error('Local object budget');
    return {polygons,roads,greens,features};
   }
   async function build(){
@@ -67,5 +73,5 @@
   }
   return {contains:()=>inBox(map.getCenter().toArray(),PILOT),build,sample:p=>data?sample(manifest,data,p):null,get manifest(){return manifest;},invalidate:()=>{last=null;}};
  }
- global.FireEyeTallahassee={create,contains,inBox,roadDistance,sample,hash,bounds:()=>PILOT.slice()};
+ global.FireEyeTallahassee={create,contains,inBox,roadDistance,sample,hash,boundsOf:bounds,bounds:()=>PILOT.slice()};
 })(typeof window==='undefined'?globalThis:window);

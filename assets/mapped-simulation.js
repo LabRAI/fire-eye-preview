@@ -25,7 +25,22 @@
   const C={phase:'mapped',alpha:0,treeCount:0,renderedTrees:0,frames:0,elapsed:0,paused:matchMedia('(prefers-reduced-motion: reduce)').matches,fireEnabled:true,ignition:null,forecastRequired:false,forecast:null,fireEmphasis:1,candidates:[],candidateKey:"",emitters:[],sampledCount:0,validCount:0,particleBudget:(navigator.hardwareConcurrency||4)<=4?1200:3000,quality:(navigator.hardwareConcurrency||4)<=4?"balanced":"high",frameMs:0,performanceSamples:0,assetBytes:0,error:null};
   let disposed=false,area=null,collection=null,assets=null,assetTask=null,controller=new AbortController(),layer=null,gpu=null,origin=null,metres=1,groups=[],fireGroups=[],timer=null,last=null,cooldown=0,lastState='',replacement=-1,installing=false,ignitionAttempted=false,ignitionView=null,sceneMatrix=null,siteVisible=null,sightView=null;
   const merc=p=>global.maplibregl.MercatorCoordinate.fromLngLat(p,0);
-  const local=p=>{const q=merc(p);return [(q.x-origin.x)/metres,0,(q.y-origin.y)/metres];};
+  const height=p=>{const value=options.height?.(p);return Number.isFinite(value)?value:0;};
+  const local=p=>{const q=merc(p);return [(q.x-origin.x)/metres,height(p),(q.y-origin.y)/metres];};
+  function terrainMatrix(matrix){
+   // MapLibre 2.4 forms customLayerMatrix before its terrain camera translation.
+   // Apply that missing translation once; future renderer matrices must not be
+   // shifted again. Geographic coordinates and all prediction values stay intact.
+   if(!global.maplibregl.version.startsWith('2.4.')||!map.getTerrain())return matrix;
+   const offset=map.transform.elevation*merc(map.getCenter().toArray()).meterInMercatorCoordinateUnits();
+   const adjusted=new Float64Array(matrix);for(let r=0;r<4;r++)adjusted[12+r]-=matrix[8+r]*offset;return adjusted;
+  }
+  function groundScreen(p){
+   if(!sceneMatrix)return null;const q=merc(p),z=height(p)*q.meterInMercatorCoordinateUnits(),m=sceneMatrix,
+    w=m[3]*q.x+m[7]*q.y+m[11]*z+m[15];if(w<=0)return null;
+   return [((m[0]*q.x+m[4]*q.y+m[8]*z+m[12])/w+1)*map.getCanvas().clientWidth/2,
+     (1-(m[1]*q.x+m[5]*q.y+m[9]*z+m[13])/w)*map.getCanvas().clientHeight/2];
+  }
   const fade=()=>smooth((map.getZoom()-START)/(END-START));
   const canIgnite=()=>map.getZoom()>=END&&!map.isMoving()&&map.getSource('openmaptiles')&&(map.isSourceLoaded('openmaptiles')||map.queryRenderedFeatures({layers:['mapped-scene-buildings']}).length>0)&&ignitionView!==viewKey();
   const viewKey=()=>map.getCenter().toArray().join(',')+'|'+map.getZoom()+'|'+map.getBearing()+'|'+map.getPitch();
@@ -72,10 +87,10 @@
    const eligible=p=>!blocked.some(f=>contains(f.geometry,p));
    // Vector tiles merge separate buildings into MultiPolygons. Their query
    // bounding boxes overestimate occlusion; test the actual projected faces.
-   const canvas=map.getCanvas(),faces=[],project=(p,h)=>{const q=merc(p),z=h*q.meterInMercatorCoordinateUnits(),m=sceneMatrix,w=m[3]*q.x+m[7]*q.y+m[11]*z+m[15];if(w<=0)return null;return [((m[0]*q.x+m[4]*q.y+m[8]*z+m[12])/w+1)*canvas.clientWidth/2,(1-(m[1]*q.x+m[5]*q.y+m[9]*z+m[13])/w)*canvas.clientHeight/2];};
+   const canvas=map.getCanvas(),faces=[],project=(p,h)=>{const q=merc(p),z=(h+height(p))*q.meterInMercatorCoordinateUnits(),m=sceneMatrix,w=m[3]*q.x+m[7]*q.y+m[11]*z+m[15];if(w<=0)return null;return [((m[0]*q.x+m[4]*q.y+m[8]*z+m[12])/w+1)*canvas.clientWidth/2,(1-(m[1]*q.x+m[5]*q.y+m[9]*z+m[13])/w)*canvas.clientHeight/2];};
    const face=rings=>{if(rings.some(r=>r.some(p=>!p)))return;const xs=rings[0].map(p=>p[0]),ys=rings[0].map(p=>p[1]),b=[Math.min(...xs),Math.min(...ys),Math.max(...xs),Math.max(...ys)];if(b[2]>=0&&b[0]<=canvas.clientWidth&&b[3]>=0&&b[1]<=canvas.clientHeight)faces.push({rings,b});};
-   for(const f of map.queryRenderedFeatures({layers:['mapped-scene-buildings']})){
-    const h=Number(f.properties.render_height)||0,base=Number(f.properties.render_min_height)||0;if(h<=base)continue;
+   for(const f of map.queryRenderedFeatures({layers:['mapped-scene-buildings','scene-environment-buildings'].filter(id=>map.getLayer(id))})){
+    const h=Number(f.properties.height_m??f.properties.render_height)||0,base=Number(f.properties.render_min_height)||0;if(h<=base)continue;
     for(const rings of f.geometry.type==='Polygon'?[f.geometry.coordinates]:f.geometry.type==='MultiPolygon'?f.geometry.coordinates:[]){
      const top=rings.map(r=>r.map(p=>project(p,h))),bottom=rings.map(r=>r.map(p=>project(p,base)));face(top);
      for(let j=0;j<rings.length;j++)for(let i=1;i<rings[j].length;i++)face([[bottom[j][i-1],bottom[j][i],top[j][i],top[j][i-1]]]);
@@ -88,13 +103,13 @@
    siteVisible=visible;sightView=viewKey();
    const distance=p=>{const q=project(p,.2);return q?(q[0]-layout.target[0])**2+(q[1]-layout.target[1])**2:Infinity;};
    const available=[...trees,...collection.features.filter(f=>f.properties?.kind==='scenario_anchor'&&f.geometry?.type==='Point')].filter(f=>eligible(f.geometry.coordinates)&&visible(f.geometry.coordinates,false)).sort((a,b)=>distance(a.geometry.coordinates)-distance(b.geometry.coordinates));
-   const ignition=f=>({lnglat:[...f.geometry.coordinates],source_id:f.properties.source_id,kind:area?.prediction_linked?'forecast-scenario':'demonstration',ground_height_m:0});
+   const ignition=f=>({lnglat:[...f.geometry.coordinates],source_id:f.properties.source_id,kind:area?.prediction_linked?'forecast-scenario':'demonstration',ground_height_m:height(f.geometry.coordinates)});
    const tree=available.find(f=>visible(f.geometry.coordinates));if(tree)return ignition(tree);
    // An interior point of recorded greenspace; never create replacement trees.
    const candidates=[];
    for(const f of collection.features.filter(f=>['land_area','woodland_area'].includes(f.properties?.kind)&&['park','garden','grass','forest','wood','recreation_ground'].includes(f.properties?.class))){
     const rings=f.geometry.type==='Polygon'?[f.geometry.coordinates]:f.geometry.type==='MultiPolygon'?f.geometry.coordinates:[];
-    for(const r of rings){const xs=r[0].map(p=>p[0]),ys=r[0].map(p=>p[1]),b=[Math.min(...xs),Math.min(...ys),Math.max(...xs),Math.max(...ys)];for(let i=1;i<8;i++)for(let j=1;j<8;j++){const p=[b[0]+(b[2]-b[0])*i/8,b[1]+(b[3]-b[1])*j/8];if(contains(f.geometry,p)&&eligible(p)&&visible(p))candidates.push({lnglat:p,source_id:f.properties.source_id,kind:'demonstration',ground_height_m:0});}}
+    for(const r of rings){const xs=r[0].map(p=>p[0]),ys=r[0].map(p=>p[1]),b=[Math.min(...xs),Math.min(...ys),Math.max(...xs),Math.max(...ys)];for(let i=1;i<8;i++)for(let j=1;j<8;j++){const p=[b[0]+(b[2]-b[0])*i/8,b[1]+(b[3]-b[1])*j/8];if(contains(f.geometry,p)&&eligible(p)&&visible(p))candidates.push({lnglat:p,source_id:f.properties.source_id,kind:'demonstration',ground_height_m:height(p)});}}
    }
    // A crowded viewport must not turn a valid forecast into missing data.
    // Keep an eligible anchor; Find fire can bring it into the clear map area.
@@ -103,11 +118,13 @@
   function rebuild(ignite=false){
    if(!area||!collection||!assets){groups=[];fireGroups=[];C.treeCount=0;C.renderedTrees=0;C.ignition=null;C.candidates=[];C.candidateKey="";C.emitters=[];if(gpu)uploadInstances();return;}
    const b=area.bbox_wgs84;origin=merc([(b[0]+b[2])/2,(b[1]+b[3])/2]);metres=origin.meterInMercatorCoordinateUnits();
-   const trees=collection.features.filter(f=>f.properties?.kind==='tree'&&f.geometry?.type==='Point'&&f.geometry.coordinates.every(Number.isFinite));
+   const extra=(options.exclusions?.()||[]).map(f=>({...f,b:global.FireEyeTallahassee.boundsOf?.(f.geometry)}));
+   const allowed=p=>!extra.some(f=>{if(f.b&&(p[0]<f.b[0]-.0003||p[0]>f.b[2]+.0003||p[1]<f.b[1]-.0003||p[1]>f.b[3]+.0003))return false;return f.properties.kind==='building'?contains(f.geometry,p):global.FireEyeTallahassee.roadDistance(f.geometry,p)<f.properties.width_m/2+1;});
+   const trees=collection.features.filter(f=>f.properties?.kind==='tree'&&f.geometry?.type==='Point'&&f.geometry.coordinates.every(Number.isFinite)&&allowed(f.geometry.coordinates));
    if(trees.length>2000)throw Error('Scene object budget exceeded');C.treeCount=trees.length;
    if(C.forecastRequired&&global.FireEyeScenarioField&&global.proj4){
     const project=global.proj4('EPSG:4326','+proj=aea +lat_0=23 +lon_0=-96 +lat_1=29.5 +lat_2=45.5 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs'),bounds=map.getBounds(),excluded=collection.features.filter(f=>['building','water'].includes(f.properties?.kind));
-    const points=global.FireEyeScenarioField.candidates(collection.features,p=>project.forward(p),p=>bounds.contains(p)&&!excluded.some(f=>contains(f.geometry,p))),key=points.map(p=>p.id+'@'+p.lnglat.join(',')).join('|');
+    const points=global.FireEyeScenarioField.candidates(collection.features,p=>project.forward(p),p=>bounds.contains(p)&&allowed(p)&&!excluded.some(f=>contains(f.geometry,p))),key=points.map(p=>p.id+'@'+p.lnglat.join(',')).join('|');
     if(key!==C.candidateKey){C.candidates=points;C.candidateKey=key;C.emitters=[];C.forecast=null;C.fireEmphasis=0;}
    }
    groups=assets.map((asset,index)=>{
@@ -123,7 +140,7 @@
    fireGroups=[];
    const emitters=C.forecastRequired?C.emitters:(C.ignition?[{...C.ignition,id:C.ignition.source_id,strength:1}]:[]);
    for(const emitter of emitters){
-    const point=local(emitter.lnglat),rng=random(hash(emitter.id)),make=(count,radius,base,rise,size,smoke)=>{const values=[];for(let i=0;i<count;i++){const angle=rng()*Math.PI*2,d=Math.sqrt(rng())*radius;values.push(point[0]+Math.cos(angle)*d,base,point[2]+Math.sin(angle)*d,rng());}return {values:new Float32Array(values),count,rise,size,smoke,strength:emitter.strength};};
+    const point=local(emitter.lnglat),rng=random(hash(emitter.id)),make=(count,radius,base,rise,size,smoke)=>{const values=[];for(let i=0;i<count;i++){const angle=rng()*Math.PI*2,d=Math.sqrt(rng())*radius;values.push(point[0]+Math.cos(angle)*d,point[1]+base,point[2]+Math.sin(angle)*d,rng());}return {values:new Float32Array(values),count,rise,size,smoke,strength:emitter.strength};};
     // Vegetation fire symbols rise above the schematic canopy so nearby
     // tree meshes do not hide the entire effect. This is display geometry.
     const canopy=C.forecastRequired?(emitter.canopy_m||0):0;
@@ -156,7 +173,7 @@
   function draw(gl,matrix){
    if(disposed||!gpu||!origin||!area||!assets||C.alpha<=.001||document.hidden)return;
    try{
-    sceneMatrix=matrix;if(!ignitionAttempted&&canIgnite()){rebuild(true);notify();}
+    matrix=terrainMatrix(matrix);sceneMatrix=matrix;if(!ignitionAttempted&&canIgnite()){rebuild(true);notify();}
     const now=performance.now();
     if(!C.paused&&last!==null&&!map.isMoving()&&gpu.fire.length){const dt=now-last;C.frameMs=C.frameMs?C.frameMs*.9+dt*.1:dt;if(++C.performanceSamples%40===0&&C.frameMs>95){C.particleBudget=Math.max(600,Math.floor(C.particleBudget*.65));C.quality='economy';if(typeof map.setPixelRatio==='function'){const ratio=map.getCanvas().width/map.getCanvas().clientWidth;if(ratio>1.1)map.setPixelRatio(Math.max(1,ratio-.25));}}}
     if(!C.paused&&last!==null)C.elapsed+=Math.min(.1,(now-last)/1000);last=now;
@@ -191,7 +208,7 @@
   const visibility=()=>{clearTimer();last=null;if(!document.hidden)update();};
   const styled=()=>{if(assets&&area&&!map.getLayer(ID)){install();update();}};
   map.on('sourcedata',sourceReady);map.on('zoom',update);map.on('moveend',moved);map.on('styledata',styled);document.addEventListener('visibilitychange',visibility);
-  return {state:C,focusFire,visibleFireCount,setArea(snapshot){const next=snapshot?.area;if(next?.id===area?.id&&snapshot?.collection===collection)return;const previous=C.ignition,keep=next?.prediction_linked&&area?.id===next.id&&snapshot?.collection?.features.some(f=>f.properties?.source_id===previous?.source_id);area=next||null;collection=snapshot?.collection||null;C.forecastRequired=!!area&&(!!area.prediction_linked||!!options.forecastLinked);if(!keep){C.forecast=null;C.fireEmphasis=C.forecastRequired?0:1;}C.ignition=keep?previous:null;ignitionAttempted=!!C.ignition;ignitionView=null;if(!keep)C.elapsed=0;last=null;try{rebuild();}catch{fail();return;}update();},setForecast,getCandidates(){return C.candidates;},pause(value){C.paused=!!value;clearTimer();last=null;notify();map.triggerRepaint();},fire(value){C.fireEnabled=!!value;clearTimer();last=null;notify();map.triggerRepaint();},retry(){C.error=null;cooldown=0;if(!gpu&&map.getLayer(ID))map.removeLayer(ID);update();},dispose(){disposed=true;controller.abort();clearTimer();map.off('sourcedata',sourceReady);map.off('zoom',update);map.off('moveend',moved);map.off('styledata',styled);document.removeEventListener('visibilitychange',visibility);if(map.getLayer(ID))map.removeLayer(ID);release();setReplacement(0);}};
+  return {state:C,groundScreen,refreshTerrain(){if(disposed||!assets)return;try{rebuild();sightView=null;map.triggerRepaint();}catch{fail();}},focusFire,visibleFireCount,setArea(snapshot){const next=snapshot?.area;if(next?.id===area?.id&&snapshot?.collection===collection)return;const previous=C.ignition,keep=next?.prediction_linked&&area?.id===next.id&&snapshot?.collection?.features.some(f=>f.properties?.source_id===previous?.source_id);area=next||null;collection=snapshot?.collection||null;C.forecastRequired=!!area&&(!!area.prediction_linked||!!options.forecastLinked);if(!keep){C.forecast=null;C.fireEmphasis=C.forecastRequired?0:1;}C.ignition=keep?previous:null;ignitionAttempted=!!C.ignition;ignitionView=null;if(!keep)C.elapsed=0;last=null;try{rebuild();}catch{fail();return;}update();},setForecast,getCandidates(){return C.candidates;},pause(value){C.paused=!!value;clearTimer();last=null;notify();map.triggerRepaint();},fire(value){C.fireEnabled=!!value;clearTimer();last=null;notify();map.triggerRepaint();},retry(){C.error=null;cooldown=0;if(!gpu&&map.getLayer(ID))map.removeLayer(ID);update();},dispose(){disposed=true;controller.abort();clearTimer();map.off('sourcedata',sourceReady);map.off('zoom',update);map.off('moveend',moved);map.off('styledata',styled);document.removeEventListener('visibilitychange',visibility);if(map.getLayer(ID))map.removeLayer(ID);release();setReplacement(0);}};
  }
  global.FireEyeMappedSimulation={mount};
 })(window);
