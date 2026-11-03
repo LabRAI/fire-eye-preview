@@ -3,7 +3,7 @@
  const $=id=>document.getElementById(id),el=(tag,content,cls)=>{const n=document.createElement(tag);n.textContent=content;if(cls)n.className=cls;return n;};
  for(let n=0;n<600&&!window.fireEyePlatform?.ready;n++)await new Promise(r=>setTimeout(r,100));
  const P=window.fireEyePlatform,S=window.fireEyePreview;if(!P?.ready||!S?.ready)return;
- const map=S.map,C=window.fireEyeCore={ready:false,drawing:false,geometry:null,showFires:false,summary:null},mobile=matchMedia('(max-width:640px)').matches;
+ const map=S.map,C=window.fireEyeCore={ready:false,drawing:false,geometry:null,showFires:false,summary:null},mobile=matchMedia('(max-width:900px), (max-height:500px) and (pointer:coarse)').matches;
  const date=v=>new Intl.DateTimeFormat('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'UTC'}).format(new Date(v))+' UTC';
  const percent=v=>typeof v==='number'&&Number.isFinite(v)?(v*100).toFixed(1)+'%':'—';
  const config=await fetch('config.json',{signal:AbortSignal.timeout(4000)}).then(r=>r.json()).catch(()=>({fire_snapshots_url:'fire-snapshots-bootstrap.json'})),cache=new Map();let index,indexAt=0,contextKey='',selectionSequence=0,summaryGeneration=0,summaryTimer,summaryWorker,downloadWorker,downloadGeneration=0,fireTask;
@@ -20,9 +20,9 @@
   return cache.get(row.asset.sha256);
  }
  const panel=el('section','','panel fire-summary');panel.id='fire-summary';panel.setAttribute('aria-label','Fire summaries');const toggle=el('button','Summaries ⌄','summary-toggle');toggle.id='summary-toggle';const body=el('div','','summary-body');body.id='summary-body';body.hidden=mobile;toggle.setAttribute('aria-expanded',String(!mobile));panel.append(toggle,body);document.body.append(panel);panel.classList.toggle('compact',mobile);
- const summaryOpen=el('button','Summaries','wide-button');summaryOpen.id='summaries-open';document.querySelector('.map-actions').after(summaryOpen);summaryOpen.onclick=()=>setSummary(matchMedia('(max-width:640px)').matches?body.hidden:true);toggle.onclick=()=>setSummary(body.hidden);
- function summaryLayout(){const inline=matchMedia('(max-width:640px)').matches;panel.hidden=inline;if(inline)summaryOpen.after(body);else panel.append(body);}
- summaryLayout();matchMedia('(max-width:640px)').addEventListener('change',summaryLayout);
+ const summaryOpen=el('button','Summaries','wide-button');summaryOpen.id='summaries-open';document.querySelector('.map-actions').after(summaryOpen);summaryOpen.onclick=()=>setSummary(matchMedia('(max-width:900px), (max-height:500px) and (pointer:coarse)').matches?body.hidden:true);toggle.onclick=()=>setSummary(body.hidden);
+ function summaryLayout(){const inline=matchMedia('(max-width:900px), (max-height:500px) and (pointer:coarse)').matches;panel.hidden=inline;if(inline)summaryOpen.after(body);else panel.append(body);}
+ summaryLayout();matchMedia('(max-width:900px), (max-height:500px) and (pointer:coarse)').addEventListener('change',summaryLayout);
  function setSummary(open){body.hidden=!open;toggle.setAttribute('aria-expanded',String(open));summaryOpen.setAttribute('aria-expanded',String(open));panel.classList.toggle('compact',!open);if(open)scheduleSummary();else summaryGeneration++;}
  function note(title,message){body.replaceChildren(el('h3',title),el('p',message,'muted'));}
  function cards(title,rows,description){body.replaceChildren(el('h3',title));const grid=el('div','','summary-grid');for(const [label,value]of rows){const card=el('div','');card.append(el('span',label),el('strong',value));grid.append(card);}body.append(grid,el('p',description,'muted'));}

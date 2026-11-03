@@ -41,7 +41,7 @@
  }
 
  const digest=async text=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text))),x=>x.toString(16).padStart(2,'0')).join('');
- function label(text){const node=$('resolution-auto-status');if(node)node.textContent=text;const panel=document.querySelector('.mapped-scene-panel');if(panel){let note=panel.querySelector('.mapped-scene-risk');if(!note){note=document.createElement('p');note.className='mapped-scene-risk';panel.insertBefore(note,panel.querySelector('.mapped-scene-note'));}note.textContent=text;note.title='Experimental terrain/fuel-conditioned redistribution. The regional model and charts remain on the native 5 km grid; this is not a native 50 m forecast.';}}
+ function label(text){const node=$('resolution-auto-status');if(node)node.textContent=text;const panel=document.querySelector('.mapped-scene-panel');if(panel){let note=panel.querySelector('.mapped-scene-risk');if(!note){note=document.createElement('p');note.className='mapped-scene-risk';const anchor=panel.querySelector('.mapped-scene-note');(anchor?.parentElement||panel).insertBefore(note,anchor||null);}note.textContent=text;note.title='Experimental terrain/fuel-conditioned redistribution. The regional model and charts remain on the native 5 km grid; this is not a native 50 m forecast.';}}
  function order(){if(!layerId||!map.getLayer(layerId))return;const layers=map.getStyle().layers,anchor=map.getLayer('mapped-scene-buildings')?'mapped-scene-buildings':layers.find(l=>/^(platform-|selection-|vector-context|hurricane-track)/.test(l.id)||l.type==='symbol')?.id;if(anchor)map.moveLayer(layerId,anchor);}
  let displayKey='',probeJob=null;
  function display(){

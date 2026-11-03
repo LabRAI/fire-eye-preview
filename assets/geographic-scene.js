@@ -21,11 +21,18 @@
  function mount(map,options={}){
   const create=(tag,text,cls)=>{const e=document.createElement(tag);if(text)e.textContent=text;if(cls)e.className=cls;return e;};
   const panel=create('section',null,'mapped-scene-panel');panel.hidden=true;panel.setAttribute('aria-label','Digital local scene');
+  const compactScreen=matchMedia('(max-width:900px), (max-height:500px) and (pointer:coarse)');
+  let panelCollapsed=compactScreen.matches,panelDismissed=false,panelSuppressed=false;
+  try{panelDismissed=sessionStorage.getItem('fire-eye-scene-dismissed')==='1';}catch{}
+  panel.id='mapped-scene-panel';
   const top=create('div',null,'mapped-scene-heading'),title=create('strong','Digital local scene'),back=create('button','Regional view');back.type='button';
-  top.append(title,back);panel.append(top);
+  const panelToggle=create('button',null,'mapped-scene-toggle'),chevron=create('span','⌄'),panelClose=create('button','×','mapped-scene-close');
+  panelToggle.type=panelClose.type='button';panelToggle.append(title,chevron);panelToggle.setAttribute('aria-controls','mapped-scene-content');
+  panelClose.setAttribute('aria-label','Close simulation controls');panelClose.title='Hide controls; simulation stays on the map';
+  top.append(panelToggle,panelClose);panel.append(top);
   const status=create('p','Zoom in to explore mapped buildings and streets.','mapped-scene-status');status.setAttribute('role','status');panel.append(status);
   const actions=create('div',null,'mapped-scene-actions'),tilt=create('button','3D'),pause=create('button','Pause'),fire=create('button','Fire'),findFire=create('button','Find fire'),retry=create('button','Retry detail');
-  for(const b of [tilt,pause,fire,findFire,retry]){b.type='button';actions.append(b);}panel.append(actions);pause.hidden=fire.hidden=findFire.hidden=retry.hidden=true;findFire.title="Center the illustrative fire in the visible map";fire.setAttribute("aria-label","Scenario fire");fire.title="Toggle illustrative scenario fire";
+  for(const b of [tilt,pause,fire,findFire,retry,back]){b.type='button';actions.append(b);}panel.append(actions);pause.hidden=fire.hidden=findFire.hidden=retry.hidden=true;findFire.title="Center the illustrative fire in the visible map";fire.setAttribute("aria-label","Scenario fire");fire.title="Toggle illustrative scenario fire";
   const simulationNote=create('p','','mapped-simulation-status');simulationNote.hidden=true;simulationNote.setAttribute('role','status');panel.append(simulationNote);
   tilt.setAttribute('aria-pressed','false');
   const note=create('p','Mapped footprints and streets. Building heights are display estimates; tree shapes are schematic.','mapped-scene-note');panel.append(note);
@@ -33,7 +40,11 @@
   const detail=create('div',null,'mapped-scene-detail');detail.hidden=true;panel.append(detail);
   const ground=create('section',null,'mapped-ground-detail'),groundButton=create('button','Load ground detail'),groundClear=create('button','Clear'),groundStatus=create('p','Select a spot for optional ground detail.');
   ground.hidden=true;ground.setAttribute('aria-label','Optional ground detail');groundButton.type=groundClear.type='button';groundButton.disabled=true;groundClear.hidden=true;groundStatus.setAttribute('role','status');ground.append(groundButton,groundClear,groundStatus);panel.append(ground);
+  const content=create('div',null,'mapped-scene-content');content.id='mapped-scene-content';
+  for(const child of [...panel.children])if(child!==top)content.append(child);panel.append(content);
   (options.container||document.body).append(panel);
+  const reopen=create('button','Simulation controls','wide-button');reopen.id='scene-controls-open';reopen.type='button';reopen.hidden=true;reopen.setAttribute('aria-controls',panel.id);
+  document.getElementById('fit-conus')?.after(reopen);
   let ready=false,disposed=false,installing=false,previous=null,popup=null,requested=false,terrainTilt=false,metricsTimer=null;
   let catalogTask=null,areaId=null,area=null,areaData=null,areaController=null,areaSequence=0;
   let selectedObject=null;
@@ -58,7 +69,30 @@
    finally{if(!disposed&&seq===groundSequence)groundButton.disabled=false;}
   };
   groundClear.onclick=()=>{const point=groundPoint?.slice();resetGround();if(point)chooseGround(point);};
-  const emitObject=value=>{selectedObject=value;options.onObject?.(value);};
+  function panelLayout(){
+   const eligible=map.getZoom()>=13||requested;
+   const shown=selector=>{const node=document.querySelector(selector);return node&&!node.hidden&&node.getBoundingClientRect().height>0;};
+   const suppressed=compactScreen.matches&&(!document.body.classList.contains('sidebar-hidden')||shown('#inspection')||shown('.assistant-global-panel')||shown('.risk-download')||!!document.querySelector('dialog[open]'));
+   if(suppressed&&!panelSuppressed)panelCollapsed=true;panelSuppressed=suppressed;
+   const hide=!eligible||panelDismissed||suppressed;if(panel.hidden!==hide)panel.hidden=hide;
+   content.hidden=panelCollapsed;panel.classList.toggle('is-collapsed',panelCollapsed);chevron.textContent=panelCollapsed?'⌄':'⌃';
+   panelToggle.setAttribute('aria-expanded',String(!panelCollapsed));panelToggle.setAttribute('aria-label',panelCollapsed?'Expand simulation controls':'Minimize simulation controls');
+   reopen.hidden=!eligible;reopen.setAttribute('aria-expanded',String(!hide&&!panelCollapsed));
+  }
+  function openControls(fromSidebar=false){
+   if(disposed)return;panelDismissed=false;panelCollapsed=false;try{sessionStorage.removeItem('fire-eye-scene-dismissed');}catch{}
+   if(compactScreen.matches){if(fromSidebar)document.getElementById('sidebar-close')?.click();if(!document.getElementById('inspection')?.hidden)document.getElementById('close-inspection')?.click();}
+   panelLayout();content.scrollTop=0;
+  }
+  function closeControls(){
+   panelDismissed=true;try{sessionStorage.setItem('fire-eye-scene-dismissed','1');}catch{}resetGround();detail.hidden=true;panelLayout();map.getCanvas().focus({preventScroll:true});
+  }
+  panelClose.onclick=closeControls;panelToggle.onclick=()=>{panelCollapsed=!panelCollapsed;panelLayout();};reopen.onclick=()=>{openControls(true);panelToggle.focus({preventScroll:true});};
+  const layoutChanged=()=>{if(compactScreen.matches)panelCollapsed=true;panelLayout();};compactScreen.addEventListener('change',layoutChanged);
+  const panelObserver=new MutationObserver(records=>{if(records.some(r=>r.target===document.body||r.target.id==='inspection'||r.target.classList?.contains('assistant-global-panel')||r.target.classList?.contains('risk-download')||r.target.tagName==='DIALOG'))panelLayout();});
+  panelObserver.observe(document.body,{attributes:true,subtree:true,attributeFilter:['hidden','class','open']});
+  panel.addEventListener('keydown',event=>{if(event.key==='Escape'){event.stopPropagation();closeControls();}});
+  const emitObject=value=>{selectedObject=value;openControls();options.onObject?.(value);};
   const objectSource=PREFIX+'objects',objectLayers=[PREFIX+'object-areas',PREFIX+'object-buildings',PREFIX+'object-height',PREFIX+'object-roads',PREFIX+'object-trees',PREFIX+'object-footprints'];
   const treeSource=PREFIX+'tree-symbols',treeLayer=PREFIX+'tree-models';let treeData=null;
   const localSymbolPaint=new Map();
@@ -152,7 +186,7 @@
   }
   function scheduleMetrics(){clearTimeout(metricsTimer);metricsTimer=setTimeout(metrics,350);}
   function sync(){
-   if(disposed)return;const z=map.getZoom();panel.hidden=z<13&&!requested;
+   if(disposed)return;const z=map.getZoom();panelLayout();
    const factor=1-.35*Math.max(0,Math.min(1,(z-13)/3));options.onDetailScale?.(factor);
    tilt.setAttribute('aria-pressed',String(map.getPitch()>15));
    if(z<12.5){requested=false;panel.hidden=true;popup?.remove();popup=null;detail.hidden=true;}
@@ -166,7 +200,7 @@
   const capture=()=>({center:map.getCenter().toArray(),zoom:map.getZoom(),pitch:map.getPitch(),bearing:map.getBearing()});
   async function enter(lnglat){
    if(!Array.isArray(lnglat)||lnglat.length!==2||!lnglat.every(Number.isFinite))return false;
-   previous=capture();requested=true;selectedObject=null;detail.hidden=true;panel.hidden=false;
+   previous=capture();requested=true;selectedObject=null;detail.hidden=true;openControls();
    await options.ensureStreet?.();ensure();terrainTilt=true;
    map.flyTo({center:lnglat,zoom:17.8,pitch:52,bearing:map.getBearing(),duration:matchMedia('(prefers-reduced-motion: reduce)').matches?0:1600,essential:false});
    sync();return true;
@@ -178,6 +212,7 @@
   }
   function onMapClick(e){
    if(disposed||map.getZoom()<14||!ready)return false;
+   if(panelDismissed||(compactScreen.matches&&!document.body.classList.contains('sidebar-hidden')))return false;
    const rendered=map.queryRenderedFeatures(e.point);
    if(rendered.some(f=>['WF','RX','CX','detection'].includes(f.properties?.kind))){resetGround();return false;}
    if(map.getZoom()>=15)chooseGround([e.lngLat.lng,e.lngLat.lat]);
@@ -211,7 +246,7 @@
   const localReady=e=>{if(e.sourceId==='openmaptiles'&&e.isSourceLoaded&&local?.contains()&&map.getZoom()>=15.5){clearTimeout(localTimer);localTimer=setTimeout(loadArea,180);}};map.on('sourcedata',localReady);
   map.on('movestart',clearSelection);map.on('zoom',sync);map.on('zoomend',onZoomEnd);map.on('pitchend',sync);map.on('moveend',moved);map.on('styledata',styled);map.on('error',failed);
   map.setMaxZoom(20);ensure();sync();loadArea();
-  return {ready:true,enter,regional,onMapClick,panel,simulation:live,get geometryReady(){return ready;},get selectedArea(){return area?.id||null;},get localScene(){return area?.prediction_linked?{area,collection:areaData}:null;},dispose(){disposed=true;groundSequence++;groundView?.dispose();clearTimeout(groundTimer);if(groundScript){groundScript.onload=groundScript.onerror=null;groundScript.remove();groundScript=null;}clearTimeout(localTimer);map.off('sourcedata',localReady);live?.dispose();areaSequence++;areaController?.abort();clearTimeout(metricsTimer);map.off('movestart',clearSelection);map.off('zoom',sync);map.off('zoomend',onZoomEnd);map.off('pitchend',sync);map.off('moveend',moved);map.off('styledata',styled);map.off('error',failed);popup?.remove();panel.remove();for(const [id,paint] of localSymbolPaint)if(map.getLayer(id))for(const [name,value] of Object.entries(paint))map.setPaintProperty(id,name,value);for(const id of [...layers,...objectLayers,treeLayer])if(map.getLayer(id))map.removeLayer(id);if(map.getSource(treeSource))map.removeSource(treeSource);if(map.getSource(objectSource))map.removeSource(objectSource);options.onDetailScale?.(1);}};
+  return {ready:true,enter,regional,onMapClick,panel,openControls,closeControls,simulation:live,get geometryReady(){return ready;},get selectedArea(){return area?.id||null;},get localScene(){return area?.prediction_linked?{area,collection:areaData}:null;},dispose(){disposed=true;panelObserver.disconnect();compactScreen.removeEventListener("change",layoutChanged);reopen.remove();groundSequence++;groundView?.dispose();clearTimeout(groundTimer);if(groundScript){groundScript.onload=groundScript.onerror=null;groundScript.remove();groundScript=null;}clearTimeout(localTimer);map.off('sourcedata',localReady);live?.dispose();areaSequence++;areaController?.abort();clearTimeout(metricsTimer);map.off('movestart',clearSelection);map.off('zoom',sync);map.off('zoomend',onZoomEnd);map.off('pitchend',sync);map.off('moveend',moved);map.off('styledata',styled);map.off('error',failed);popup?.remove();panel.remove();for(const [id,paint] of localSymbolPaint)if(map.getLayer(id))for(const [name,value] of Object.entries(paint))map.setPaintProperty(id,name,value);for(const id of [...layers,...objectLayers,treeLayer])if(map.getLayer(id))map.removeLayer(id);if(map.getSource(treeSource))map.removeSource(treeSource);if(map.getSource(objectSource))map.removeSource(objectSource);options.onDetailScale?.(1);}};
  }
  global.FireEyeGeographicScene={mount};
 })(window);
