@@ -32,4 +32,6 @@
 @media(max-width:640px),(max-height:500px) and (pointer:coarse){
  body:not(.sidebar-hidden) #inspection,
  body:has(.assistant-global-panel:not([hidden])) #inspection{visibility:hidden;pointer-events:none}
+ body:has(#inspection:not([hidden])) #sidebar-peek,
+ body:has(.assistant-global-panel:not([hidden])) #sidebar-peek{visibility:hidden;pointer-events:none}
 }
