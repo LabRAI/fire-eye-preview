@@ -35,3 +35,6 @@
  body:has(#inspection:not([hidden])) #sidebar-peek,
  body:has(.assistant-global-panel:not([hidden])) #sidebar-peek{visibility:hidden;pointer-events:none}
 }
+.maplibregl-ctrl-group .mapped-scene-start{width:auto;min-width:76px;min-height:44px;padding:0 10px;font:600 12px/1.2 system-ui,sans-serif;color:#173d35;background:#fff}
+.maplibregl-ctrl-group .mapped-scene-start[aria-pressed=true]{background:#e0eee7}
+.maplibregl-ctrl-group .mapped-scene-start:focus-visible{outline:2px solid #173d35;outline-offset:-3px}

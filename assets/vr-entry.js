@@ -19,11 +19,11 @@
  chooser.id='vr-chooser';chooser.hidden=true;current.id='vr-use-center';current.type='button';examples.id='vr-locations';chooser.append(intro,current,currentHint,examples);
  const note=element('p','Trigger: point and teleport. Thumbstick: turn in 30° steps. Home, Pause fire and Exit VR are available inside the headset. The scene uses the selected forecast snapshot; fire effects are illustrative.','vr-note');
  actions.append(enter,retry,places);dialog.append(head,context,chooser,viewport,status,actions,note);document.body.append(dialog);
- let savedView=null,viewer=null,moduleTask=null,sequence=0,restorePause=null,supported=false,busy=false,areaTask=null,opener=null;
+ let savedView=null,viewer=null,moduleTask=null,sequence=0,restorePause=null,restoreIntent=null,supported=false,busy=false,areaTask=null,opener=null;
  const report=message=>{status.textContent=message;};
  function restore(){if(restorePause!==null){G.simulation.pause(restorePause);restorePause=null;}}
  function captureView(){return {center:S.map.getCenter().toArray(),zoom:S.map.getZoom(),pitch:S.map.getPitch(),bearing:S.map.getBearing()};}
- async function closeView(){sequence++;busy=false;const old=viewer;viewer=null;dialog.close();restore();if(savedView){const view=savedView;savedView=null;S.map.stop();S.map.jumpTo(view);}window.fireEyeVR.viewer=null;window.fireEyeVR.snapshot=null;opener?.focus({preventScroll:true});await old?.dispose();}
+ async function closeView(){sequence++;busy=false;const old=viewer;viewer=null;dialog.close();restore();if(restoreIntent===false)G.stopSimulation();restoreIntent=null;if(savedView){const view=savedView;savedView=null;S.map.stop();S.map.jumpTo(view);}window.fireEyeVR.viewer=null;window.fireEyeVR.snapshot=null;opener?.focus({preventScroll:true});await old?.dispose();}
  close.onclick=()=>{void closeView();};dialog.addEventListener('cancel',e=>{e.preventDefault();void closeView();});
  async function areas(){
   if(!areaTask){
@@ -91,7 +91,7 @@
   }catch(error){if(seq===sequence){restore();report(/^(VR (?:terrain|scene)|Mapped terrain|Terrain is|No mapped ground|This scene exceeds|Select a published|The selected risk)/.test(error.message||'')?error.message:'VR could not load. Reload the scene or return to the map.');}}
   finally{if(seq===sequence){busy=false;retry.disabled=places.disabled=false;}}
  }
- function open(event){if(dialog.open)return;opener=event?.currentTarget instanceof HTMLElement?event.currentTarget:mapButton;window.dispatchEvent(new Event('fire-eye:vr-open'));S.map.stop();savedView=captureView();dialog.showModal();if(S.map.getZoom()>=15.5)void prepare();else void chooseLocation();}
+ function open(event){if(dialog.open)return;opener=event?.currentTarget instanceof HTMLElement?event.currentTarget:mapButton;window.dispatchEvent(new Event('fire-eye:vr-open'));S.map.stop();savedView=captureView();restoreIntent=G.requested;dialog.showModal();if(S.map.getZoom()>=15.5)void prepare();else void chooseLocation();}
  enter.onclick=()=>{if(!viewer||busy||!supported)return;if(viewer.sessionActive){void viewer.endSession();return;}busy=true;enter.disabled=true;
   viewer.enterVR().catch(error=>report(error.message)).finally(()=>{busy=false;enter.disabled=!supported;});
  };

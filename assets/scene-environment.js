@@ -86,7 +86,7 @@
   }
   async function refresh(){
    if(disposed||changing)return;
-   if(map.getZoom()<14){sequence++;controller?.abort();active=null;remove();state.status='idle';state.area=null;notify();return;}
+   if(map.getZoom()<14||options.enabled&&!options.enabled()){sequence++;controller?.abort();active=null;remove();state.status='idle';state.area=null;notify();return;}
    if(Date.now()<cooldown)return;
    const seq=++sequence;controller?.abort();controller=new AbortController();
    const signal=AbortSignal.any([controller.signal,AbortSignal.timeout(15000)]);
