@@ -29593,7 +29593,8 @@ function contains(g, p) {
 function boundedPoint(p, radius) {
   return Array.isArray(p) && p.length >= 2 && p.slice(0, 2).every(Number.isFinite) && Math.abs(p[0]) < radius - 4 && Math.abs(p[1]) < radius - 4;
 }
-function capture({ center, height, features, meshSnapshot, forecast, terrainReady, radius = 240 }) {
+function capture({ center, height, features, meshSnapshot, forecast, terrainReady, terrainStatus, radius = 240 }) {
+  if (!terrainReady && terrainStatus === "outside") throw Error("VR terrain is not published for this location yet. Choose a mapped pilot area.");
   if (!terrainReady || !center?.every(Number.isFinite) || typeof height !== "function") throw Error("Mapped terrain must finish loading before VR.");
   const frame = frameAt(center), baseline = height(center);
   if (!Number.isFinite(baseline)) throw Error("Terrain is unavailable here.");

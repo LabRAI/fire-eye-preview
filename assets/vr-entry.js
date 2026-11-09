@@ -1,6 +1,6 @@
 /* Optional immersive rendering. No XR session or large module without a click. */
 (async()=>{
- const moduleURL=new URL('./vr-viewer.js?v=14ebbca45b6628f2',document.currentScript.src);let moduleAttempt=0;
+ const moduleURL=new URL('./vr-viewer.js?v=5ed789199824c894',document.currentScript.src);let moduleAttempt=0;
  for(let i=0;i<600&&!window.fireEyeGeography;i++)await new Promise(r=>setTimeout(r,100));
  const G=window.fireEyeGeography,S=window.fireEyePreview;if(!G||!S)return;
  const element=(tag,text,cls)=>{const e=document.createElement(tag);if(text)e.textContent=text;if(cls)e.className=cls;return e;};
@@ -32,7 +32,7 @@
    const next=await module.createViewer(viewport,data,{onSession:active=>{enter.textContent=active?'Exit VR':'Enter VR';retry.disabled=active;report(active?'VR is active. Use the in-headset Exit VR control to return.':supported?'Ready for VR. Put on your headset, then select Enter VR.':'3D preview is available here. Enter VR using a WebXR-compatible headset browser.');},onFailure:message=>{enter.disabled=true;report(message);}});
    if(seq!==sequence||!dialog.open){await next.dispose();return;}viewer=next;window.fireEyeVR.viewer=next;window.fireEyeVR.snapshot={forecast,center:data.center,counts:data.counts};enter.disabled=!supported;enter.textContent='Enter VR';
    report(supported?'Ready for VR. Put on your headset, then select Enter VR.':'3D preview is available here. Enter VR using a WebXR-compatible headset browser.');
-  }catch(error){if(seq===sequence){restore();report(/^(Mapped terrain|Terrain is|No mapped ground|This scene exceeds|Select a published|The selected risk)/.test(error.message||'')?error.message:'VR could not load. Reload the scene or return to the map.');}}
+  }catch(error){if(seq===sequence){restore();report(/^(VR terrain|Mapped terrain|Terrain is|No mapped ground|This scene exceeds|Select a published|The selected risk)/.test(error.message||'')?error.message:'VR could not load. Reload the scene or return to the map.');}}
   finally{if(seq===sequence){busy=false;retry.disabled=false;}}
  }
  function open(){if(dialog.open)return;window.dispatchEvent(new Event('fire-eye:vr-open'));S.map.stop();savedView={center:S.map.getCenter().toArray(),zoom:S.map.getZoom(),pitch:S.map.getPitch(),bearing:S.map.getBearing()};dialog.showModal();void prepare();}
