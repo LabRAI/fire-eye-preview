@@ -15,7 +15,7 @@
    if(!r.ok){const error=Error(r.status===401?'Please sign in again.':'Sign-in is temporarily unavailable. You can continue using the map.');error.status=r.status;throw error;}
    if(!r.headers.get('content-type')?.includes('application/json'))throw Error('Sign-in response unavailable.');return r.json();
   }
-  function returnURL(value){const target=new URL(value,app);if(target.origin!==app.origin||!['','index.html','resolution.html'].some(name=>target.pathname===app.pathname+name))return app.href;return target.href;}
+  function returnURL(value){const target=new URL(value,app);if(target.origin!==app.origin||!['','index.html','resolution.html','stories.html','challenge.html','what-if.html'].some(name=>target.pathname===app.pathname+name))return app.href;return target.href;}
   return {
    get signedIn(){return !!saved();},
    async restore(){const s=saved();if(!s)return false;try{await call('session',{},s.session_token);return true;}catch(e){if(e.status===401)sessionStorage.removeItem(KEY);return false;}},

@@ -104,7 +104,7 @@ function renderReview(active){const root=$('story-review');root.replaceChildren(
  if(active.id!=='selected'){
   const coverage=active.search_coverage||{};
   d.append(el('p',coverage.planned_windows?('Research: '+coverage.completed_windows+' of '+coverage.planned_windows+' weekly regional searches completed. '+(coverage.failed_windows||0)+' require a retry. No fixed monthly story quota; this is not an exhaustive news census.'):'This edition used the earlier five-region monthly search. Its results do not establish complete news coverage. There was no fixed five-story quota.'));
-  if(active.article_verification?.reviewed!=null)d.append(el('p',active.article_verification.verified+' of '+active.article_verification.reviewed+' candidates have passed article-level verification.'));
+  if(active.article_verification?.reviewed!=null)d.append(el('p',active.article_verification.verified+' of '+active.article_verification.reviewed+' candidates have passed article-level verification. '+(active.source_exclusions||0)+' unverified candidates are excluded from public news; the audit retains them.'));
   const m=active.metrics||{};if(finite(m.incidents)){
    d.append(el('p',number(m.incidents)+' official wildfire reports were included in the independent incident review. '+number(m.prospective_cases)+' had a recorded before-discovery comparison.'));
    d.append(el('p',active.screening_basis==='legacy_neighborhood_maximum'?'Legacy incident-screening totals used a 10 km neighborhood maximum. They are retained in the evidence download and are not the new featured-case test.':'Incident screening now uses the reported fire’s own cell, requiring both the absolute threshold and a value above the raster’s 90th percentile.'));
