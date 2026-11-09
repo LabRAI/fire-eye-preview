@@ -36,5 +36,5 @@
  window.addEventListener('fire-eye:forecast-changed',changed);window.addEventListener('fire-eye:refinement-changed',changed);
  const timer=setInterval(()=>{if(!document.hidden)syncForecast();},10000);
  window.addEventListener('pagehide',()=>{sequence++;clearInterval(timer);window.removeEventListener('fire-eye:forecast-changed',changed);window.removeEventListener('fire-eye:refinement-changed',changed);},{once:true});
- controller.syncForecast=syncForecast;window.fireEyeGeography=controller;
+ controller.syncForecast=syncForecast;controller.retryForecast=()=>{pendingKey='';retryAt=0;return syncForecast();};window.fireEyeGeography=controller;
 })().catch(()=>{});

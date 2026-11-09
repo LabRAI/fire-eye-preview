@@ -92,6 +92,7 @@
    const signal=AbortSignal.any([controller.signal,AbortSignal.timeout(15000)]);
    try{
     if(!catalog){
+     state.status='loading';notify();
      catalogTask ||= fetch(url,{credentials:'omit',cache:'no-cache',signal:AbortSignal.timeout(8000)}).then(r=>{if(!r.ok)throw Error('Scene catalog unavailable');return r.json();}).catch(e=>{catalogTask=null;throw e;});
      catalog=await catalogTask;
      if(catalog.kind!=='scene-environment'||catalog.schema_version!==1||catalog.upstream_revision!==PIN||!Array.isArray(catalog.areas)||catalog.areas.length>50)throw Error('Invalid scene environment catalog');
@@ -149,7 +150,7 @@
   const moved=()=>{clearTimeout(timer);timer=setTimeout(refresh,180);};
   map.on('moveend',moved);map.on('sourcedata',changed);map.on('error',failed);
   refresh();
-  return {state,height,refresh,features:()=>state.buildings?active?.objects.features||[]:[],
+  return {state,height,refresh,retry(){cooldown=0;return refresh();},features:()=>state.buildings?active?.objects.features||[]:[],
     inspect(point){if(!state.buildings)return null;return map.queryRenderedFeatures(point,{layers:[BUILDINGS,ROADS]})[0]||null;},
     dispose(){disposed=true;sequence++;controller?.abort();clearTimeout(timer);clearTimeout(refreshTimer);
       map.off('moveend',moved);map.off('sourcedata',changed);map.off('error',failed);remove();cache.clear();}};
