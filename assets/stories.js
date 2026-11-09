@@ -47,11 +47,11 @@ function renderCase(p,collection,index,raw){imageController?.abort();imageContro
  const mast=el('div',undefined,'feature-masthead');mast.append(el('span','FIRE-EYE / FORECAST STORIES'),el('span',label(collection).toUpperCase()));
  const header=el('header',undefined,'feature-header');header.append(el('p',p.kicker||'A documented wildfire','feature-kicker'),el('h2',p.name),el('p',p.place||[raw.state,date(raw.date)].filter(Boolean).join(' · '),'feature-place'));
  if(raw.news_date)header.append(el('p','Reported '+date(raw.news_date),'feature-report-date'));
- const lead=el('div',undefined,'feature-lead');lead.append(el('strong',p.lead||'From the news'),el('span',p.lead_caption||'Evidence under review'));
+ const lead=el('div',undefined,'feature-lead');lead.append(el('strong',p.lead||'From the news'),el('span',p.timing_basis==='news-only'?'Published fire reports':p.timing_basis==='retrospective'?'Historical comparison':p.lead_caption||'Published records'));
  const badges={'public-archive':'Public archive verified','local-record':'Local timestamp record','retrospective':'Retrospective comparison','news-only':'News report'};
  lead.append(el('span',badges[p.timing_basis]||'News report','timing-badge'+(p.timing_basis==='public-archive'?'':' local')));
  const columns=el('div',undefined,'feature-columns'),before=el('section',undefined,'feature-before'),after=el('section',undefined,'feature-after');
- before.append(el('h3',p.image?(p.before_title||'The archived forecast'):'Reporting timeline'),el('p',p.image?(p.before_text||'A retained forecast for this location.'):'This story follows the published fire reports. It does not make an advance-prediction claim.'));
+ before.append(el('h3',p.image?(p.before_title||'The archived forecast'):'Reporting timeline'));if(p.image)before.append(el('p',p.before_text||'A retained forecast for this location.'));
  const figure=el('figure',undefined,'forecast-figure');if(p.image)before.append(figure);else article.classList.add('news-only-story');after.append(el('h3',p.after_title||'The reported fire'));
  if(p.impact!=null&&String(p.impact).trim()){const impact=el('div',p.impact,'feature-impact');impact.append(el('span',p.impact_caption));after.append(impact);}
  after.append(el('p',p.after_text||raw.summary));
@@ -60,8 +60,9 @@ function renderCase(p,collection,index,raw){imageController?.abort();imageContro
  const evidence=el('details',undefined,'feature-evidence');evidence.append(el('summary','Forecast details & evidence'));const dl=el('dl');
  const facts=[['Issued',p.issue_time_utc?date(p.issue_time_utc):null],['Window ends',p.target_time_utc?date(p.target_time_utc):null],['Model lead',finite(p.nominal_lead_hours)?'+'+p.nominal_lead_hours+'h from issue time (not warning time)':null],['Location',p.coordinates?.length===2?p.coordinates[1].toFixed(4)+'°, '+p.coordinates[0].toFixed(4)+'°':null],['Fire-location score',finite(p.point_score)?p.point_score.toFixed(3)+' (not an ignition probability)':null],['Raster SHA-256',p.raster_sha256]];
  for(const [k,v] of facts)if(v){dl.append(el('dt',k),el('dd',v));}evidence.append(dl);if(safeURL(p.archive_url))evidence.append(anchor('Verified public archive ↗',p.archive_url));
+ if(p.note&&p.note!=='A historical or news-only case is not evidence of an advance prediction.')evidence.append(el('p',p.note,'case-provenance'));
  const download=el('button','Download case evidence');download.type='button';download.addEventListener('click',()=>save('Fire-eye_'+(p.id||index)+'_evidence.json',raw));const actions=el('div',undefined,'actions');actions.append(download);evidence.append(actions);after.append(evidence);
- columns.append(before,after);article.append(mast,header,lead,columns);if(p.note)article.append(el('p',p.note,'feature-note'));root.append(article);if(p.image)showImage(figure,p,imageController.signal);
+ columns.append(before,after);article.append(mast,header,lead,columns);root.append(article);if(p.image)showImage(figure,p,imageController.signal);
 }
 function placeholder(figure,title,copy){const n=el('div',undefined,'map-unavailable');n.append(el('strong',title),el('p',copy));figure.replaceChildren(n);}
 async function imageBlob(d,signal){if(!/^[a-f0-9]{64}$/.test(d.sha256))throw Error('Unverified map');if(imageCache.has(d.sha256))return imageCache.get(d.sha256);
@@ -83,7 +84,7 @@ function renderNews(active){const root=$('story-news');root.replaceChildren();
  const total=el('p',visible.length+' stories'+(maps?' · '+maps+' archived map comparisons':''),'review-count');root.append(total);
  const list=el('details',undefined,'news-review');
  list.append(el('summary','Review notes & additional records'));
- list.append(el('p','Reporting is retained regardless of the forecast result. A linked news report alone is not evidence of a successful prediction.','review-intro'));
+ list.append(el('p','Source articles, archived maps, and matching results for this edition.','review-intro'));
  for(const raw of all){const p=presentation(raw),q=p.quality||{},row=el('details',undefined,'news-review-row');
   const summary=el('summary'),name=el('span',p.name||raw.name,'news-review-name');
   const outcome=q.featured?'Featured comparison':raw.outcome==='below-screening-rule'?'Below location signal rule':raw.outcome==='historical-context'?'Retrospective only':raw.outcome==='awaiting-verification'?'News record · match unverified':'Does not meet showcase criteria';
@@ -101,10 +102,10 @@ function renderNews(active){const root=$('story-news');root.replaceChildren();
 }
 function renderReview(active){const root=$('story-review');root.replaceChildren();const d=el('details',undefined,'review-details');
  d.append(el('summary',active.id==='selected'?'Selection & evidence checks':label(active)+' · research coverage & methods'));
- if(active.selection_note)d.append(el('p',active.selection_note));
+
  const rule=active.presentation_rule;
  if(rule)d.append(el('p','Featured comparisons require a verified map and event location, at least '+rule.minimum_advance_hours+' hours of recorded advance availability, a fire-location score ≥ '+rule.minimum_point_score+' and above that raster’s 90th percentile, and a score above 80% of valid cells within 100 km. These are conservative editorial checks, not calibrated probability cutoffs. The displayed issue is selected by time, not by its highest score.'));
- d.append(el('p','Public archive publication and local capture are shown separately. Local timestamps do not independently prove public pre-event release. Discovery is not necessarily ignition.'));
+ d.append(el('p','Timing labels distinguish a verified public archive release from a timestamped local record. Reported discovery time and ignition time can differ.'));
  if(active.id!=='selected'){
   if(active.curated_cases?.length)d.append(el('p','This edition also includes '+active.curated_cases.length+' previously reviewed casebook comparisons, grouped by official fire discovery month. News stories retain their reporting month. Their original maps, evidence flags and timestamps are unchanged.'));
   const coverage=active.search_coverage||{};
@@ -116,7 +117,7 @@ function renderReview(active){const root=$('story-review');root.replaceChildren(
   }
   for(const text of [active.coverage_note,active.method])if(text)d.append(el('p',text));
  }
- d.append(el('p','A selected news case cannot establish model accuracy. False alarms and missed fires require an independent evaluation across all eligible locations and times.'));
+ d.append(el('p','Overall-performance evaluation requires observations across eligible locations and times, including false alarms and missed fires.'));
  const actions=el('div',undefined,'actions');if(safeURL(active.archive_url))actions.append(anchor('Read the Zenodo archive ↗',active.archive_url));
  const download=el('button','Download edition evidence');download.type='button';download.addEventListener('click',()=>save('Fire-eye_'+active.id+'_evidence.json',FireEyeStoryCollections.evidence(active,feed)));actions.append(download);d.append(actions);root.append(d);
 }
