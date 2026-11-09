@@ -19,7 +19,7 @@
    sim.setForecast({...context,status:'ready',values});
    // Frame an actual sampled location once if every flame is behind a card
    // or building. Never relocate emitters or move the camera on time changes.
-   if(f.resolution===50&&framedArea!==controller.selectedArea&&!S.map.isMoving()){
+   if(f.resolution===50&&framedArea!==controller.selectedArea&&!S.map.isMoving()&&!document.querySelector('#vr-dialog[open]')){
     framedArea=controller.selectedArea;if(!userMoved&&sim.state.emitters.length&&!sim.visibleFireCount())sim.focusFire();
    }
   }catch{if(seq===sequence&&sim.state.forecastRequired&&JSON.stringify([selected(),sim.state.candidateKey])===key){retryAt=Date.now()+10000;sim.setForecast({...context,status:'error',values:[]});}}
@@ -31,7 +31,7 @@
   onObject:detail=>window.dispatchEvent(new CustomEvent('fire-eye:mapped-object',{detail})),
   onSimulationChange:()=>queueMicrotask(syncForecast)
  });
- const interacted=()=>{userMoved=true;};S.map.on('dragstart',interacted);S.map.on('rotatestart',event=>{if(event.originalEvent)interacted();});S.map.on('zoomstart',event=>{if(event.originalEvent)interacted();});
+ const interacted=()=>{userMoved=true;};window.addEventListener('fire-eye:vr-open',interacted);S.map.on('dragstart',interacted);S.map.on('rotatestart',event=>{if(event.originalEvent)interacted();});S.map.on('zoomstart',event=>{if(event.originalEvent)interacted();});
  const changed=()=>{pendingKey='';syncForecast();};
  window.addEventListener('fire-eye:forecast-changed',changed);window.addEventListener('fire-eye:refinement-changed',changed);
  const timer=setInterval(()=>{if(!document.hidden)syncForecast();},10000);
