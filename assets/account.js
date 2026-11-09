@@ -29,7 +29,7 @@
   finally{busy=false;action.disabled=!client;}
  };
  window.fireEyeAccount={get signedIn(){return signedIn;},get configured(){return !!client;},open:()=>button.click()};paint();
- try{const r=await fetch('config.json',{signal:AbortSignal.timeout(5000)});if(!r.ok)throw Error('Account configuration unavailable');const config=await r.json();if(config?.account_gateway_url&&window.FireEyeAccountClient)client=FireEyeAccountClient.create(config.account_gateway_url);}
+ try{const r=await fetch('config.json',{signal:AbortSignal.timeout(5000)});if(!r.ok)throw Error('Account configuration unavailable');const config=await r.json(),endpoint=window.FireEyeAccountClient?.configuredEndpoint(config);if(endpoint)client=FireEyeAccountClient.create(endpoint);}
  catch{configurationFailed=true;}
  loading=false;paint();if(!client)return;
  window.addEventListener('fire-eye:risk-export-prepared',event=>{void client.record(event.detail).then(()=>{if(signedIn&&!client.signedIn){signedIn=false;paint();}}).catch(()=>{});});

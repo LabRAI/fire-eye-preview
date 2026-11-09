@@ -1,7 +1,19 @@
 /* Optional GitHub sign-in. No GitHub profile/provider token is retained here. */
 (function(global){
  'use strict';
- const KEY='fire-eye-account-session-v1',PENDING='fire-eye-account-pending-v1';
+ const KEY='fire-eye-account-session-v1',PENDING='fire-eye-account-pending-v1',CHECK='fire-eye-account-check-v1';
+ function configuredEndpoint(config,allowOptIn=true){
+  if(config?.account_gateway_url)return config.account_gateway_url;
+  const endpoint=config?.account_check_gateway_url;if(!endpoint)return null;
+  try{
+   const optIn=allowOptIn&&new URL(location.href).searchParams.get('account_check')==='1';
+   if(optIn)sessionStorage.setItem(CHECK,JSON.stringify({endpoint,expires:Date.now()+3600000}));
+   const check=JSON.parse(sessionStorage.getItem(CHECK)||'null');
+   if(check?.endpoint===endpoint&&check.expires>Date.now())return endpoint;
+   sessionStorage.removeItem(CHECK);
+  }catch{}
+  return null;
+ }
  const b64=bytes=>btoa(String.fromCharCode(...bytes)).replaceAll('+','-').replaceAll('/','_').replace(/=+$/,'');
  function create(endpoint){
   const url=new URL(endpoint),app=new URL('./',document.baseURI);
@@ -37,5 +49,5 @@
    async record(metadata){const s=saved();if(!s)return false;try{await call('event',{id:crypto.randomUUID(),kind:'risk_export_prepared',metadata},s.session_token);return true;}catch(e){if(e.status===401)sessionStorage.removeItem(KEY);return false;}}
   };
  }
- global.FireEyeAccountClient={create};
+ global.FireEyeAccountClient={create,configuredEndpoint};
 })(window);

@@ -64,5 +64,6 @@
     "e1e4e029b9d8debb4a72db7a78be3c1d08ce49258a88aa8c99f0729714e1fccf": "./assets/history-catalog/e1e4e029b9d8debb4a72db7a78be3c1d08ce49258a88aa8c99f0729714e1fccf.json",
     "bd14fb0b33721e0192066663a777ccaff2cf023036f24ee00bf24ec5e1fe2e40": "./assets/history-catalog/bd14fb0b33721e0192066663a777ccaff2cf023036f24ee00bf24ec5e1fe2e40.json",
     "12f3f3e29292d04f17fbc6c2f12254cc532ec1ca67f64db19582db0e0f82a43b": "./assets/history-catalog/12f3f3e29292d04f17fbc6c2f12254cc532ec1ca67f64db19582db0e0f82a43b.json"
-  }
+  },
+  "account_check_gateway_url": "https://eqgdsqomvegnmsuwxnjo.supabase.co/functions/v1/fire-eye-account"
 }
