@@ -188,7 +188,7 @@
      const bytes=await response.arrayBuffer();if(bytes.byteLength!==descriptor.bytes)throw Error('Object asset size mismatch');
      const digest=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),x=>x.toString(16).padStart(2,'0')).join('');if(digest!==descriptor.sha256)throw Error('Object asset checksum mismatch');
      data=JSON.parse(new TextDecoder().decode(bytes));if(data.type!=='FeatureCollection'||!Array.isArray(data.features)||data.features.length>10000)throw Error('Invalid object collection');
-     areaCache.set(found.id,data);while(areaCache.size>3)areaCache.delete(areaCache.keys().next().value);
+     data=global.FireEyeTallahassee.addGroundCover(data);areaCache.set(found.id,data);while(areaCache.size>3)areaCache.delete(areaCache.keys().next().value);
     }
     if(disposed||seq!==areaSequence)return;area=found;areaData=data;treeData=treeSymbols(data);ensure();map.getSource(objectSource)?.setData(data);map.getSource(treeSource)?.setData(treeData);live?.setArea({area,collection:data});metrics();scheduleMetrics();
    }catch(e){if(e.name!=='AbortError'){areaId=null;status.textContent='Local detail is loading; the mapped basemap remains usable.';if(local?.contains()&&map.getZoom()>=15.5){retry.hidden=false;clearTimeout(localTimer);localTimer=setTimeout(loadArea,5000);}}}

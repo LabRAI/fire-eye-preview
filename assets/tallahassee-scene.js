@@ -1,7 +1,7 @@
 /* Bounded, source-constrained schematic vegetation. No surveyed tree claims. */
 (function(global){
  'use strict';
- const PILOT=[-84.45,30.30,-84.10,30.65],R=6378137,STEP=20;
+ const PILOT=[-84.45,30.30,-84.10,30.65],R=6378137,STEP=12;
  const inBox=(p,b)=>p[0]>=b[0]&&p[0]<b[2]&&p[1]>=b[1]&&p[1]<b[3];
  const hash=s=>{let n=2166136261;for(const c of String(s))n=Math.imul(n^c.charCodeAt(0),16777619);return n>>>0;};
  const project=p=>[p[0]*Math.PI/180*R,Math.log(Math.tan(Math.PI/4+p[1]*Math.PI/360))*R];
@@ -14,7 +14,32 @@
   const scale=111320,cos=Math.cos(p[1]*Math.PI/180),lines=g.type==='LineString'?[g.coordinates]:g.type==='MultiLineString'?g.coordinates:[];let best=Infinity;
   for(const l of lines)for(let i=1;i<l.length;i++){const a=[(l[i-1][0]-p[0])*scale*cos,(l[i-1][1]-p[1])*scale],b=[(l[i][0]-p[0])*scale*cos,(l[i][1]-p[1])*scale],dx=b[0]-a[0],dy=b[1]-a[1],d=dx*dx+dy*dy,t=d?Math.max(0,Math.min(1,-(a[0]*dx+a[1]*dy)/d)):0;best=Math.min(best,Math.hypot(a[0]+t*dx,a[1]+t*dy));}return best;
  }
+ // Index source geometry so denser vegetation does not multiply polygon scans.
+ function spatial(items,pad=0){
+  const bins=new Map(),large=[],cell=100;
+  for(const f of items){const a=project([f.b[0]-pad,f.b[1]-pad]),b=project([f.b[2]+pad,f.b[3]+pad]),x0=Math.floor(a[0]/cell),y0=Math.floor(a[1]/cell),x1=Math.floor(b[0]/cell),y1=Math.floor(b[1]/cell);
+   if((x1-x0+1)*(y1-y0+1)>2500){large.push(f);continue;}
+   for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++){const key=x+','+y;if(!bins.has(key))bins.set(key,[]);bins.get(key).push(f);}
+  }
+  return p=>{const q=project(p);return [...large,...bins.get(Math.floor(q[0]/cell)+','+Math.floor(q[1]/cell))||[]];};
+ }
  function sample(m,data,p){const t=m.grid.transform,col=Math.floor((p[0]-t[2])/t[0]),row=Math.floor((p[1]-t[5])/t[4]);return inBox(p,m.bbox_wgs84)&&row>=0&&col>=0&&row<m.grid.height&&col<m.grid.width?data[row*m.grid.width+col]:0;}
+ function addGroundCover(collection){
+  if(collection.features.some(f=>f.properties?.kind==='grass'))return collection;
+  const lawns=collection.features.filter(f=>f.properties?.kind==='land_area'&&['grass','garden'].includes(f.properties?.class)&&['Polygon','MultiPolygon'].includes(f.geometry?.type)).map(f=>({...f,b:bounds(f.geometry)}));
+  if(!lawns.length)return collection;
+  const blocked=collection.features.filter(f=>['building','water','pedestrian_area'].includes(f.properties?.kind)).map(f=>({...f,b:bounds(f.geometry)})),at=spatial(blocked);
+  const roads=collection.features.filter(f=>f.properties?.kind==='transportation'&&['LineString','MultiLineString'].includes(f.geometry?.type)).map(f=>({...f,b:bounds(f.geometry)})),roadsAt=spatial(roads,.0001),added=[],seen=new Set();
+  for(const f of lawns){const sw=project([f.b[0],f.b[1]]),ne=project([f.b[2],f.b[3]]);
+   if((ne[0]-sw[0])*(ne[1]-sw[1])>300000)continue;
+   for(let x=Math.floor(sw[0]/4);x<=Math.ceil(ne[0]/4);x++)for(let y=Math.floor(sw[1]/4);y<=Math.ceil(ne[1]/4);y++){
+    const id='mapped-grass/'+x+'/'+y;if(seen.has(id))continue;const h=hash(id),p=unproject([(x+.2+(h%100)/170)*4,(y+.2+((h>>>8)%100)/170)*4]);
+    if(!contains(f.geometry,p)||at(p).some(o=>contains(o.geometry,p))||roadsAt(p).some(o=>roadDistance(o.geometry,p)<1.5))continue;
+    seen.add(id);added.push({type:'Feature',geometry:{type:'Point',coordinates:p},properties:{kind:'grass',source_id:id,synthetic:true,display_height_m:.35+(h%25)/100,display_crown_m:1.2,source:'Mapped greenspace',placement:'Schematic ground cover'}});
+   }
+  }
+  return {...collection,features:[...collection.features,...added.sort((a,b)=>hash(a.properties.source_id)-hash(b.properties.source_id)).slice(0,3000)]};
+ }
  function create(map,url,options={}){
   let manifest=null,data=null,task=null,last=null;const mobile=matchMedia('(max-width:640px)').matches;
   async function load(){
@@ -35,7 +60,7 @@
      const p=f.properties||{},key=sourceLayer+'|'+(f.id??'')+'|'+JSON.stringify(geometry.coordinates);if(seen.has(key))continue;seen.add(key);
      const kind=sourceLayer==='building'?'building':sourceLayer==='water'?'water':sourceLayer==='transportation'?'transportation':'land_area';
      const item={geometry,b,kind,properties:p};
-     if(['building','water'].includes(kind))polygons.push(item);
+     if(['building','water'].includes(kind)||['parking','sand','rock','ice'].includes(p.class))polygons.push(item);
      else if(kind==='transportation'&&p.brunnel!=='tunnel'&&p.brunnel!=='bridge'){item.gap=['motorway','trunk','primary','secondary'].includes(p.class)?12:['path','track'].includes(p.class)?3:6;roads.push(item);}
      else if(['wood','forest','grass','park','garden','recreation_ground','scrub'].includes(p.class))greens.push(item);
      if(['building','water'].includes(kind))features.push({type:'Feature',geometry,properties:{kind,source_id:'map/'+String(f.id??seen.size),class:p.class}});
@@ -48,7 +73,7 @@
     else if(p.kind==='transportation')roads.push({geometry,b,kind:'transportation',properties:p,gap:p.width_m/2+1});
    }
    if(polygons.length>8000||roads.length>6000)throw Error('Local object budget');
-   return {polygons,roads,greens,features};
+   return {polygons,roads,greens,features,polygonsAt:spatial(polygons),roadsAt:spatial(roads,.0004),greensAt:spatial(greens)};
   }
   async function build(){
    await load();const c=map.getCenter().toArray();if(!inBox(c,PILOT)||map.getZoom()<15.5)return null;
@@ -58,20 +83,44 @@
    for(let x=Math.floor((center[0]-radius)/STEP);x<=Math.ceil((center[0]+radius)/STEP);x++)for(let y=Math.floor((center[1]-radius)/STEP);y<=Math.ceil((center[1]+radius)/STEP);y++){
     const id='tallahassee-cover/'+x+'/'+y,seed=hash(id),p=unproject([(x+.2+(seed%1000)/1667)*STEP,(y+.2+((seed>>>12)%1000)/1667)*STEP]);
     const cover=sample(manifest,data,p);if(!cover||cover===6||cover===7||cover===8)continue;
-    if(mask.polygons.some(f=>near(p,f.b)&&contains(f.geometry,p))||mask.roads.some(f=>near(p,f.b,.0002)&&roadDistance(f.geometry,p)<f.gap))continue;
-    const local=mask.greens.find(f=>near(p,f.b)&&contains(f.geometry,p)),forest=local?['wood','forest'].includes(local.properties.class):cover===1,shrub=local?local.properties.class==='scrub':cover===2;
-    const vegetated=forest||shrub||cover===3||['grass','garden','park','recreation_ground'].includes(local?.properties.class);if(!vegetated)continue;
-    if(forest&&seed%100>=60||shrub&&seed%100>=25)continue;
-    candidates.push({id,p,forest,shrub,cover,d:(p[0]-c[0])**2*Math.cos(c[1]*Math.PI/180)**2+(p[1]-c[1])**2,seed});
+    const screen=map.project(p),canvas=map.getCanvas();if(screen.x< -70||screen.y< -100||screen.x>canvas.clientWidth+70||screen.y>canvas.clientHeight+100)continue;
+    if(mask.polygonsAt(p).some(f=>near(p,f.b)&&contains(f.geometry,p))||mask.roadsAt(p).some(f=>near(p,f.b,.0004)&&roadDistance(f.geometry,p)<f.gap))continue;
+    const greens=mask.greensAt(p).filter(f=>near(p,f.b)&&contains(f.geometry,p));
+    const has=names=>greens.some(f=>names.includes(f.properties.class));
+    // A broad park polygon must not erase forest mapped by the land-cover grid.
+    const lawn=has(['grass','garden']),forest=has(['wood','forest'])||(cover===1&&!lawn),shrub=has(['scrub'])||(cover===2&&!lawn);
+    const urban=has(['park','garden','recreation_ground']),grassy=lawn||cover===3;
+    if(!forest&&!shrub&&!grassy&&!urban)continue;
+    const chance=forest ? .96 : shrub ? .65 : urban ? .48 : 0,plant=seed%10000<chance*10000;
+    candidates.push({id,p,forest,shrub,cover,plant,grass:grassy||forest&&seed%5===0,seed,
+     d:(p[0]-c[0])**2*Math.cos(c[1]*Math.PI/180)**2+(p[1]-c[1])**2});
    }
-   candidates.sort((a,b)=>a.d-b.d||a.id.localeCompare(b.id));const features=mask.features,limit=mobile?320:900;let trees=0,anchors=0;
-   for(const v of candidates){const plant=v.forest||v.shrub;if(plant?trees>=limit:anchors>=80)continue;
-    features.push({type:'Feature',geometry:{type:'Point',coordinates:v.p},properties:{kind:plant?'tree':'scenario_anchor',source_id:v.id,synthetic:true,source:'LANDFIRE 2020 EVT + mapped exclusions',class:manifest.classes[v.cover],height_m:null,display_height_m:v.shrub?2.5:7+(v.seed%500)/100,display_crown_m:v.shrub?2.2:4.8,placement:'Schematic vegetation; not a measured tree location'}});if(plant)trees++;else anchors++;
+   // Stable spatial sampling spans the visible view; a nearest-only cap made
+   // the far half of a forest look bare on phones.
+   const features=mask.features,limit=mobile?2200:5200;let trees=0,anchors=0,grass=0;
+   candidates.sort((a,b)=>hash(a.id+'budget')-hash(b.id+'budget'));
+   for(const v of candidates){
+    if(v.plant&&trees<limit){
+     features.push({type:'Feature',geometry:{type:'Point',coordinates:v.p},properties:{kind:'tree',source_id:v.id,synthetic:true,source:'LANDFIRE 2020 EVT + mapped greenspace and exclusions',class:manifest.classes[v.cover],height_m:null,
+      display_height_m:v.shrub?3: v.forest?14+(v.seed%900)/100:8+(v.seed%500)/100,
+      display_crown_m:v.shrub?4:v.forest?9+(v.seed%300)/100:6+(v.seed%200)/100,
+      placement:'Schematic vegetation; not a measured tree location'}});trees++;
+    }else if(!v.plant&&anchors<160){features.push({type:'Feature',geometry:{type:'Point',coordinates:v.p},properties:{kind:'scenario_anchor',source_id:v.id,synthetic:true,class:manifest.classes[v.cover]}});anchors++;}
    }
-   const snapshot={area:{id:'tallahassee',title:'Tallahassee',bbox_wgs84:box,prediction_linked:true,synthetic_vegetation:true,source_edition:2020,feature_counts:{tree:trees}},collection:{type:'FeatureCollection',features},metrics:{trees,anchors,mask_features:mask.features.length,cover_bytes:manifest.asset.bytes,key}};
+   const grassLimit=mobile?1200:3000;
+   for(const v of candidates.filter(v=>v.grass).sort((a,b)=>a.d-b.d)){
+    if(grass>=grassLimit||v.d>(220/111320)**2)break;
+    // A few inexpensive clumps per eligible ground cell, only near the camera.
+    for(let j=0;j<4&&grass<grassLimit;j++){
+     const q=project(v.p),h=hash(v.id+'/grass/'+j),p=unproject([q[0]+((h%100)/100-.5)*7,q[1]+(((h>>>8)%100)/100-.5)*7]);
+     if(mask.polygonsAt(p).some(f=>near(p,f.b)&&contains(f.geometry,p))||mask.roadsAt(p).some(f=>roadDistance(f.geometry,p)<f.gap))continue;
+     features.push({type:'Feature',geometry:{type:'Point',coordinates:p},properties:{kind:'grass',source_id:v.id+'/grass/'+j,synthetic:true,display_height_m:.35+(h%25)/100,display_crown_m:1.2,placement:'Schematic ground cover'}});grass++;
+    }
+   }
+   const snapshot={area:{id:'tallahassee',title:'Tallahassee',bbox_wgs84:box,prediction_linked:true,synthetic_vegetation:true,source_edition:2020,feature_counts:{tree:trees,grass}},collection:{type:'FeatureCollection',features},metrics:{trees,anchors,grass,mask_features:mask.features.length,cover_bytes:manifest.asset.bytes,key}};
    last={key,snapshot};return snapshot;
   }
   return {contains:()=>inBox(map.getCenter().toArray(),PILOT),build,sample:p=>data?sample(manifest,data,p):null,get manifest(){return manifest;},invalidate:()=>{last=null;}};
  }
- global.FireEyeTallahassee={create,contains,inBox,roadDistance,sample,hash,boundsOf:bounds,bounds:()=>PILOT.slice()};
+ global.FireEyeTallahassee={create,contains,inBox,roadDistance,sample,hash,boundsOf:bounds,spatial,addGroundCover,bounds:()=>PILOT.slice()};
 })(typeof window==='undefined'?globalThis:window);

@@ -22,7 +22,7 @@
   catch(e){if(p)gl.deleteProgram(p);throw e;}finally{shaders.forEach(s=>gl.deleteShader(s));}
  }
  function mount(map,options={}){
-  const C={phase:'mapped',alpha:0,treeCount:0,renderedTrees:0,frames:0,elapsed:0,paused:matchMedia('(prefers-reduced-motion: reduce)').matches,fireEnabled:true,ignition:null,forecastRequired:false,forecast:null,fireEmphasis:1,candidates:[],candidateKey:"",emitters:[],sampledCount:0,validCount:0,particleBudget:(navigator.hardwareConcurrency||4)<=4?1200:3000,quality:(navigator.hardwareConcurrency||4)<=4?"balanced":"high",frameMs:0,performanceSamples:0,assetBytes:0,error:null};
+  const C={phase:'mapped',alpha:0,treeCount:0,renderedTrees:0,grassCount:0,detailTrees:0,canopyTrees:0,frames:0,elapsed:0,paused:matchMedia('(prefers-reduced-motion: reduce)').matches,fireEnabled:true,ignition:null,forecastRequired:false,forecast:null,fireEmphasis:1,candidates:[],candidateKey:"",emitters:[],sampledCount:0,validCount:0,particleBudget:(navigator.hardwareConcurrency||4)<=4?1200:3000,quality:(navigator.hardwareConcurrency||4)<=4?"balanced":"high",frameMs:0,performanceSamples:0,assetBytes:0,error:null};
   let disposed=false,area=null,collection=null,assets=null,assetTask=null,controller=new AbortController(),layer=null,gpu=null,origin=null,metres=1,groups=[],fireGroups=[],timer=null,last=null,cooldown=0,lastState='',replacement=-1,installing=false,ignitionAttempted=false,ignitionView=null,sceneMatrix=null,siteVisible=null,sightView=null;
   const merc=p=>global.maplibregl.MercatorCoordinate.fromLngLat(p,0);
   const height=p=>{const value=options.height?.(p);return Number.isFinite(value)?value:0;};
@@ -53,7 +53,8 @@
    assetTask=(async()=>{
     const url=new URL(options.manifestURL,document.baseURI);if(url.protocol!=='https:'&&url.origin!==location.origin&&!(url.protocol==='http:'&&['127.0.0.1','localhost'].includes(url.hostname)))throw Error('Invalid scene origin');
     const signal=AbortSignal.any([controller.signal,AbortSignal.timeout(15000)]),response=await fetch(url,{credentials:'omit',signal});if(!response.ok)throw Error('Scene assets unavailable');
-    const m=await response.json();if(m.schema_version!==1||m.kind!=='mapped-simulation-assets'||m.upstream_revision!==REVISION||!Array.isArray(m.meshes)||m.meshes.length!==2)throw Error('Unsupported scene assets');
+    const m=await response.json();if(m.schema_version!==1||m.kind!=='mapped-simulation-assets'||m.upstream_revision!==REVISION||!Array.isArray(m.meshes)||m.meshes.length!==4)throw Error('Unsupported scene assets');
+    if(m.meshes.map(d=>d.role).sort().join(',')!=='grass,tree-canopy,tree-detail,tree-detail')throw Error('Unsupported vegetation roles');
     const meshes=await Promise.all(m.meshes.map(async d=>{
      const u=new URL(d.path,url);if(u.origin!==url.origin||!u.pathname.startsWith(new URL('.',url).pathname)||!Number.isInteger(d.bytes)||d.bytes<1||d.bytes>500000||!/^[a-f0-9]{64}$/.test(d.sha256)||d.stride_bytes!==36||!Number.isInteger(d.vertex_count)||d.vertex_count<1||d.vertex_count>65535||!Number.isInteger(d.index_count)||d.index_count<3||d.index_count%3||d.index_offset!==d.vertex_count*36||d.bytes!==d.index_offset+d.index_count*2||!(d.height_m>0)||!(d.crown_diameter_m>0))throw Error('Invalid scene mesh');
      const r=await fetch(u,{credentials:'omit',signal});if(!r.ok)throw Error('Scene mesh unavailable');const b=await r.arrayBuffer();if(b.byteLength!==d.bytes)throw Error('Scene mesh size mismatch');const digest=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',b)),n=>n.toString(16).padStart(2,'0')).join('');if(digest!==d.sha256)throw Error('Scene mesh checksum mismatch');
@@ -116,19 +117,24 @@
    return candidates.sort((a,b)=>distance(a.lnglat)-distance(b.lnglat))[0]||(available[0]?ignition(available[0]):null);
   }
   function rebuild(ignite=false){
-   if(!area||!collection||!assets){groups=[];fireGroups=[];C.treeCount=0;C.renderedTrees=0;C.ignition=null;C.candidates=[];C.candidateKey="";C.emitters=[];if(gpu)uploadInstances();return;}
+   if(!area||!collection||!assets){groups=[];fireGroups=[];C.treeCount=0;C.renderedTrees=0;C.grassCount=0;C.detailTrees=0;C.canopyTrees=0;C.ignition=null;C.candidates=[];C.candidateKey="";C.emitters=[];if(gpu)uploadInstances();return;}
    const b=area.bbox_wgs84;origin=merc([(b[0]+b[2])/2,(b[1]+b[3])/2]);metres=origin.meterInMercatorCoordinateUnits();
    const extra=(options.exclusions?.()||[]).map(f=>({...f,b:global.FireEyeTallahassee.boundsOf?.(f.geometry)}));
-   const allowed=p=>!extra.some(f=>{if(f.b&&(p[0]<f.b[0]-.0003||p[0]>f.b[2]+.0003||p[1]<f.b[1]-.0003||p[1]>f.b[3]+.0003))return false;return f.properties.kind==='building'?contains(f.geometry,p):global.FireEyeTallahassee.roadDistance(f.geometry,p)<f.properties.width_m/2+1;});
+   const extraAt=global.FireEyeTallahassee.spatial(extra,.0004);
+   const allowed=p=>!extraAt(p).some(f=>{if(f.b&&(p[0]<f.b[0]-.0003||p[0]>f.b[2]+.0003||p[1]<f.b[1]-.0003||p[1]>f.b[3]+.0003))return false;return f.properties.kind==='building'?contains(f.geometry,p):global.FireEyeTallahassee.roadDistance(f.geometry,p)<f.properties.width_m/2+1;});
    const trees=collection.features.filter(f=>f.properties?.kind==='tree'&&f.geometry?.type==='Point'&&f.geometry.coordinates.every(Number.isFinite)&&allowed(f.geometry.coordinates));
-   if(trees.length>2000)throw Error('Scene object budget exceeded');C.treeCount=trees.length;
+   if(trees.length>6000)throw Error('Scene object budget exceeded');C.treeCount=trees.length;
    if(C.forecastRequired&&global.FireEyeScenarioField&&global.proj4){
-    const project=global.proj4('EPSG:4326','+proj=aea +lat_0=23 +lon_0=-96 +lat_1=29.5 +lat_2=45.5 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs'),bounds=map.getBounds(),excluded=collection.features.filter(f=>['building','water'].includes(f.properties?.kind));
-    const points=global.FireEyeScenarioField.candidates(collection.features,p=>project.forward(p),p=>bounds.contains(p)&&allowed(p)&&!excluded.some(f=>contains(f.geometry,p))),key=points.map(p=>p.id+'@'+p.lnglat.join(',')).join('|');
+    const project=global.proj4('EPSG:4326','+proj=aea +lat_0=23 +lon_0=-96 +lat_1=29.5 +lat_2=45.5 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs'),bounds=map.getBounds(),excluded=collection.features.filter(f=>['building','water'].includes(f.properties?.kind)).map(f=>({...f,b:global.FireEyeTallahassee.boundsOf(f.geometry)})),excludedAt=global.FireEyeTallahassee.spatial(excluded);
+    const points=global.FireEyeScenarioField.candidates(collection.features,p=>project.forward(p),p=>bounds.contains(p)&&allowed(p)&&!excludedAt(p).some(f=>contains(f.geometry,p))),key=points.map(p=>p.id+'@'+p.lnglat.join(',')).join('|');
     if(key!==C.candidateKey){C.candidates=points;C.candidateKey=key;C.emitters=[];C.forecast=null;C.fireEmphasis=0;}
    }
-   groups=assets.map((asset,index)=>{
-    const selected=trees.filter(f=>hash(f.properties.source_id)%assets.length===index),values=[];
+   const center=map.getCenter().toArray(),scale=Math.cos(center[1]*Math.PI/180),distance=f=>Math.hypot((f.geometry.coordinates[0]-center[0])*scale,f.geometry.coordinates[1]-center[1])*111320;
+   const mobile=innerWidth<=640,near=trees.filter(f=>distance(f)<(mobile?100:160)).sort((a,b)=>distance(a)-distance(b)).slice(0,mobile?160:360),detailed=new Set(near);
+   const grass=collection.features.filter(f=>f.properties?.kind==='grass'&&f.geometry?.type==='Point'&&allowed(f.geometry.coordinates)).slice(0,mobile?1200:3000);
+   C.grassCount=grass.length;C.detailTrees=near.length;C.canopyTrees=trees.length-near.length;
+   groups=assets.map(asset=>{
+    const selected=asset.role==='grass'?grass:asset.role==='tree-canopy'?trees.filter(f=>!detailed.has(f)):near.filter(f=>hash(f.properties.source_id)%2===(asset.id==='tree_oak_01'?0:1)),values=[];
     for(const f of selected){const p=f.properties,h=typeof p.height_m==='number'&&p.height_m>0&&p.height_m<=120?p.height_m:(p.synthetic?p.display_height_m:8)||8,angle=hash(p.source_id)/4294967296*Math.PI*2;values.push(...local(f.geometry.coordinates),(p.synthetic?p.display_crown_m||4.8:4.8)/asset.crown_diameter_m,h/asset.height_m,Math.sin(angle),Math.cos(angle));}
     return {asset,instances:new Float32Array(values),count:selected.length};
    });

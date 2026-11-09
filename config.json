@@ -9,6 +9,7 @@
   "assistant_url": null,
   "assistant_gateway_url": null,
   "visitor_url": null,
+  "account_gateway_url": null,
   "channel": "preview",
   "hurricanes_url": "https://huggingface.co/datasets/yx21e/fire-eye-forecasts-preview/resolve/main/hurricanes.json",
   "vector_seeds": {
@@ -41,6 +42,8 @@
   },
   "scenarios_url": "https://huggingface.co/datasets/yx21e/fire-eye-forecasts-preview/resolve/main/scenarios.json",
   "scenario_assets": {
+    "6ab1b336beef784ce282bb2f0cdb58514d460b0b2299c36b7fdbec835de98dd8": "./assets/scenarios/6ab1b336beef784ce282bb2f0cdb58514d460b0b2299c36b7fdbec835de98dd8.json",
+    "7940c01659555c140155e8f09bb4834097ca678106d8c6b267ad1fd7682fc6ad": "./assets/scenarios/7940c01659555c140155e8f09bb4834097ca678106d8c6b267ad1fd7682fc6ad.json",
     "36e8b47f39b6848c56ac9d62e714b981fa54c1637517264eea42bf1c440198aa": "./assets/scenarios/36e8b47f39b6848c56ac9d62e714b981fa54c1637517264eea42bf1c440198aa.json",
     "5503fea084e7be762c4fda3e4f04cb2821f38a96a2bae0c8aacae7acde083649": "./assets/scenarios/5503fea084e7be762c4fda3e4f04cb2821f38a96a2bae0c8aacae7acde083649.json",
     "519fc18950578301cd9df9995d83770a206d2c7138fb6edb6566002ed8caf1fd": "./assets/scenarios/519fc18950578301cd9df9995d83770a206d2c7138fb6edb6566002ed8caf1fd.json",
@@ -60,6 +63,6 @@
     "82d0b0fccee649f3593745e0d41e22eeb4207ec5e9f259d34e4e3df42d1af2ef": "./assets/history-catalog/82d0b0fccee649f3593745e0d41e22eeb4207ec5e9f259d34e4e3df42d1af2ef.json",
     "e1e4e029b9d8debb4a72db7a78be3c1d08ce49258a88aa8c99f0729714e1fccf": "./assets/history-catalog/e1e4e029b9d8debb4a72db7a78be3c1d08ce49258a88aa8c99f0729714e1fccf.json",
     "bd14fb0b33721e0192066663a777ccaff2cf023036f24ee00bf24ec5e1fe2e40": "./assets/history-catalog/bd14fb0b33721e0192066663a777ccaff2cf023036f24ee00bf24ec5e1fe2e40.json",
-    "90ef3a3220c52f12bba9e534c89db30a7a5d48d942027f1c9f09550437a134be": "./assets/history-catalog/90ef3a3220c52f12bba9e534c89db30a7a5d48d942027f1c9f09550437a134be.json"
+    "1b0f8f9b651df5ef187629e191d9750fb2c3783525e4992c307fcadd87c922e7": "./assets/history-catalog/1b0f8f9b651df5ef187629e191d9750fb2c3783525e4992c307fcadd87c922e7.json"
   }
 }
