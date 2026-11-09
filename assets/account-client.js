@@ -11,7 +11,7 @@
   async function call(path,body={},token=null){
    const r=await fetch(url.href+'/'+path,{method:'POST',credentials:'omit',referrerPolicy:'no-referrer',
     headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},
-    body:JSON.stringify(body),signal:AbortSignal.timeout(12000)});
+    body:JSON.stringify(body),signal:AbortSignal.timeout(path==='exchange'?40000:12000)});
    if(!r.ok){const error=Error(r.status===401?'Please sign in again.':'Sign-in is temporarily unavailable. You can continue using the map.');error.status=r.status;throw error;}
    if(!r.headers.get('content-type')?.includes('application/json'))throw Error('Sign-in response unavailable.');return r.json();
   }
