@@ -1,7 +1,7 @@
-Original scene meshes: llll0630/wildfire-simulation.
-Pinned revision: eed7ae1e7b9109d1b9d13ea0f172e14900551fc3
-The two upstream oak meshes retain original vertex positions, normals, colors and indices.
-The distant canopy and grass clump are procedural Fire-eye display symbols.
-No upstream license file accompanied this revision; no license is inferred.
-Map fire/smoke shaders adapt the existing Fire-eye simulation viewer.
-Illustrative scenario; not an observed incident or validated spread forecast.
+Source meshes and texture materials: llll0630/wildfire-simulation.
+Pinned revision: 08133000efa914b6e77f0cc7c33308fc4e3f65f4
+Low, medium and high source assets retain geometry, vertex colors, alpha-mask materials and texture coordinates.
+Browser packing changes the buffer layout and translates each mesh base to ground level.
+Distant canopy is a Fire-eye procedural display symbol. Plants are schematic; positions use the mapped surface exclusions.
+No upstream license file accompanied this revision; no new license is inferred.
+Fire illustration uses the published risk field and does not simulate physical fire spread.

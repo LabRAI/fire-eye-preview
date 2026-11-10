@@ -29649,7 +29649,7 @@ function capture({ center, height, features, meshSnapshot, forecast, terrainRead
   const groups = [];
   if (meshSnapshot) {
     const shift = [(meshSnapshot.origin[0] - frame.mercator[0]) * frame.metresPerUnit, (meshSnapshot.origin[1] - frame.mercator[1]) * frame.metresPerUnit], ratio = meshSnapshot.mercatorUnitsPerMetre * frame.metresPerUnit;
-    const canopy = meshSnapshot.groups.find((g) => g.asset.role === "tree-canopy")?.asset, canopyRows = [];
+    const canopy = meshSnapshot.groups.find((g) => g.asset.role === "tree-canopy")?.asset, canopyRows = [], detailRows = [];
     for (const g of meshSnapshot.groups) {
       const rows = [];
       for (let i = 0; i < g.instances.length; i += 7) {
@@ -29662,10 +29662,27 @@ function capture({ center, height, features, meshSnapshot, forecast, terrainRead
         canopyRows.push(...rows);
         continue;
       }
-      const limit = g.asset.role === "grass" ? mobile ? 3e3 : 6500 : 40;
-      if (g.asset.role === "tree-detail" && canopy) for (const row of rows.slice(limit)) canopyRows.push([row[0], row[1], row[2], row[3] * g.asset.crown_diameter_m / canopy.crown_diameter_m, row[4] * g.asset.height_m / canopy.height_m, row[5], row[6]]);
+      if (g.asset.role === "tree-detail") {
+        for (const row of rows) detailRows.push({ row, asset: g.asset });
+        continue;
+      }
+      const limit = mobile ? 3e3 : 6500;
       if (rows.length) groups.push({ asset: g.asset, instances: new Float32Array(rows.slice(0, limit).flat()) });
     }
+    detailRows.sort((a, b) => (a.row[0] - spawn[0]) ** 2 + (a.row[2] - spawn[2]) ** 2 - ((b.row[0] - spawn[0]) ** 2 + (b.row[2] - spawn[2]) ** 2));
+    const detailed = /* @__PURE__ */ new Map(), used = /* @__PURE__ */ new Map();
+    let detailCount = 0;
+    for (let i = 0; i < detailRows.length; i++) {
+      const { row, asset } = detailRows[i];
+      const type = String(asset.id || asset.role).replace(/_far$/, "");
+      if (detailCount < (mobile ? 40 : 80) && (used.get(type) || 0) < 40) {
+        detailCount++;
+        used.set(type, (used.get(type) || 0) + 1);
+        if (!detailed.has(asset)) detailed.set(asset, []);
+        detailed.get(asset).push(...row);
+      } else if (canopy) canopyRows.push([row[0], row[1], row[2], row[3] * asset.crown_diameter_m / canopy.crown_diameter_m, row[4] * asset.height_m / canopy.height_m, row[5], row[6]]);
+    }
+    for (const [asset, rows] of detailed) groups.push({ asset, instances: new Float32Array(rows) });
     if (canopyRows.length && canopy) {
       canopyRows.sort((a, b) => (a[0] - spawn[0]) ** 2 + (a[2] - spawn[2]) ** 2 - ((b[0] - spawn[0]) ** 2 + (b[2] - spawn[2]) ** 2));
       groups.push({ asset: canopy, instances: new Float32Array(canopyRows.slice(0, 2400).flat()) });
@@ -29677,6 +29694,7 @@ function capture({ center, height, features, meshSnapshot, forecast, terrainRead
   }).filter((e) => boundedPoint([e.position[0], e.position[2]], radius) && e.position[1] !== null).map((e) => ({ ...e, lnglat: e.lnglat.slice() }));
   return {
     schema_version: 1,
+    quality: meshSnapshot?.quality || "low",
     terrainSource,
     center: center.slice(),
     radius,
@@ -29708,7 +29726,26 @@ async function createViewer(container, data, { onSession = () => {
   const materials = /* @__PURE__ */ new Set(), geometries = /* @__PURE__ */ new Set(), textures = /* @__PURE__ */ new Set(), animated = [], ui = [], controllers = [];
   let renderer, controls, observer;
   try {
-    let fireBatch = function(smoke) {
+    let plantMaterial = function(part) {
+      const key = (part.image?.sha256 || "plain") + "/" + part.alpha_test + "/" + part.opacity;
+      if (plantMaterials.has(key)) return plantMaterials.get(key);
+      let texture = null;
+      if (part.image) {
+        texture = plantTextures.get(part.image.sha256);
+        if (!texture) {
+          texture = new Texture(part.image.bitmap);
+          texture.flipY = false;
+          texture.colorSpace = SRGBColorSpace;
+          texture.needsUpdate = true;
+          texture.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
+          textures.add(texture);
+          plantTextures.set(part.image.sha256, texture);
+        }
+      }
+      const m = mat(new MeshStandardMaterial({ vertexColors: true, map: texture, alphaTest: part.alpha_test, opacity: part.opacity, roughness: 0.9, side: DoubleSide }));
+      plantMaterials.set(key, m);
+      return m;
+    }, fireBatch = function(smoke) {
       if (!data.emitters.length) return;
       const g = geo(new InstancedBufferGeometry()), centers = [], seeds = [], strengths = [], rises = [];
       g.setAttribute("position", new Float32BufferAttribute([-0.5, -0.5, 0, 0.5, -0.5, 0, 0.5, 0.5, 0, -0.5, 0.5, 0], 3));
@@ -29839,11 +29876,12 @@ async function createViewer(container, data, { onSession = () => {
       });
     };
     renderer = new WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
-    renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+    const quality = { low: { pixel: 1, xr: 0.65 }, medium: { pixel: 1.5, xr: 0.8 }, high: { pixel: 2, xr: 1 } }[data.quality] || { pixel: 1, xr: 0.65 };
+    renderer.setPixelRatio(Math.min(devicePixelRatio, quality.pixel));
     renderer.outputColorSpace = SRGBColorSpace;
     renderer.xr.enabled = true;
     renderer.xr.setReferenceSpaceType("local-floor");
-    renderer.xr.setFramebufferScaleFactor(0.8);
+    renderer.xr.setFramebufferScaleFactor(quality.xr);
     renderer.xr.setFoveation(1);
     renderer.domElement.className = "vr-canvas";
     renderer.domElement.setAttribute("aria-label", "Geographic VR scene preview");
@@ -29853,7 +29891,7 @@ async function createViewer(container, data, { onSession = () => {
     controls.minDistance = 3;
     controls.maxDistance = 330;
     controls.maxPolarAngle = Math.PI * 0.48;
-    const stats = { state: "preview", xrFrames: 0, eyeViews: 0, teleports: 0, snapTurns: 0, drawCalls: 0, triangles: 0, source: data.forecast.source_id, counts: data.counts };
+    const stats = { state: "preview", quality: data.quality, xrFrames: 0, eyeViews: 0, teleports: 0, snapTurns: 0, drawCalls: 0, triangles: 0, source: data.forecast.source_id, counts: data.counts };
     let disposed = false, session = null, entering = false, paused = false, elapsed = 0, last = 0;
     const mat = (m) => {
       materials.add(m);
@@ -29926,19 +29964,23 @@ async function createViewer(container, data, { onSession = () => {
       g.computeVertexNormals();
       scene.add(new Mesh(g, mat(new MeshStandardMaterial({ color: "#ddd0b6", roughness: 1, side: DoubleSide }))));
     }
-    const plantMaterial = mat(new MeshStandardMaterial({ vertexColors: true, roughness: 1, side: DoubleSide })), transform = new Object3D();
+    const transform = new Object3D(), plantTextures = /* @__PURE__ */ new Map(), plantMaterials = /* @__PURE__ */ new Map();
     for (const group of data.groups) {
-      const g = geo(new BufferGeometry()), asset = group.asset, v = asset.vertices, position = [], normal = [], color = [];
-      for (let i = 0; i < v.length; i += 9) {
+      const g = geo(new BufferGeometry()), asset = group.asset, v = asset.vertices, position = [], normal = [], color = [], uv = [], stride = (asset.stride_bytes || 36) / 4;
+      for (let i = 0; i < v.length; i += stride) {
         position.push(...v.slice(i, i + 3));
         normal.push(...v.slice(i + 3, i + 6));
         color.push(...v.slice(i + 6, i + 9));
+        uv.push(...stride === 11 ? v.slice(i + 9, i + 11) : [0, 0]);
       }
       g.setAttribute("position", new Float32BufferAttribute(position, 3));
       g.setAttribute("normal", new Float32BufferAttribute(normal, 3));
       g.setAttribute("color", new Float32BufferAttribute(color, 3));
+      g.setAttribute("uv", new Float32BufferAttribute(uv, 2));
       g.setIndex(new BufferAttribute(asset.indices, 1));
-      const a = group.instances, batch = new InstancedMesh(g, plantMaterial, a.length / 7);
+      const parts = asset.parts || [{ start: 0, count: asset.indices.length, alpha_test: 0, opacity: 1 }];
+      parts.forEach((p, i) => g.addGroup(p.start, p.count, i));
+      const a = group.instances, batch = new InstancedMesh(g, parts.map(plantMaterial), a.length / 7);
       for (let i = 0; i < a.length; i += 7) {
         transform.position.set(a[i], a[i + 1], a[i + 2]);
         transform.rotation.set(0, -Math.atan2(a[i + 5], a[i + 6]), 0);

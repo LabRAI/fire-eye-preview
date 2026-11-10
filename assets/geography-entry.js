@@ -25,7 +25,7 @@
   }catch{if(seq===sequence&&sim.state.forecastRequired&&JSON.stringify([selected(),sim.state.candidateKey])===key){retryAt=Date.now()+10000;sim.setForecast({...context,status:'error',values:[]});}}
  }
  controller=FireEyeGeographicScene.mount(S.map,{
-  catalogURL:'assets/geography/catalog.json',localCoverURL:'assets/geography/tallahassee/manifest.json',simulationAssetsURL:'assets/mapped-simulation/manifest.json?v=20261108-vegetation-1',environmentURL:'assets/geography/environment/catalog.json',forecastLinked:true,
+  catalogURL:'assets/geography/catalog.json',localCoverURL:'assets/geography/tallahassee/manifest.json',simulationAssetsURL:'assets/mapped-simulation/manifest.json?v=0813300-quality-1',environmentURL:'assets/geography/environment/catalog.json',forecastLinked:true,
   ensureStreet:async()=>{const select=document.getElementById('basemap');if(select.value!=='street'){select.value='street';await select.onchange();}},
   onDetailScale:factor=>{S.geographyRiskFactor=factor;S.syncHeatmapDisplay?.();window.fireEyeAdaptiveResolution?.display?.();},
   onObject:detail=>window.dispatchEvent(new CustomEvent('fire-eye:mapped-object',{detail})),

@@ -1,6 +1,6 @@
 /* Optional immersive rendering. Explicit, persistent entry; large renderer stays lazy. */
 (async()=>{
- const moduleURL=new URL('./vr-viewer.js?v=9f938ca9fbdd521b',document.currentScript.src),terrainURL=new URL('./vr-terrain.mjs?v=5f5ed23adb84968f',document.currentScript.src);let moduleAttempt=0,terrainModule=null,terrainController=null;
+ const moduleURL=new URL('./vr-viewer.js?v=95351b9f114756ff',document.currentScript.src),terrainURL=new URL('./vr-terrain.mjs?v=5f5ed23adb84968f',document.currentScript.src);let moduleAttempt=0,terrainModule=null,terrainController=null;
  for(let i=0;i<600&&!window.fireEyeGeography;i++)await new Promise(r=>setTimeout(r,100));
  const G=window.fireEyeGeography,S=window.fireEyePreview;if(!G||!S)return;
  const element=(tag,text,cls)=>{const e=document.createElement(tag);if(text)e.textContent=text;if(cls)e.className=cls;return e;};
@@ -18,7 +18,9 @@
  const chooser=element('section',null,'vr-chooser'),intro=element('p','Choose the current map center or your selected point. Only this local area is prepared on your device.'),current=element('button','Use map center','vr-location'),currentHint=element('p',null,'vr-location-hint'),examples=element('div',null,'vr-locations');
  chooser.id='vr-chooser';chooser.hidden=true;current.id='vr-use-center';current.type='button';examples.id='vr-locations';chooser.append(intro,current,currentHint,examples);
  const note=element('p','Trigger: point and teleport. Thumbstick: turn in 30° steps. Home, Pause fire and Exit VR are available inside the headset. The scene uses the selected forecast snapshot; fire effects are illustrative.','vr-note');
- actions.append(enter,retry,places);dialog.append(head,context,chooser,viewport,status,actions,note);document.body.append(dialog);
+ const qualityLabel=element('label','Quality','scene-quality'),qualitySelect=element('select');qualitySelect.id='vr-quality';qualitySelect.setAttribute('aria-label','VR quality');
+ for(const value of window.FireEyeSceneQuality.tiers){const item=element('option',value[0].toUpperCase()+value.slice(1));item.value=value;qualitySelect.append(item);}qualitySelect.value=G.simulation.state.assetQuality;qualityLabel.append(qualitySelect);
+ actions.append(qualityLabel,enter,retry,places);dialog.append(head,context,chooser,viewport,status,actions,note);document.body.append(dialog);
  let savedView=null,viewer=null,moduleTask=null,sequence=0,restorePause=null,restoreIntent=null,supported=false,busy=false,areaTask=null,opener=null;
  const report=message=>{status.textContent=message;};
  function restore(){if(restorePause!==null){G.simulation.pause(restorePause);restorePause=null;}}
@@ -55,7 +57,7 @@
   }return null;
  }
  async function prepare(){
-  const seq=++sequence;busy=true;chooser.hidden=true;viewport.hidden=false;enter.hidden=false;retry.hidden=false;places.hidden=false;note.hidden=false;enter.disabled=true;retry.disabled=true;report('Preparing the selected geographic scene…');const old=viewer;viewer=null;window.fireEyeVR.viewer=null;await old?.dispose();if(seq!==sequence||!dialog.open)return;restore();viewport.replaceChildren();
+  const seq=++sequence;busy=true;qualitySelect.disabled=true;qualitySelect.value=G.simulation.state.assetQuality;chooser.hidden=true;viewport.hidden=false;enter.hidden=false;retry.hidden=false;places.hidden=false;note.hidden=false;enter.disabled=true;retry.disabled=true;report('Preparing the selected geographic scene…');const old=viewer;viewer=null;window.fireEyeVR.viewer=null;await old?.dispose();if(seq!==sequence||!dialog.open)return;restore();viewport.replaceChildren();
   try{
    // Direct entry at zoom 15.5–17 previously waited forever: simulation only
    // starts above 17. Load at its full scene scale, then restore on close.
@@ -76,17 +78,18 @@
    context.textContent=data.center[1].toFixed(4)+'°, '+data.center[0].toFixed(4)+'°'+(forecast.field_status==='ready'?' · +'+forecast.lead_hours+'h · '+forecast.target_time_utc.replace('T',' ').replace('Z',' UTC'):' · Local landscape');
    note.replaceChildren(document.createTextNode('Trigger: teleport · Thumbstick: turn. Home, Pause fire and Exit VR are available inside the headset. '+data.terrainSource+'. '));
    const credit=element('a','Terrain sources');credit.href='assets/Terrain-ATTRIBUTION.txt';credit.target='_blank';credit.rel='noopener noreferrer';note.append(credit);note.hidden=false;
-   const next=await module.createViewer(viewport,data,{onSession:active=>{if(seq!==sequence||!dialog.open)return;enter.textContent=active?'Exit VR':'Enter VR';retry.disabled=places.disabled=active;report(active?'VR is active. Use the in-headset Exit VR control to return.':readyMessage());},onFailure:message=>{if(seq!==sequence||!dialog.open)return;enter.disabled=true;report(message);}});
-   if(seq!==sequence||!dialog.open){await next.dispose();return;}viewer=next;window.fireEyeVR.viewer=next;window.fireEyeVR.snapshot={forecast,center:data.center,counts:data.counts,terrainSource:data.terrainSource,terrainResolutionMetres:source.terrainResolutionMetres||null};enter.disabled=!supported;enter.textContent='Enter VR';
+   const next=await module.createViewer(viewport,data,{onSession:active=>{if(seq!==sequence||!dialog.open)return;enter.textContent=active?'Exit VR':'Enter VR';retry.disabled=places.disabled=qualitySelect.disabled=active;report(active?'VR is active. Use the in-headset Exit VR control to return.':readyMessage());},onFailure:message=>{if(seq!==sequence||!dialog.open)return;enter.disabled=true;report(message);}});
+   if(seq!==sequence||!dialog.open){await next.dispose();return;}viewer=next;window.fireEyeVR.viewer=next;window.fireEyeVR.snapshot={forecast,center:data.center,counts:data.counts,quality:data.quality,terrainSource:data.terrainSource,terrainResolutionMetres:source.terrainResolutionMetres||null};enter.disabled=!supported;enter.textContent='Enter VR';
    report(readyMessage());
   }catch(error){if(seq===sequence){restore();report(/^(VR (?:terrain|scene)|Mapped terrain|Local (?:terrain|scene)|Terrain is|No mapped ground|This scene exceeds|Choose a location|The selected risk)/.test(error.message||'')?error.message:'VR could not load. Reload the scene or return to the map.');}}
-  finally{if(seq===sequence){busy=false;retry.disabled=places.disabled=false;}}
+  finally{if(seq===sequence){busy=false;retry.disabled=places.disabled=false;qualitySelect.disabled=!!viewer?.sessionActive;qualitySelect.value=G.simulation.state.loadedQuality||G.simulation.state.assetQuality;}}
  }
  function open(event){if(dialog.open)return;opener=event?.currentTarget instanceof HTMLElement?event.currentTarget:mapButton;window.dispatchEvent(new Event('fire-eye:vr-open'));S.map.stop();savedView=captureView();restoreIntent=G.requested;dialog.showModal();const point=valid(S.selected)&&S.map.getBounds().contains(S.selected)?S.selected.slice():S.map.getCenter().toArray();void loadLocation(point);}
  enter.onclick=()=>{if(!viewer||busy||!supported)return;if(viewer.sessionActive){void viewer.endSession();return;}busy=true;enter.disabled=true;
   viewer.enterVR().catch(error=>report(error.message)).finally(()=>{busy=false;enter.disabled=!supported;});
  };
  retry.onclick=()=>{if(!busy&&!viewer?.sessionActive){if(chooser.hidden)void prepare();else void chooseLocation();}};places.onclick=()=>{if(!viewer?.sessionActive)void chooseLocation();};openButton.onclick=sideButton.onclick=mapButton.onclick=open;
+ qualitySelect.onchange=async()=>{if(busy||viewer?.sessionActive)return;busy=true;qualitySelect.disabled=true;const seq=sequence;report('Loading selected materials…');await G.simulation.setQuality(qualitySelect.value);if(seq!==sequence||!dialog.open)return;busy=false;if(G.simulation.state.qualityError){qualitySelect.disabled=false;qualitySelect.value=G.simulation.state.loadedQuality;report('The selected materials could not load. Your previous scene is still available.');return;}await prepare();};
  window.fireEyeVR={open,close:closeView,viewer:null,snapshot:null};
  window.addEventListener('pagehide',()=>{void closeView();},{once:true});
 })().catch(()=>{});

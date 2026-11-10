@@ -35,6 +35,8 @@
   stop.id='scene-stop';stop.onclick=()=>stopSimulation();
   for(const b of [tilt,pause,fire,findFire,retry,stop,back]){b.type='button';actions.append(b);}panel.append(actions);pause.hidden=fire.hidden=findFire.hidden=retry.hidden=true;findFire.title="Center the illustrative fire in the visible map";fire.setAttribute("aria-label","Scenario fire");fire.title="Toggle illustrative scenario fire";
   const simulationNote=create('p','','mapped-simulation-status');simulationNote.hidden=true;simulationNote.setAttribute('role','status');panel.append(simulationNote);
+  const qualityRow=create('label','Quality','scene-quality'),qualitySelect=create('select'),qualityStatus=create('span');qualitySelect.id='scene-quality';qualitySelect.setAttribute('aria-label','Simulation quality');
+  for(const value of global.FireEyeSceneQuality.tiers){const item=create('option',value[0].toUpperCase()+value.slice(1));item.value=value;qualitySelect.append(item);}qualitySelect.value=global.FireEyeSceneQuality.preferred();qualityStatus.setAttribute('role','status');qualityRow.append(qualitySelect,qualityStatus);panel.append(qualityRow);
   tilt.setAttribute('aria-pressed','false');
   const note=create('p','Mapped footprints and streets. Building heights are display estimates; tree shapes are schematic.','mapped-scene-note');panel.append(note);
   const forecastLine=create('p','','mapped-scene-forecast');forecastLine.hidden=true;panel.append(forecastLine);
@@ -122,9 +124,11 @@
    onChange:state=>{const active=state.phase==='simulation',linked=state.forecastRequired,f=state.forecast;title.textContent=active?'Local simulation':'Digital local scene';pause.hidden=fire.hidden=findFire.hidden=!active;findFire.disabled=fire.disabled=linked?!state.emitters.length:!state.ignition;pause.textContent=state.paused?'Resume':'Pause';pause.setAttribute('aria-pressed',String(state.paused));fire.setAttribute('aria-pressed',String(state.fireEnabled));retry.hidden=state.phase!=='fallback';simulationNote.hidden=!active&&state.phase!=='loading'&&state.phase!=='fallback';simulationNote.textContent=state.phase==='loading'?'Preparing local simulation…':state.phase==='fallback'?'Mapped view remains available. Retry scene detail.':linked?(f?.status==='ready'?(state.emitters.length?'Risk-driven fire illustration':'No flames sampled for this view')+' · '+(f.resolution===50?'50 m experimental field':'5 km forecast'):!state.candidates.length?'No mapped vegetation samples in this view':f?.status==='missing'||f?.status==='error'?'Fire illustration unavailable for this selection':'Preparing selected risk field…'):state.ignition&&state.fireEnabled?'Illustrative fire scenario · not a reported fire':'Local scene models · zoom out to return';
     forecastLine.hidden=!linked;forecastLine.textContent=linked&&f?.target_time_utc?'+'+f.lead_hours+'h · Window ending '+new Date(f.target_time_utc).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'UTC'})+' UTC · illustration, not reported fires':linked?(area?.vegetation_source||'Historical mapped land cover')+' · schematic vegetation':'';
     forecastLine.title=linked?'Stable random sampling follows the selected risk field. Flames are an illustrative rendering of the selected model values. All rendering runs on this device.':'';
+    qualitySelect.value=state.assetQuality;qualityStatus.textContent=state.qualityLoading?'Loading materials…':state.qualityError?'Previous quality retained. Select again to retry.':'';
     options.onSimulationChange?.(state);
    }
   }):null;
+  qualitySelect.onchange=()=>{void live?.setQuality(qualitySelect.value);};
   pause.onclick=()=>live?.pause(!live.state.paused);fire.onclick=()=>live?.fire(!live.state.fireEnabled);findFire.onclick=()=>live?.focusFire();retry.onclick=()=>{local?.invalidate();general?.invalidate();void environment?.retry();loadArea();live?.retry();};
   const firstSymbol=()=>map.getStyle()?.layers?.find(l=>l.type==='symbol')?.id;
   function ensure(){
