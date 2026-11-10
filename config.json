@@ -9,7 +9,7 @@
   "assistant_url": null,
   "assistant_gateway_url": null,
   "visitor_url": null,
-  "account_gateway_url": null,
+  "account_gateway_url": "https://eqgdsqomvegnmsuwxnjo.supabase.co/functions/v1/fire-eye-account",
   "channel": "preview",
   "hurricanes_url": "https://huggingface.co/datasets/yx21e/fire-eye-forecasts-preview/resolve/main/hurricanes.json",
   "vector_seeds": {
@@ -65,5 +65,5 @@
     "bd14fb0b33721e0192066663a777ccaff2cf023036f24ee00bf24ec5e1fe2e40": "./assets/history-catalog/bd14fb0b33721e0192066663a777ccaff2cf023036f24ee00bf24ec5e1fe2e40.json",
     "12f3f3e29292d04f17fbc6c2f12254cc532ec1ca67f64db19582db0e0f82a43b": "./assets/history-catalog/12f3f3e29292d04f17fbc6c2f12254cc532ec1ca67f64db19582db0e0f82a43b.json"
   },
-  "account_check_gateway_url": "https://eqgdsqomvegnmsuwxnjo.supabase.co/functions/v1/fire-eye-account"
+  "account_check_gateway_url": null
 }
