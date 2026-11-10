@@ -88,7 +88,8 @@ async function showImage(figure,p,signal){const d=p.image;if(!d){figure.replaceC
 function renderNews(active){const root=$('story-news');root.replaceChildren();
  const all=FireEyeStoryCollections.review(active);
  const visible=FireEyeStoryCollections.stories(active),maps=visible.filter(c=>presentation(c).image).length;
- const total=el('p',visible.length+' stories'+(maps?' · '+maps+' archived map comparisons':''),'review-count');root.append(total);
+ const selection=FireEyeStoryCollections.selection(active);
+ const total=el('p',visible.length+' stories'+(maps?' · '+maps+' archived map comparisons':'')+(selection.relaxed?' · Selection cutoff '+selection.minimum_point_score.toFixed(2):''),'review-count');root.append(total);
  const list=el('details',undefined,'news-review');
  list.append(el('summary','Review notes & additional records'));
  list.append(el('p','Source articles, archived maps, and matching results for this edition.','review-intro'));
@@ -112,7 +113,9 @@ function renderReview(active){const root=$('story-review');root.replaceChildren(
 
  const rule=active.presentation_rule;
  d.append(el('p','Displayed comparisons require a verified map and a fire-location score of at least '+FireEyeStoryCollections.minimumScore(active).toFixed(2)+'. The complete edition evidence retains records excluded from this selection.'));
- if(rule)d.append(el('p','Featured comparisons also require a verified event location, at least '+rule.minimum_advance_hours+' hours of recorded advance availability, a fire-location score above that raster’s 90th percentile, and a score above 80% of valid cells within 100 km. These are editorial selection checks. The displayed issue is selected by time, not by its highest score.'));
+ const selection=FireEyeStoryCollections.selection(active);
+ if(selection.mode==='monthly-adaptive')d.append(el('p','Monthly selection starts at 0.30. If fewer than three reviewed map comparisons qualify, the display cutoff can step down to 0.25, 0.20, then 0.15, stopping when enough qualify or no further eligible comparisons can be added. This edition uses '+selection.minimum_point_score.toFixed(2)+'. This changes the displayed selection, not forecast values, featured status or evaluation totals; story counts are not hit rates.'));
+ if(rule)d.append(el('p','Featured comparisons retain the fixed score floor of '+Math.max(0.30,rule.minimum_point_score||0).toFixed(2)+' and also require a verified event location, at least '+rule.minimum_advance_hours+' hours of recorded advance availability, a fire-location score above that raster’s 90th percentile, and a score above 80% of valid cells within 100 km. The displayed issue is selected by time, not by its highest score.'));
  d.append(el('p','Timing labels distinguish a verified public archive release from a timestamped local record. Reported discovery time and ignition time can differ.'));
  if(active.id!=='selected'){
   if(active.curated_cases?.length)d.append(el('p','This edition also includes '+active.curated_cases.length+' previously reviewed casebook comparisons, grouped by official discovery or dated fire-observation month. News stories retain their reporting month. Their original maps, evidence flags and timestamps are unchanged.'));

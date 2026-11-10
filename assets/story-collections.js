@@ -3,11 +3,26 @@
  'use strict';
  const presentation=c=>c.presentation||c;
  const featured=c=>presentation(c).quality?.featured===true&&!!presentation(c).image;
- // Apply the current display floor even when an older feed is cached.
- // Keep this floor aligned with story_quality.RULE; neither changes model values.
- const MINIMUM_POINT_SCORE=0.30;
- const minimumScore=edition=>Math.max(MINIMUM_POINT_SCORE,typeof edition.presentation_rule?.minimum_point_score==='number'&&Number.isFinite(edition.presentation_rule.minimum_point_score)?edition.presentation_rule.minimum_point_score:MINIMUM_POINT_SCORE);
- const passesScore=(c,edition)=>{const p=presentation(c),score=p.point_score;return typeof score==='number'&&Number.isFinite(score)&&score>=minimumScore(edition)&&score<=1&&!!p.image;};
+ // Monthly display selection is separate from the fixed featured/evaluation
+ // rules. Recompute after grouping on every refresh, including older feeds.
+ const DISPLAY_POLICY=Object.freeze({version:'monthly-adaptive-display-v1',base_minimum_point_score:0.30,minimum_point_score:0.15,step:0.05,target_comparisons:3});
+ const validScore=c=>{const p=presentation(c),score=p.point_score;return typeof score==='number'&&Number.isFinite(score)&&score>=0&&score<=1&&!!p.image;};
+ function eligible(edition){
+  const approved=new Set(edition.curated_ids||[]),seen=new Set();
+  return (edition.cases||[]).filter(c=>{const key=id(c);if(seen.has(key)||!validScore(c)||!(featured(c)||c.source_article_verified===true||approved.has(key)))return false;seen.add(key);return true;});
+ }
+ function selection(edition={}){
+  const declared=edition.presentation_rule?.minimum_point_score,base=Math.max(DISPLAY_POLICY.base_minimum_point_score,typeof declared==='number'&&Number.isFinite(declared)?declared:0);
+  const monthly=/^[0-9]{4}-(0[1-9]|1[0-2])$/.test(edition.id||''),adaptive=monthly&&base===DISPLAY_POLICY.base_minimum_point_score,cases=eligible(edition);
+  const count=cutoff=>cases.filter(c=>presentation(c).point_score>=cutoff).length,baseCount=count(base);
+  let cutoff=base,shown=baseCount;
+  if(adaptive&&shown<DISPLAY_POLICY.target_comparisons)for(const lower of [0.25,0.20,0.15]){
+   const n=count(lower);if(n>shown){cutoff=lower;shown=n;}if(n>=DISPLAY_POLICY.target_comparisons)break;
+  }
+  return {version:DISPLAY_POLICY.version,mode:adaptive?'monthly-adaptive':'fixed',base_minimum_point_score:base,minimum_point_score:cutoff,minimum_allowed_point_score:adaptive?DISPLAY_POLICY.minimum_point_score:base,target_comparisons:DISPLAY_POLICY.target_comparisons,eligible_comparisons:cases.length,base_count:baseCount,displayed_count:shown,relaxed:cutoff<base};
+ }
+ const minimumScore=edition=>selection(edition).minimum_point_score;
+ const passesScore=(c,edition={})=>validScore(c)&&presentation(c).point_score>=minimumScore(edition);
  const id=c=>presentation(c).id||c.id||c.name;
  function eventMonth(c){
   const p=presentation(c),timeline=p.timeline||[];
@@ -26,8 +41,8 @@
   return [...(approved.length?[{...feed.casebook,cases:[...approved],curated_ids:approved.map(id)}]:[]),...editions];
  }
  function review(edition){
-  const approved=new Set(edition.curated_ids||[]);
-  return edition.cases.filter(c=>passesScore(c,edition)&&(featured(c)||c.source_article_verified===true||approved.has(id(c))));
+  const cutoff=minimumScore(edition);
+  return eligible(edition).filter(c=>presentation(c).point_score>=cutoff);
  }
  function stories(edition){
   const allowed=review(edition);
@@ -36,7 +51,7 @@
   if(edition.id==='selected')return allowed;
   return [...allowed.filter(featured),...allowed.filter(c=>!featured(c))];
  }
- function evidence(edition,feed){return edition.source_edition?{schema:'fire-eye-story-edition-view-v1',edition:edition.source_edition,casebook_source_sha256:feed.casebook?.source_sha256||null,curated_comparisons:edition.curated_cases||[],grouping:'Curated comparisons use official discovery month where available, otherwise the dated reported fire observation. News records retain the reporting edition.'}:feed.casebook||edition;}
- const api={presentation,featured,id,eventMonth,collections,stories,review,minimumScore,passesScore,evidence};
+ function evidence(edition,feed){return edition.source_edition?{schema:'fire-eye-story-edition-view-v1',edition:edition.source_edition,casebook_source_sha256:feed.casebook?.source_sha256||null,curated_comparisons:edition.curated_cases||[],display_selection:{...selection(edition),selected_case_ids:stories(edition).map(id),purpose:'Editorial display selection only; original scores, featured evidence flags and evaluation totals are unchanged.'},grouping:'Curated comparisons use official discovery month where available, otherwise the dated reported fire observation. News records retain the reporting edition.'}:feed.casebook||edition;}
+ const api={DISPLAY_POLICY,presentation,featured,id,eventMonth,collections,stories,review,selection,minimumScore,passesScore,evidence};
  if(typeof module==='object'&&module.exports)module.exports=api;else root.FireEyeStoryCollections=api;
 })(typeof window==='object'?window:globalThis);
