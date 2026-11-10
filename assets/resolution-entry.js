@@ -11,7 +11,7 @@
  for(const item of [link,...document.querySelectorAll('.resolution-return')].filter(Boolean))for(const event of ['pointerenter','focus','click'])item.addEventListener(event,()=>{item.href=destination();});
  if(experimental){document.getElementById('archive-open')?.addEventListener('click',event=>{event.preventDefault();event.stopImmediatePropagation();location.href=destination();},true);return;}
  const params=new URL(location.href).searchParams,source=params.get('source'),issue=params.get('issue'),view=(params.get('view')||'').split(',').map(Number);
- const validView=view.length===3&&view.every(Number.isFinite)&&view[0]>=-128.4&&view[0]<=-64&&view[1]>=22&&view[1]<=53&&view[2]>=2&&view[2]<=20;
+ const validView=view.length===3&&view.every(Number.isFinite)&&view[0]>=-180&&view[0]<=180&&view[1]>=-85&&view[1]<=85&&view[2]>=2&&view[2]<=20;
  if(!source&&!validView)return;
  (async()=>{
   for(let i=0;i<600;i++){if(window.fireEyePreview?.ready&&window.fireEyePlatform?.ready&&window.fireEyeForecastHistory?.ready)break;await new Promise(r=>setTimeout(r,100));}

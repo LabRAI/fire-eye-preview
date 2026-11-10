@@ -1,12 +1,12 @@
 /* Local schematic vegetation, generated only after explicit simulation intent. */
 'use strict';
-importScripts('tallahassee-scene.js?v=1dfe8d1325a4fe4e');
+importScripts('tallahassee-scene.js?v=645b752b4c1a3769');
 const H=FireEyeTallahassee,R=6378137,STEP=12;
 const project=p=>[p[0]*Math.PI/180*R,Math.log(Math.tan(Math.PI/4+p[1]*Math.PI/360))*R];
 const unproject=p=>[p[0]/R*180/Math.PI,(2*Math.atan(Math.exp(p[1]/R))-Math.PI/2)*180/Math.PI];
 function generate({center,features,mobile}){
- if(!Array.isArray(center)||center.length!==2||!center.every(Number.isFinite)||Math.abs(center[1])>60||!Array.isArray(features)||features.length>18000)throw Error('Invalid local scene');
- const scale=Math.cos(center[1]*Math.PI/180),q=project(center),radius=(mobile?420:650)/scale;
+ if(!Array.isArray(center)||center.length!==2||!center.every(Number.isFinite)||Math.abs(center[1])>85||!Array.isArray(features)||features.length>18000)throw Error('Invalid local scene');
+ const step=9/Math.max(.09,Math.cos((Math.floor(center[1]/5)*5+2.5)*Math.PI/180)),scale=Math.cos(center[1]*Math.PI/180),q=project(center),radius=(mobile?420:650)/scale;
  const sw=unproject([q[0]-radius,q[1]-radius]),ne=unproject([q[0]+radius,q[1]+radius]),box=[...sw,...ne];
  const polygons=[],roads=[],cover=[],objects=[];let vertices=0;
  for(const f of features){
@@ -26,27 +26,22 @@ function generate({center,features,mobile}){
  const blockedAt=H.spatial(polygons),roadsAt=H.spatial(roads,.0005),coverAt=H.spatial(cover);
  const eligible=p=>!blockedAt(p).some(f=>H.contains(f.geometry,p))&&!roadsAt(p).some(f=>H.roadDistance(f.geometry,p)<f.properties.width_m/2+1);
  const candidates=[];
- for(let x=Math.floor((q[0]-radius)/STEP);x<=Math.ceil((q[0]+radius)/STEP);x++)for(let y=Math.floor((q[1]-radius)/STEP);y<=Math.ceil((q[1]+radius)/STEP);y++){
-  const id='mapped-cover/'+x+'/'+y,seed=H.hash(id),p=unproject([(x+.2+(seed%1000)/1667)*STEP,(y+.2+((seed>>>12)%1000)/1667)*STEP]);
+ for(let x=Math.floor((q[0]-radius)/step);x<=Math.ceil((q[0]+radius)/step);x++)for(let y=Math.floor((q[1]-radius)/step);y<=Math.ceil((q[1]+radius)/step);y++){
+  const id='mapped-cover/'+x+'/'+y,seed=H.hash(id),p=unproject([(x+.2+(seed%1000)/1667)*step,(y+.2+((seed>>>12)%1000)/1667)*step]);
   const classes=coverAt(p).filter(f=>H.contains(f.geometry,p)).map(f=>f.cover);if(!classes.length||!eligible(p))continue;
   const lawn=classes.includes('grass'),forest=!lawn&&classes.includes('forest'),shrub=!lawn&&!forest&&classes.includes('shrub'),park=!lawn&&!forest&&!shrub&&classes.includes('park');
   const tree=seed%10000<(forest?.96:shrub?.65:park?.38:0)*10000;
   candidates.push({id,seed,p,tree,forest,shrub,grass:lawn||park||forest&&seed%5===0,d:Math.hypot(...project(p).map((v,i)=>v-q[i]))*scale});
  }
  candidates.sort((a,b)=>H.hash(a.id+'/budget')-H.hash(b.id+'/budget'));
- let trees=0,grass=0,anchors=0;const treeLimit=mobile?2200:5200,grassLimit=mobile?1200:3000;
+ let trees=0,grass=0,anchors=0;const treeLimit=mobile?2200:5200;
  const point=(kind,id,p,props)=>({type:'Feature',geometry:{type:'Point',coordinates:p},properties:{kind,source_id:id,synthetic:true,source:'OpenStreetMap mapped land cover',placement:'Schematic vegetation; not surveyed plant locations',...props}});
  for(const v of candidates){
   if(v.tree&&trees<treeLimit){objects.push(point('tree',v.id,v.p,{height_m:null,class:v.forest?'forest':v.shrub?'shrub':'park',display_height_m:v.shrub?3:v.forest?14+(v.seed%900)/100:8+(v.seed%500)/100,display_crown_m:v.shrub?4:v.forest?9+(v.seed%300)/100:6+(v.seed%200)/100}));trees++;}
   else if(!v.tree&&anchors<160){objects.push(point('scenario_anchor',v.id,v.p,{}));anchors++;}
  }
- for(const v of candidates.filter(v=>v.grass&&v.d<220).sort((a,b)=>a.d-b.d)){
-  if(grass>=grassLimit)break;const origin=project(v.p);
-  for(let j=0;j<4&&grass<grassLimit;j++){const id=v.id+'/grass/'+j,h=H.hash(id),p=unproject([origin[0]+((h%100)/100-.5)*7,origin[1]+(((h>>>8)%100)/100-.5)*7]);
-   if(!eligible(p)||!coverAt(p).some(f=>['grass','forest','park'].includes(f.cover)&&H.contains(f.geometry,p)))continue;
-   objects.push(point('grass',id,p,{display_height_m:.35+(h%25)/100,display_crown_m:1.2}));grass++;
-  }
- }
+ const grassFeatures=H.grassGrid(center,p=>eligible(p)&&coverAt(p).some(f=>H.contains(f.geometry,p)&&(['grass','park'].includes(f.cover)||f.cover==='forest'&&H.hash(p.map(v=>v.toFixed(5)).join(','))%3===0)),mobile);
+ objects.push(...grassFeatures);grass=grassFeatures.length;
  return {area:{id:'on-demand',title:'Selected area',bbox_wgs84:box,prediction_linked:true,synthetic_vegetation:true,vegetation_source:'OpenStreetMap mapped land cover',feature_counts:{tree:trees,grass}},collection:{type:'FeatureCollection',features:objects},metrics:{trees,grass,anchors,cover_polygons:cover.length,source_features:features.length,generated_on_device:true}};
 }
 self.onmessage=e=>{try{self.postMessage({id:e.data.id,snapshot:generate(e.data)});}catch{self.postMessage({id:e.data.id,error:'Mapped vegetation could not be prepared for this view.'});}};

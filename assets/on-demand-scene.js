@@ -1,10 +1,10 @@
 /* Reuse already loaded map geometry; never request or render CONUS as a scene. */
 (function(global){
  'use strict';
- const scriptURL=new URL(document.currentScript.src),workerURL=new URL('./on-demand-scene-worker.js?v=750294e04afce797',scriptURL);
+ const scriptURL=new URL(document.currentScript.src),workerURL=new URL('./on-demand-scene-worker.js?v=9c18e545a6368ce0',scriptURL);
  function create(map,options={}){
   const H=global.FireEyeTallahassee;let worker=null,sequence=0,last=null,pending=null;
-  const contains=()=>H.inBox(map.getCenter().toArray(),[-128.4,22.4,-64,52.5]);
+  const contains=()=>{const p=map.getCenter().toArray();return p.every(Number.isFinite)&&Math.abs(p[0])<=180&&Math.abs(p[1])<=85;};
   function cancel(){sequence++;if(pending){clearTimeout(pending.timer);pending.reject(new DOMException('Scene selection changed','AbortError'));pending=null;}worker?.terminate();worker=null;}
   function collect(center){
    const radius=700/111320,box=[center[0]-radius/Math.cos(center[1]*Math.PI/180),center[1]-radius,center[0]+radius/Math.cos(center[1]*Math.PI/180),center[1]+radius],features=[],seen=new Set();

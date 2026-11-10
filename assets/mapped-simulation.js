@@ -131,7 +131,7 @@
    }
    const center=map.getCenter().toArray(),scale=Math.cos(center[1]*Math.PI/180),distance=f=>Math.hypot((f.geometry.coordinates[0]-center[0])*scale,f.geometry.coordinates[1]-center[1])*111320;
    const mobile=innerWidth<=640,near=trees.filter(f=>distance(f)<(mobile?100:160)).sort((a,b)=>distance(a)-distance(b)).slice(0,mobile?160:360),detailed=new Set(near);
-   const grass=collection.features.filter(f=>f.properties?.kind==='grass'&&f.geometry?.type==='Point'&&allowed(f.geometry.coordinates)).slice(0,mobile?1200:3000);
+   const grass=collection.features.filter(f=>f.properties?.kind==='grass'&&f.geometry?.type==='Point'&&allowed(f.geometry.coordinates)).sort((a,b)=>distance(a)-distance(b)).slice(0,mobile?4000:10000);
    C.grassCount=grass.length;C.detailTrees=near.length;C.canopyTrees=trees.length-near.length;
    groups=assets.map(asset=>{
     const selected=asset.role==='grass'?grass:asset.role==='tree-canopy'?trees.filter(f=>!detailed.has(f)):near.filter(f=>hash(f.properties.source_id)%2===(asset.id==='tree_oak_01'?0:1)),values=[];

@@ -24,21 +24,29 @@
   return p=>{const q=project(p);return [...large,...bins.get(Math.floor(q[0]/cell)+','+Math.floor(q[1]/cell))||[]];};
  }
  function sample(m,data,p){const t=m.grid.transform,col=Math.floor((p[0]-t[2])/t[0]),row=Math.floor((p[1]-t[5])/t[4]);return inBox(p,m.bbox_wgs84)&&row>=0&&col>=0&&row<m.grid.height&&col<m.grid.width?data[row*m.grid.width+col]:0;}
- function addGroundCover(collection){
-  if(collection.features.some(f=>f.properties?.kind==='grass'))return collection;
-  const lawns=collection.features.filter(f=>f.properties?.kind==='land_area'&&['grass','garden'].includes(f.properties?.class)&&['Polygon','MultiPolygon'].includes(f.geometry?.type)).map(f=>({...f,b:bounds(f.geometry)}));
-  if(!lawns.length)return collection;
-  const blocked=collection.features.filter(f=>['building','water','pedestrian_area'].includes(f.properties?.kind)).map(f=>({...f,b:bounds(f.geometry)})),at=spatial(blocked);
-  const roads=collection.features.filter(f=>f.properties?.kind==='transportation'&&['LineString','MultiLineString'].includes(f.geometry?.type)).map(f=>({...f,b:bounds(f.geometry)})),roadsAt=spatial(roads,.0001),added=[],seen=new Set();
-  for(const f of lawns){const sw=project([f.b[0],f.b[1]]),ne=project([f.b[2],f.b[3]]);
-   if((ne[0]-sw[0])*(ne[1]-sw[1])>300000)continue;
-   for(let x=Math.floor(sw[0]/4);x<=Math.ceil(ne[0]/4);x++)for(let y=Math.floor(sw[1]/4);y<=Math.ceil(ne[1]/4);y++){
-    const id='mapped-grass/'+x+'/'+y;if(seen.has(id))continue;const h=hash(id),p=unproject([(x+.2+(h%100)/170)*4,(y+.2+((h>>>8)%100)/170)*4]);
-    if(!contains(f.geometry,p)||at(p).some(o=>contains(o.geometry,p))||roadsAt(p).some(o=>roadDistance(o.geometry,p)<1.5))continue;
-    seen.add(id);added.push({type:'Feature',geometry:{type:'Point',coordinates:p},properties:{kind:'grass',source_id:id,synthetic:true,display_height_m:.35+(h%25)/100,display_crown_m:1.2,source:'Mapped greenspace',placement:'Schematic ground cover'}});
-   }
+ // Stable, source-constrained local grass. Fine clumps near the viewer, sparse
+ // clumps farther away; density is bounded independently of regional extent.
+ function grassGrid(center,eligible,mobile=false){
+  const q=project(center),scale=Math.cos(center[1]*Math.PI/180),band=Math.floor(center[1]/5)*5+2.5;
+  const step=2/Math.max(.09,Math.cos(band*Math.PI/180)),radius=mobile?95:150,nearRadius=mobile?48:78,limit=mobile?4000:10000,candidates=[];
+  for(let x=Math.floor((q[0]-radius/scale)/step);x<=Math.ceil((q[0]+radius/scale)/step);x++)for(let y=Math.floor((q[1]-radius/scale)/step);y<=Math.ceil((q[1]+radius/scale)/step);y++){
+   const id='local-grass/'+band+'/'+x+'/'+y,h=hash(id),xy=[(x+.2+(h%1000)/1667)*step,(y+.2+((h>>>12)%1000)/1667)*step],d=Math.hypot(xy[0]-q[0],xy[1]-q[1])*scale;
+   const t=Math.max(0,Math.min(1,(d-nearRadius)/(radius-nearRadius))),density=.14+.86*(1-t)*(1-t);
+   if(d>radius||h/4294967296>density)continue;candidates.push({id,h,d,p:unproject(xy)});
   }
-  return {...collection,features:[...collection.features,...added.sort((a,b)=>hash(a.properties.source_id)-hash(b.properties.source_id)).slice(0,3000)]};
+  candidates.sort((a,b)=>a.d-b.d);const points=[];
+  for(const v of candidates){if(points.length>=limit)break;if(!eligible(v.p))continue;
+   points.push({type:'Feature',geometry:{type:'Point',coordinates:v.p},properties:{kind:'grass',source_id:v.id,synthetic:true,display_height_m:.28+(v.h%23)/100,display_crown_m:1.8,source:'Mapped vegetated ground',placement:'Schematic ground cover; not surveyed plants'}});
+  }return points;
+ }
+ function addGroundCover(collection,options={}){
+  const lawns=collection.features.filter(f=>f.properties?.kind==='land_area'&&['grass','garden','meadow','grassland','recreation_ground'].includes(f.properties?.class)&&['Polygon','MultiPolygon'].includes(f.geometry?.type)).map(f=>({...f,b:bounds(f.geometry)}));
+  if(!lawns.length)return collection;
+  const blocked=collection.features.filter(f=>['building','water','pedestrian_area'].includes(f.properties?.kind)).map(f=>({...f,b:bounds(f.geometry)})),at=spatial(blocked),lawnAt=spatial(lawns);
+  const roads=collection.features.filter(f=>f.properties?.kind==='transportation'&&['LineString','MultiLineString'].includes(f.geometry?.type)).map(f=>({...f,b:bounds(f.geometry)})),roadsAt=spatial(roads,.0005);
+  const b=lawns[0].b,center=options.center||[(b[0]+b[2])/2,(b[1]+b[3])/2];
+  const added=grassGrid(center,p=>lawnAt(p).some(f=>contains(f.geometry,p))&&!at(p).some(o=>contains(o.geometry,p))&&!roadsAt(p).some(o=>roadDistance(o.geometry,p)<(Number(o.properties.width_m)||4)/2+1),!!options.mobile);
+  return {...collection,features:[...collection.features.filter(f=>f.properties?.kind!=='grass'),...added]};
  }
  function create(map,url,options={}){
   let manifest=null,data=null,task=null,last=null;const mobile=matchMedia('(max-width:640px)').matches;
@@ -107,20 +115,15 @@
       placement:'Schematic vegetation; not a measured tree location'}});trees++;
     }else if(!v.plant&&anchors<160){features.push({type:'Feature',geometry:{type:'Point',coordinates:v.p},properties:{kind:'scenario_anchor',source_id:v.id,synthetic:true,class:manifest.classes[v.cover]}});anchors++;}
    }
-   const grassLimit=mobile?1200:3000;
-   for(const v of candidates.filter(v=>v.grass).sort((a,b)=>a.d-b.d)){
-    if(grass>=grassLimit||v.d>(220/111320)**2)break;
-    // A few inexpensive clumps per eligible ground cell, only near the camera.
-    for(let j=0;j<4&&grass<grassLimit;j++){
-     const q=project(v.p),h=hash(v.id+'/grass/'+j),p=unproject([q[0]+((h%100)/100-.5)*7,q[1]+(((h>>>8)%100)/100-.5)*7]);
-     if(mask.polygonsAt(p).some(f=>near(p,f.b)&&contains(f.geometry,p))||mask.roadsAt(p).some(f=>roadDistance(f.geometry,p)<f.gap))continue;
-     features.push({type:'Feature',geometry:{type:'Point',coordinates:p},properties:{kind:'grass',source_id:v.id+'/grass/'+j,synthetic:true,display_height_m:.35+(h%25)/100,display_crown_m:1.2,placement:'Schematic ground cover'}});grass++;
-    }
-   }
+   const added=grassGrid(c,p=>{
+    if(mask.polygonsAt(p).some(f=>contains(f.geometry,p))||mask.roadsAt(p).some(f=>roadDistance(f.geometry,p)<f.gap))return false;
+    const cover=sample(manifest,data,p),greens=mask.greensAt(p).filter(f=>contains(f.geometry,p));
+    return greens.some(f=>['grass','garden','meadow','recreation_ground'].includes(f.properties.class))||cover===3||cover===1&&hash(p.map(v=>v.toFixed(5)).join(','))%3===0;
+   },mobile);features.push(...added);grass=added.length;
    const snapshot={area:{id:'tallahassee',title:'Tallahassee',bbox_wgs84:box,prediction_linked:true,synthetic_vegetation:true,source_edition:2020,feature_counts:{tree:trees,grass}},collection:{type:'FeatureCollection',features},metrics:{trees,anchors,grass,mask_features:mask.features.length,cover_bytes:manifest.asset.bytes,key}};
    last={key,snapshot};return snapshot;
   }
   return {contains:()=>inBox(map.getCenter().toArray(),PILOT),build,sample:p=>data?sample(manifest,data,p):null,get manifest(){return manifest;},invalidate:()=>{last=null;}};
  }
- global.FireEyeTallahassee={create,contains,inBox,roadDistance,sample,hash,boundsOf:bounds,spatial,addGroundCover,bounds:()=>PILOT.slice()};
+ global.FireEyeTallahassee={create,contains,inBox,roadDistance,sample,hash,boundsOf:bounds,spatial,grassGrid,addGroundCover,bounds:()=>PILOT.slice()};
 })(typeof window==='undefined'?globalThis:window);

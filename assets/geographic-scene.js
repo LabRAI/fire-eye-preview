@@ -194,7 +194,7 @@
      note.textContent='Mapped land cover, buildings and streets. Vegetation is schematic; fire follows the selected forecast. '+(environment?.state.terrain?'':'Terrain relief is not loaded here.');
      live?.setArea(snapshot);metrics();scheduleMetrics();return;
     }
-    const next=found?.id||null;if(areaId===next)return;areaId=next;const seq=++areaSequence;areaController?.abort();area=null;areaData=null;treeData=null;map.getSource(objectSource)?.setData(empty);map.getSource(treeSource)?.setData(empty);live?.setArea(null);
+    const next=found?.id||null,viewKey=map.getCenter().toArray().map(v=>v.toFixed(4)).join(',');if(areaId===next&&(!found||area?.grassViewKey===viewKey))return;areaId=next;const seq=++areaSequence;areaController?.abort();area=null;areaData=null;treeData=null;map.getSource(objectSource)?.setData(empty);map.getSource(treeSource)?.setData(empty);live?.setArea(null);
     if(!found){scheduleMetrics();return;}
     let data=areaCache.get(found.id);
     if(!data){
@@ -203,9 +203,9 @@
      const bytes=await response.arrayBuffer();if(bytes.byteLength!==descriptor.bytes)throw Error('Object asset size mismatch');
      const digest=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),x=>x.toString(16).padStart(2,'0')).join('');if(digest!==descriptor.sha256)throw Error('Object asset checksum mismatch');
      data=JSON.parse(new TextDecoder().decode(bytes));if(data.type!=='FeatureCollection'||!Array.isArray(data.features)||data.features.length>10000)throw Error('Invalid object collection');
-     data=global.FireEyeTallahassee.addGroundCover(data);areaCache.set(found.id,data);while(areaCache.size>3)areaCache.delete(areaCache.keys().next().value);
+     areaCache.set(found.id,data);while(areaCache.size>3)areaCache.delete(areaCache.keys().next().value);
     }
-    if(disposed||!requested||seq!==areaSequence)return;area=found;areaData=data;treeData=treeSymbols(data);ensure();map.getSource(objectSource)?.setData(data);map.getSource(treeSource)?.setData(treeData);live?.setArea({area,collection:data});metrics();scheduleMetrics();
+    if(disposed||!requested||seq!==areaSequence)return;data=global.FireEyeTallahassee.addGroundCover(data,{center:map.getCenter().toArray(),mobile:compactScreen.matches});area={...found,grassViewKey:viewKey};areaData=data;treeData=treeSymbols(data);ensure();map.getSource(objectSource)?.setData(data);map.getSource(treeSource)?.setData(treeData);live?.setArea({area,collection:data});metrics();scheduleMetrics();
    }catch(e){if(requested&&e.name!=='AbortError'){areaId=null;status.textContent='Local detail is loading; the mapped basemap remains usable.';if(map.getZoom()>=15.5){retry.hidden=false;clearTimeout(localTimer);localTimer=setTimeout(loadArea,5000);}}}
   }
   function scheduleMetrics(){clearTimeout(metricsTimer);metricsTimer=setTimeout(metrics,350);}

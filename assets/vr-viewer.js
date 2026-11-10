@@ -29593,8 +29593,8 @@ function contains(g, p) {
 function boundedPoint(p, radius) {
   return Array.isArray(p) && p.length >= 2 && p.slice(0, 2).every(Number.isFinite) && Math.abs(p[0]) < radius - 4 && Math.abs(p[1]) < radius - 4;
 }
-function capture({ center, height, features, meshSnapshot, forecast, terrainReady, terrainStatus, radius = 240 }) {
-  if (!terrainReady && terrainStatus === "outside") throw Error("VR terrain is not published for this location yet. Choose a mapped pilot area.");
+function capture({ center, height, features, meshSnapshot, forecast, terrainReady, terrainStatus, terrainSource = "Published local terrain", mobile = false, radius = 240 }) {
+  if (!terrainReady && terrainStatus === "outside") throw Error("Local terrain has not loaded for this location. Reload the scene.");
   if (!terrainReady || !center?.every(Number.isFinite) || typeof height !== "function") throw Error("Mapped terrain must finish loading before VR.");
   const frame = frameAt(center), baseline = height(center);
   if (!Number.isFinite(baseline)) throw Error("Terrain is unavailable here.");
@@ -29625,6 +29625,7 @@ function capture({ center, height, features, meshSnapshot, forecast, terrainRead
     };
     if (!f.geometry?.coordinates) continue;
     scan(f.geometry.coordinates);
+    near = near || contains(f.geometry, center);
     if (!near || count > 4e3) continue;
     objects.push(f);
     if (objects.length > 3e3) throw Error("This scene exceeds the local VR geometry budget. Zoom to a smaller mapped area.");
@@ -29661,7 +29662,7 @@ function capture({ center, height, features, meshSnapshot, forecast, terrainRead
         canopyRows.push(...rows);
         continue;
       }
-      const limit = g.asset.role === "grass" ? 1e3 : 40;
+      const limit = g.asset.role === "grass" ? mobile ? 3e3 : 6500 : 40;
       if (g.asset.role === "tree-detail" && canopy) for (const row of rows.slice(limit)) canopyRows.push([row[0], row[1], row[2], row[3] * g.asset.crown_diameter_m / canopy.crown_diameter_m, row[4] * g.asset.height_m / canopy.height_m, row[5], row[6]]);
       if (rows.length) groups.push({ asset: g.asset, instances: new Float32Array(rows.slice(0, limit).flat()) });
     }
@@ -29676,6 +29677,7 @@ function capture({ center, height, features, meshSnapshot, forecast, terrainRead
   }).filter((e) => boundedPoint([e.position[0], e.position[2]], radius) && e.position[1] !== null).map((e) => ({ ...e, lnglat: e.lnglat.slice() }));
   return {
     schema_version: 1,
+    terrainSource,
     center: center.slice(),
     radius,
     size,
