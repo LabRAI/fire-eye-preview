@@ -2,7 +2,7 @@
 
 An independent, public map of published CONUS FireWx-FM forecasts and environmental observations.
 
-This preview contains the +12, +24, +36 and +48 hour windows. Forecast values describe modeled active-fire occupancy, not ignition probability. All displayed times are UTC.
+This preview contains the +12, +24, +36 and +48 hour windows. Forecast values describe modeled active-fire occupancy in each 12-hour window. All displayed times are UTC.
 
 The production website is unchanged. This preview does not contact the laboratory server.
 

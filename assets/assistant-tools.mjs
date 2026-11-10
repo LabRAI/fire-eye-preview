@@ -1,4 +1,4 @@
-import {validateCall,cleanText} from './assistant-contract.mjs?v=518e5a738a85d91d';
+import {validateCall,cleanText} from './assistant-contract.mjs?v=464161b5b7db1642';
 const $=id=>document.getElementById(id);
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const round=(v,n=3)=>typeof v==='number'&&Number.isFinite(v)?Number(v.toFixed(n)):null;
@@ -36,7 +36,7 @@ export async function executeTool(name,args,signal){
   selected(S);const key=JSON.stringify([S.selected,P.radius,S.manifest.release_id,S.active.run.target_time_utc,P.manifest.assets.soil?.sha256,P.manifest.assets.drought?.sha256]);if(P.seriesContext!==key||!Object.keys(P.series).length)P.details();else{$('details-body').hidden=false;$('details-toggle').setAttribute('aria-expanded','true');}
   const wanted=args.kinds;try{await waitFor(()=>wanted.every(k=>P.series[k]?.complete||P.series[k]?.error),signal,26000);}catch(e){signal.throwIfAborted();}
   const series={};for(const k of wanted){const d=P.series[k];series[k]=d?{source:({forecast:'FireWx-FM native 5 km',soil:'NOAA CPC',anomaly:'NOAA CPC',drought:'U.S. Drought Monitor'})[k],issue_time_utc:d.issue??null,complete:!!d.complete,points:(d.points||[]).map(p=>({time_utc:p.time,window_ended:Date.parse(p.time)<=Date.now(),lead_hours:p.lead??null,value:k==='forecast'?(typeof p.value==='number'&&Number.isFinite(p.value)?p.value:null):round(p.value,2),coverage_percent:p.coverage==null?null:round(Math.min(1,Math.max(0,p.coverage))*100,1),missing:p.value==null,source_check:!!p.sourceCheck})),error:d.error?'This source could not be read':null}:{points:[],error:'This source has not responded; no values were inferred'};}
-  return {selection:pageState().selection,now_utc:new Date().toISOString(),issue_time_utc:S.manifest.issue_time_utc,forecast_measure:'Regional mean native 5 km modeled active-fire occupancy in 12-hour windows; not ignition probability',categorical_risk_thresholds:null,lead_time_origin:'Model input time, not the current clock; window_ended identifies elapsed windows',series};
+  return {selection:pageState().selection,now_utc:new Date().toISOString(),issue_time_utc:S.manifest.issue_time_utc,forecast_measure:'Regional mean native 5 km modeled active-fire occupancy in 12-hour windows',categorical_risk_thresholds:null,lead_time_origin:'Model input time, not the current clock; window_ended identifies elapsed windows',series};
  }
  if(name==='get_fire_reports'){
   selected(S);let data,source;

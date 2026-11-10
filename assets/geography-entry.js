@@ -9,7 +9,7 @@
   const points=sim.getCandidates(),candidateKey=sim.state.candidateKey,key=JSON.stringify([f,candidateKey]);
   if(key===pendingKey&&sim.state.forecast?.key===key&&(sim.state.forecast?.status!=='error'||Date.now()<retryAt))return;
   pendingKey=key;const seq=++sequence,manifest=S.manifest,run=S.active.run;
-  const context={...f,key,candidateKey,method:'Stable visual sampling of selected risk values; not ignition probabilities or spread'};
+  const context={...f,key,candidateKey,method:'Stable visual sampling of modeled active-fire occupancy in the selected forecast window'};
   sim.setForecast({...context,status:points.length?'loading':'missing',values:[]});if(!points.length)return;
   try{
    // Sample the same verified numeric field used by the visible heatmap.

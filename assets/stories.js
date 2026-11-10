@@ -39,7 +39,14 @@ function render(){const editions=collections(),tabs=$('story-editions');tabs.rep
  $('story-previous').disabled=index<=0;$('story-next').disabled=index>=cases.length-1;
  $('story-previous').onclick=()=>{caseId=key(cases[index-1],index-1);render();};$('story-next').onclick=()=>{caseId=key(cases[index+1],index+1);render();};
  $('story-position').textContent=(index+1)+' / '+cases.length;
- if(cases.length){caseId=key(cases[index],index);select.value=caseId;renderCase(presentation(cases[index]),active,index,cases[index]);}else{caseId=null;imageController?.abort();const card=el('article',undefined,'feature-story edition-note');card.append(el('p',label(active).toUpperCase(),'feature-kicker'),el('h2','This edition is being prepared.'),el('p','Explore the published case studies while the next collection is reviewed.'));const button=el('button','Explore case studies');button.type='button';button.onclick=()=>{editionId='selected';caseId=null;render();};card.append(button);$('story-content').replaceChildren(card);}
+ if(cases.length){caseId=key(cases[index],index);select.value=caseId;renderCase(presentation(cases[index]),active,index,cases[index]);}
+ else{caseId=null;imageController?.abort();const card=el('article',undefined,'feature-story edition-note');
+  card.append(el('p',label(active).toUpperCase(),'feature-kicker'),el('h2','No comparisons meet this edition’s selection criteria.'),el('p','Browse another collection, or open the complete edition evidence below.'));
+  const available=editions.find(e=>e.id!==active.id&&FireEyeStoryCollections.stories(e).length);
+  if(available){const button=el('button','Explore case studies');button.type='button';button.onclick=()=>{editionId=available.id;caseId=null;render();};card.append(button);}
+  $('story-content').replaceChildren(card);
+ }
+
  locationState();renderNews(active);renderReview(active);
 }
 function renderCase(p,collection,index,raw){imageController?.abort();imageController=new AbortController();const root=$('story-content');root.replaceChildren();
@@ -58,7 +65,7 @@ function renderCase(p,collection,index,raw){imageController?.abort();imageContro
  const timeline=el('ol',undefined,'story-timeline');for(const item of [...(p.timeline||[])].sort((a,b)=>new Date(a.time_utc)-new Date(b.time_utc))){const li=el('li',undefined,/forecast/i.test(item.label)?'forecast-event':'fire-event'),t=el('time',date(item.time_utc));if(item.time_utc)t.dateTime=item.time_utc;li.append(el('b',raw.discovery_verified===false&&item.label==='Official fire discovery'?'Recorded event date':item.label),t);timeline.append(li);}if(timeline.children.length)(p.image?after:before).append(timeline);
  const sources=el('div',undefined,'story-source-links');sources.append(el('small','Sources & reporting'));for(const item of p.sources||[]){const s=typeof item==='string'?{label:'Reporting source',url:item}:item;if(safeURL(s.url))sources.append(anchor(s.label+' ↗',s.url));}if(sources.children.length>1)after.append(sources);
  const evidence=el('details',undefined,'feature-evidence');evidence.append(el('summary','Forecast details & evidence'));const dl=el('dl');
- const facts=[['Issued',p.issue_time_utc?date(p.issue_time_utc):null],['Window ends',p.target_time_utc?date(p.target_time_utc):null],['Model lead',finite(p.nominal_lead_hours)?'+'+p.nominal_lead_hours+'h from issue time (not warning time)':null],['Location',p.coordinates?.length===2?p.coordinates[1].toFixed(4)+'°, '+p.coordinates[0].toFixed(4)+'°':null],['Fire-location score',finite(p.point_score)?p.point_score.toFixed(3)+' (not an ignition probability)':null],['Raster SHA-256',p.raster_sha256]];
+ const facts=[['Issued',p.issue_time_utc?date(p.issue_time_utc):null],['Window ends',p.target_time_utc?date(p.target_time_utc):null],['Model lead',finite(p.nominal_lead_hours)?'+'+p.nominal_lead_hours+'h from issue time (not warning time)':null],['Location',p.coordinates?.length===2?p.coordinates[1].toFixed(4)+'°, '+p.coordinates[0].toFixed(4)+'°':null],['Fire-location score',finite(p.point_score)?p.point_score.toFixed(3):null],['Raster SHA-256',p.raster_sha256]];
  for(const [k,v] of facts)if(v){dl.append(el('dt',k),el('dd',v));}evidence.append(dl);if(safeURL(p.archive_url))evidence.append(anchor('Verified public archive ↗',p.archive_url));
  if(p.note&&p.note!=='A historical or news-only case is not evidence of an advance prediction.')evidence.append(el('p',p.note,'case-provenance'));
  const download=el('button','Download case evidence');download.type='button';download.addEventListener('click',()=>save('Fire-eye_'+(p.id||index)+'_evidence.json',raw));const actions=el('div',undefined,'actions');actions.append(download);evidence.append(actions);after.append(evidence);
@@ -79,7 +86,7 @@ async function showImage(figure,p,signal){const d=p.image;if(!d){figure.replaceC
  figure.replaceChildren(a,el('figcaption',p.image_caption||'Retained forecast map. Event marker added after the event.'),large);
  }catch{if(!signal.aborted&&figure.isConnected)placeholder(figure,'Map preview unavailable','The written evidence and reporting sources are still available.');}}
 function renderNews(active){const root=$('story-news');root.replaceChildren();
- const all=active.cases||[],featured=all.filter(c=>presentation(c).quality?.featured===true&&presentation(c).image);
+ const all=FireEyeStoryCollections.review(active);
  const visible=FireEyeStoryCollections.stories(active),maps=visible.filter(c=>presentation(c).image).length;
  const total=el('p',visible.length+' stories'+(maps?' · '+maps+' archived map comparisons':''),'review-count');root.append(total);
  const list=el('details',undefined,'news-review');
@@ -93,7 +100,7 @@ function renderNews(active){const root=$('story-news');root.replaceChildren();
   if(raw.source_review_status)row.append(el('small',raw.source_review_status));
   if(p.after_text||raw.summary)row.append(el('p',p.after_text||raw.summary));
   if(q.reasons?.length)row.append(el('p',q.reasons.join(' · '),'review-reasons'));
-  if(finite(p.point_score))row.append(el('p','Value at the reported fire location: '+p.point_score.toFixed(3)+'. This is a model score, not an ignition probability.'));
+  if(finite(p.point_score))row.append(el('p','Value at the reported fire location: '+p.point_score.toFixed(3)+'. Modeled active-fire occupancy for the selected 12-hour window.'));
   if(q.spatial&&finite(q.spatial.local_share_ge_0_2))row.append(el('p',(q.spatial.local_share_ge_0_2*100).toFixed(1)+'% of valid cells within 100 km also score at least 0.20. This context describes how widespread the signal is; it is not a false-alarm estimate.'));
   const links=el('div',undefined,'story-source-links');for(const item of p.sources||raw.sources||[]){const source=typeof item==='string'?{url:item,label:new URL(item).hostname}:item;if(safeURL(source.url))links.append(anchor(source.label+' ↗',source.url));}row.append(links);
   if(p.image){const map=el('details',undefined,'review-map');map.append(el('summary','Inspect the archived comparison'));const figure=el('figure',undefined,'forecast-figure');map.append(figure);map.addEventListener('toggle',()=>{if(map.open&&!figure.children.length)showImage(figure,p,new AbortController().signal);});row.append(map);}
@@ -104,7 +111,8 @@ function renderReview(active){const root=$('story-review');root.replaceChildren(
  d.append(el('summary',active.id==='selected'?'Selection & evidence checks':label(active)+' · research coverage & methods'));
 
  const rule=active.presentation_rule;
- if(rule)d.append(el('p','Featured comparisons require a verified map and event location, at least '+rule.minimum_advance_hours+' hours of recorded advance availability, a fire-location score ≥ '+rule.minimum_point_score+' and above that raster’s 90th percentile, and a score above 80% of valid cells within 100 km. These are conservative editorial checks, not calibrated probability cutoffs. The displayed issue is selected by time, not by its highest score.'));
+ d.append(el('p','Displayed comparisons require a verified map and a fire-location score of at least '+FireEyeStoryCollections.minimumScore(active).toFixed(2)+'. The complete edition evidence retains records excluded from this selection.'));
+ if(rule)d.append(el('p','Featured comparisons also require a verified event location, at least '+rule.minimum_advance_hours+' hours of recorded advance availability, a fire-location score above that raster’s 90th percentile, and a score above 80% of valid cells within 100 km. These are editorial selection checks. The displayed issue is selected by time, not by its highest score.'));
  d.append(el('p','Timing labels distinguish a verified public archive release from a timestamped local record. Reported discovery time and ignition time can differ.'));
  if(active.id!=='selected'){
   if(active.curated_cases?.length)d.append(el('p','This edition also includes '+active.curated_cases.length+' previously reviewed casebook comparisons, grouped by official fire discovery month. News stories retain their reporting month. Their original maps, evidence flags and timestamps are unchanged.'));

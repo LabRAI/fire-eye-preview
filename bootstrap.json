@@ -10,7 +10,7 @@
     50
   ],
   "source": "RAI Lab / NOAA HRRR",
-  "measure": "Modeled active-fire occupancy in each 12-hour window; not ignition probability.",
+  "measure": "Modeled active-fire occupancy in each 12-hour window.",
   "runs": [
     {
       "lead_hours": 12,

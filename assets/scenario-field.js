@@ -18,7 +18,7 @@
   for(let i=0;i<points.length;i++){const risk=values[i];if(typeof risk!=='number'||!Number.isFinite(risk)||risk<0||risk>1)continue;valid++;total+=risk;
    // The threshold is fixed by location, independent of date and device.
    // Three bounded visual trials improve legibility; this display weight is
-   // explicitly not an ignition probability. Model values remain unchanged.
+   // a modeled active-fire occupancy score. Model values remain unchanged.
    // Only changes in the selected field can add/remove a sampled emitter.
    const visualWeight=1-(1-risk)**3;
    if(risk>0&&uniform('flame/'+points[i].id)<visualWeight)sampled.push({...points[i],risk,strength:Math.sqrt(risk)});

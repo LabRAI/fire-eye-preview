@@ -32,7 +32,7 @@
  function exportRisk(s,values,run,issue){
   let validArea=0;const features=s.cells.map(c=>{const v=values.get(c.index),value=Number.isFinite(v)&&v>=0&&v<=1?v:null;if(value!==null)validArea+=c.area;return {type:'Feature',geometry:c.geometry,properties:{fire_risk:value,grid_row:c.row,grid_col:c.col,area_km2:c.area/1e6}};});
   if(!validArea)throw Error('No forecast coverage in this polygon.');
-  return {type:'FeatureCollection',metadata:{model_input_utc:issue,target_time_utc:run.target_time_utc,lead_hours:run.lead_hours,source_id:run.source_id,native_resolution_m:5000,measure:'Modeled active-fire occupancy, not ignition probability',selected_area_km2:s.area/1e6,coverage_fraction:Math.min(1,validArea/s.area),selection:s.geometry,missing_value:null},features};
+  return {type:'FeatureCollection',metadata:{model_input_utc:issue,target_time_utc:run.target_time_utc,lead_hours:run.lead_hours,source_id:run.source_id,native_resolution_m:5000,measure:'Modeled active-fire occupancy in each native 5 km cell and 12-hour window',selected_area_km2:s.area/1e6,coverage_fraction:Math.min(1,validArea/s.area),selection:s.geometry,missing_value:null},features};
  }
  function summary(grid,view,bbox,features){
   if(!gridOK(grid)||view.byteLength!==grid.width*grid.height*4||!Array.isArray(bbox)||bbox.length!==4||!bbox.every(Number.isFinite))throw Error('Invalid summary grid');

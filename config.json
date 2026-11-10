@@ -10,6 +10,7 @@
   "assistant_gateway_url": null,
   "visitor_url": null,
   "account_gateway_url": "https://eqgdsqomvegnmsuwxnjo.supabase.co/functions/v1/fire-eye-account",
+  "account_check_gateway_url": null,
   "channel": "preview",
   "hurricanes_url": "https://huggingface.co/datasets/yx21e/fire-eye-forecasts-preview/resolve/main/hurricanes.json",
   "vector_seeds": {
@@ -63,7 +64,6 @@
     "82d0b0fccee649f3593745e0d41e22eeb4207ec5e9f259d34e4e3df42d1af2ef": "./assets/history-catalog/82d0b0fccee649f3593745e0d41e22eeb4207ec5e9f259d34e4e3df42d1af2ef.json",
     "e1e4e029b9d8debb4a72db7a78be3c1d08ce49258a88aa8c99f0729714e1fccf": "./assets/history-catalog/e1e4e029b9d8debb4a72db7a78be3c1d08ce49258a88aa8c99f0729714e1fccf.json",
     "bd14fb0b33721e0192066663a777ccaff2cf023036f24ee00bf24ec5e1fe2e40": "./assets/history-catalog/bd14fb0b33721e0192066663a777ccaff2cf023036f24ee00bf24ec5e1fe2e40.json",
-    "12f3f3e29292d04f17fbc6c2f12254cc532ec1ca67f64db19582db0e0f82a43b": "./assets/history-catalog/12f3f3e29292d04f17fbc6c2f12254cc532ec1ca67f64db19582db0e0f82a43b.json"
-  },
-  "account_check_gateway_url": null
+    "c92c244e275595d77d5375ae1983b14188c6eb9e24fd1ca3372c11d47d862f88": "./assets/history-catalog/c92c244e275595d77d5375ae1983b14188c6eb9e24fd1ca3372c11d47d862f88.json"
+  }
 }
