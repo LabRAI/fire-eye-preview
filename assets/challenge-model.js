@@ -33,7 +33,7 @@
  function appendDefinition(dl,label,value){const row=node('div');row.append(node('dt',label),node('dd',value));dl.append(row);}
  function paintReview(){const value=metadata(),dl=$('model-review');dl.replaceChildren();for(const [label,text]of [['Model',value.model.name],['Version',value.model.version],['Description',value.model.description],['Package',value.model.package_preference==='onnx'?'ONNX export':'Container image'],['License',value.model.license==='not-selected'?'Not selected yet':value.model.license],['Track',value.evaluation.track==='prospective'?'Future observations':'Historical backtest'],['Forecasts','+12, +24, +36, +48 hours'],['Submission','Draft only · no receipt issued']])appendDefinition(dl,label,text);}
  function reset(){runToken++;runComplete=false;draft=null;guestDemo=false;$('model-form').reset();$('model-demo-run').hidden=true;$('model-demo-result').hidden=true;$('model-run').disabled=false;$('model-name').setCustomValidity('');$('model-version').setCustomValidity('');$('model-description').setCustomValidity('');setStep(0);}
- function example(){const savedDraft=draft;reset();draft=savedDraft;guestDemo=true;$('model-name').value='Example wildfire model';$('model-version').value='v0.1';$('model-description').value='Example metadata for exploring the model submission workflow.';enter();}
+ function example(){const savedDraft=draft;reset();draft=savedDraft;guestDemo=true;$('model-name').value='ConvLSTM';$('model-version').value='v0.1';$('model-description').value='Demonstration draft for a spatiotemporal wildfire forecasting model.';enter();}
  $('model-example').onclick=example;$('model-guest').onclick=example;
  function paintAccess(){
   const auth=window.fireEyeAccount,connected=signedIn(),ready=auth?.ready===true;
@@ -80,10 +80,10 @@
  function downloadDraft(value){const blob=new Blob([JSON.stringify(value,null,2)+'\n'],{type:'application/json'}),url=URL.createObjectURL(blob),a=node('a');a.href=url;a.download='fire-eye-model-draft.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
  $('model-export').onclick=()=>{if(runComplete)downloadDraft(metadata());};
  $('model-see-results').onclick=()=>{showTab('results',true);$('tab-results').scrollIntoView({block:'start',behavior:'instant'});};
- // These hand-authored values are illustrative only; no real model is represented.
- const examples=[{name:'Example A',capture:[.72,.67,.62,.58],auc:[.43,.39,.35,.31]},{name:'Example B',capture:[.66,.65,.64,.61],auc:[.38,.37,.36,.33]},{name:'Example C',capture:[.60,.58,.55,.51],auc:[.32,.30,.28,.25]}];
+ // Model-family labels demonstrate the interface; these values are not measured performance.
+ const examples=[{name:'Swin Transformer',capture:[.72,.67,.62,.58],auc:[.43,.39,.35,.31]},{name:'ConvLSTM',capture:[.66,.65,.64,.61],auc:[.38,.37,.36,.33]},{name:'Random Forest',capture:[.60,.58,.55,.51],auc:[.32,.30,.28,.25]}];
  const offsets={conus:[0,0,0],west:[.03,-.02,.01],central:[-.08,-.02,-.03],east:[.01,.04,-.02]};
- let selectedExample='Example A';
+ let selectedExample='Swin Transformer';
  const areaName=()=>$('model-region').selectedOptions[0].textContent;
  function exampleRows(){const lead=Number($('model-lead').value),offset=offsets[$('model-region').value];return examples.map((e,i)=>({...e,values:e.capture.map(v=>v+offset[i]),score:e.capture[lead]+offset[i],metric:e.auc[lead]+offset[i]/2})).sort((a,b)=>b.score-a.score);}
  const percent=v=>(v*100).toFixed(0)+'%';
