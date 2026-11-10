@@ -10,7 +10,10 @@
  const passesScore=(c,edition)=>{const p=presentation(c),score=p.point_score;return typeof score==='number'&&Number.isFinite(score)&&score>=minimumScore(edition)&&score<=1&&!!p.image;};
  const id=c=>presentation(c).id||c.id||c.name;
  function eventMonth(c){
-  const p=presentation(c),t=p.timeline?.find(x=>x.label==='Official fire discovery')?.time_utc;
+  const p=presentation(c),timeline=p.timeline||[];
+  // A reported fire observation can place a reviewed story in its month, even
+  // when the exact discovery time is not corroborated. Never use forecast dates.
+  const t=(timeline.find(x=>x.label==='Official fire discovery')||timeline.find(x=>/^Fire observed\b/i.test(x.label||'')))?.time_utc;
   return typeof t==='string'&&/^\d{4}-\d{2}-/.test(t)?t.slice(0,7):null;
  }
  function collections(feed){
@@ -28,10 +31,12 @@
  }
  function stories(edition){
   const allowed=review(edition);
-  if(edition.id==='selected')return allowed.filter(featured);
+  // The reviewed casebook includes strong shorter-lead comparisons. Featured
+  // checks describe the evidence; they are not a second visibility requirement.
+  if(edition.id==='selected')return allowed;
   return [...allowed.filter(featured),...allowed.filter(c=>!featured(c))];
  }
- function evidence(edition,feed){return edition.source_edition?{schema:'fire-eye-story-edition-view-v1',edition:edition.source_edition,casebook_source_sha256:feed.casebook?.source_sha256||null,curated_comparisons:edition.curated_cases||[],grouping:'Curated comparisons use official fire discovery month; news records retain the reporting edition.'}:feed.casebook||edition;}
+ function evidence(edition,feed){return edition.source_edition?{schema:'fire-eye-story-edition-view-v1',edition:edition.source_edition,casebook_source_sha256:feed.casebook?.source_sha256||null,curated_comparisons:edition.curated_cases||[],grouping:'Curated comparisons use official discovery month where available, otherwise the dated reported fire observation. News records retain the reporting edition.'}:feed.casebook||edition;}
  const api={presentation,featured,id,eventMonth,collections,stories,review,minimumScore,passesScore,evidence};
  if(typeof module==='object'&&module.exports)module.exports=api;else root.FireEyeStoryCollections=api;
 })(typeof window==='object'?window:globalThis);
