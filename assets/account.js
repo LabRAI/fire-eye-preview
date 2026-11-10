@@ -13,12 +13,13 @@
  const status=element('p'),privacy=element('p','GitHub verifies your identity. Fire-eye stores a pseudonymous ID and sign-in/export activity. We do not retain your GitHub profile, email or provider access token.','muted');
  const action=element('button','Checking sign-in…','account-action'),notice=element('p','Browsing and downloads remain available without signing in.','muted');action.type='button';action.disabled=true;privacy.hidden=true;
  status.setAttribute('role','status');status.setAttribute('aria-live','polite');dialog.setAttribute('aria-label','Fire-eye account');dialog.append(heading,status,privacy,action,notice);document.body.append(dialog);
- let client=null,signedIn=false,busy=false,loading=true,configurationFailed=false;
+ let client=null,signedIn=false,busy=false,loading=true,ready=false,configurationFailed=false;
  function paint(){
   signedIn=!!client?.signedIn&&signedIn;label.textContent=signedIn?'Account':'Sign in';title.textContent=signedIn?'Your account':'Sign in to Fire-eye';
   button.setAttribute('aria-label',signedIn?'Open your Fire-eye account':'Sign in to Fire-eye');button.title=signedIn?'Your account':'Sign in to Fire-eye';privacy.hidden=!client;
-  action.disabled=busy||!client;action.textContent=loading?'Checking sign-in…':!client?'GitHub sign-in coming soon':signedIn?'Sign out':'Continue with GitHub';
+  action.disabled=busy||loading||!client;action.textContent=loading?'Checking sign-in…':!client?'GitHub sign-in coming soon':signedIn?'Sign out':'Continue with GitHub';
   status.textContent=loading?'Checking sign-in availability…':!client?(configurationFailed?'Sign-in is currently unavailable. You can continue using Fire-eye.':'GitHub sign-in is not enabled yet. You can continue using Fire-eye without an account.'):signedIn?'Signed in with GitHub.':'Sign in using your GitHub account.';
+  window.dispatchEvent(new CustomEvent('fire-eye:account-state',{detail:{ready,signedIn,configured:!!client}}));
  }
  button.onclick=()=>{paint();if(!dialog.open)dialog.showModal();};close.onclick=()=>dialog.close();dialog.addEventListener('close',()=>button.focus());
  dialog.addEventListener('click',e=>{if(e.target===dialog){const r=dialog.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)dialog.close();}});
@@ -28,10 +29,10 @@
   catch{signedIn=client.signedIn;paint();status.textContent='Account service is temporarily unavailable. You can continue using Fire-eye.';}
   finally{busy=false;action.disabled=!client;}
  };
- window.fireEyeAccount={get signedIn(){return signedIn;},get configured(){return !!client;},open:()=>button.click()};paint();
+ window.fireEyeAccount={get signedIn(){return signedIn;},get configured(){return !!client;},get ready(){return ready;},open:()=>button.click()};paint();
  try{const r=await fetch('config.json',{signal:AbortSignal.timeout(5000)});if(!r.ok)throw Error('Account configuration unavailable');const config=await r.json(),endpoint=window.FireEyeAccountClient?.configuredEndpoint(config);if(endpoint)client=FireEyeAccountClient.create(endpoint);}
  catch{configurationFailed=true;}
- loading=false;paint();if(!client)return;
+ if(!client){loading=false;ready=true;paint();return;}
  window.addEventListener('fire-eye:risk-export-prepared',event=>{void client.record(event.detail).then(()=>{if(signedIn&&!client.signedIn){signedIn=false;paint();}}).catch(()=>{});});
- signedIn=await client.restore();paint();
+ try{signedIn=await client.restore();}catch{signedIn=false;}finally{loading=false;ready=true;paint();}
 })().catch(()=>{});

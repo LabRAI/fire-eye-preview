@@ -1,0 +1,66 @@
+/* Model Challenge is scoped separately from the existing story presentation. */
+body[data-page=challenge]{background:#f6f7f3;color:#183e35}
+body[data-page=challenge] .site-header{padding-inline:max(20px,calc((100vw - 1160px)/2));gap:16px}
+body[data-page=challenge] .site-header nav{gap:18px}
+body[data-page=challenge] .site-header nav a{min-height:44px}
+.challenge-skip{position:absolute;top:-100px;left:16px;z-index:10;padding:14px;background:white}
+.challenge-skip:focus{top:8px}
+.model-challenge{max-width:1160px;padding:54px 24px 64px}
+.challenge-hero{display:grid;grid-template-columns:1.4fr 1fr;align-items:center;gap:72px;margin-bottom:36px}
+.challenge-hero h1{font-size:clamp(42px,5.6vw,68px);line-height:1.04;margin:20px 0 24px;letter-spacing:-.055em}
+.challenge-hero .intro{max-width:540px;line-height:1.7}
+.challenge-hero .actions{margin-top:28px;gap:12px}
+.challenge-small{font-size:12px;color:#5a7263;line-height:1.6}
+.round-card{border-radius:18px;padding:28px 30px;background:#204c40;color:#fff;position:relative;overflow:hidden}
+.round-label{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:#c7d9cd}
+.round-card h2{font-size:34px;line-height:1.15;margin:15px 0;letter-spacing:-.04em}
+.round-card p{font-size:14px;line-height:1.6;color:#e0e9df;max-width:290px}
+.round-card dl{margin:20px 0 0;font-size:13px}
+.round-card dl>div{display:flex;justify-content:space-between;gap:14px;border-top:1px solid #ffffff24;padding:12px 0}
+.round-card dl>div:last-child{padding-bottom:0}
+.round-card dt{color:#d3e0d7}.round-card dd{margin:0;text-align:right}
+.round-status{display:inline-flex;align-items:center;gap:7px}.round-status::before{content:"";width:7px;height:7px;border-radius:50%;background:#d1b97d}
+.challenge-steps{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;padding:24px 0;border-top:1px solid #d6e1d6;margin-bottom:36px;font-size:13px}
+.challenge-steps b{font-size:11px;font-weight:500;color:#607e68;margin-right:10px}
+.challenge-tabs{display:flex;gap:26px;border-bottom:1px solid #cddbd0;margin-bottom:34px;overflow-x:auto;scrollbar-width:thin}
+.challenge-tabs button{border:0;border-bottom:3px solid transparent;border-radius:0;background:none;font-size:14px;white-space:nowrap;padding:12px 0;color:#5b7362}
+.challenge-tabs button[aria-selected=true]{border-color:#204c40;color:#183e35;font-weight:700}
+.challenge-section-head{display:flex;justify-content:space-between;align-items:center;gap:16px;margin:0 0 16px}
+.challenge-section-head h2{margin:8px 0 0;font-size:28px}.challenge-section-head h3{margin:0}
+.preview-badge{display:inline-block;flex:none;color:#765c23;background:#f1ead6;border:1px solid #e0d3ae;font-size:11px;font-weight:600;padding:7px 10px;border-radius:20px}
+.result-filters{display:flex;align-items:end;gap:18px;padding:22px 0}
+.result-filters label{flex:0 0 155px;display:flex;flex-direction:column;gap:7px;font-size:12px;color:#536e5e}
+.metric-note{margin:0 0 4px auto;font-size:12px;max-width:330px;color:#5b7364;line-height:1.6}.metric-note b{display:block;color:#264d3e}
+.results-layout{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:22px}
+.leaderboard-wrap,.comparison-card{min-width:0;background:white;border:1px solid #d9e3da;border-radius:12px;overflow:hidden}
+.model-leaderboard{width:100%;border-collapse:collapse;font-size:14px}
+.model-leaderboard caption{padding:18px;text-align:left;font-size:12px;color:#607763}
+.model-leaderboard th{text-align:left;padding:13px 16px;background:#eef3ec;font-size:11px;letter-spacing:.035em;font-weight:600}
+.model-leaderboard td{padding:10px 16px;border-bottom:1px solid #e7ede6}
+.model-leaderboard th:nth-child(n+3),.model-leaderboard td:nth-child(n+3){text-align:right;font-variant-numeric:tabular-nums}
+.model-leaderboard td:first-child{color:#617763;width:42px;font-size:13px}
+.model-leaderboard tr[data-selected=true]{background:#f0f6ed}
+.model-leaderboard button{background:transparent;border:0;padding:0;justify-content:start;text-align:left;min-height:44px;font-weight:600;min-width:44px}
+.table-note{font-size:11px;color:#5d7362;line-height:1.6;padding:0 18px;margin:15px 0}
+.comparison-card{padding:22px 20px}.comparison-card h3{margin:10px 0 20px}
+.model-chart{display:block;width:100%;height:auto;overflow:visible}.model-chart text{font:11px system-ui,sans-serif;fill:#5a7262}.model-chart .chart-value{fill:#204c40;font-weight:600;font-size:11px}
+.chart-values{display:flex;justify-content:space-between;gap:8px;font-size:11px;color:#587360;list-style:none;padding:0;margin:8px 0}.chart-values b{display:block;font-size:14px;color:#204c40;margin-top:3px}
+.reference-note{display:flex;gap:12px;align-items:center;font-size:12px;line-height:1.7;margin-top:20px;color:#56705e}.reference-note p{margin:0}.reference-dot{width:9px;height:9px;flex:none;border-radius:50%;background:#789b81}
+.auth-gate{background:white;border:1px solid #d9e3da;border-radius:12px;padding:26px;display:flex;align-items:center;justify-content:space-between;gap:24px}.auth-gate p{font-size:14px;margin:8px 0 0;color:#5d7362}.auth-gate .actions{margin:0;max-width:250px}.auth-gate .actions button{width:100%;font-size:13px}
+.preview-notice{padding:12px 16px;background:#edf2e8;border-left:3px solid #829a62;font-size:13px;color:#4e6656}
+.wizard-progress{list-style:none;display:grid;grid-template-columns:repeat(3,1fr);gap:15px;padding:15px 0;margin:20px 0;font-size:13px;color:#677d6c}.wizard-progress li{padding:10px 0;border-bottom:2px solid #d8e2d5}.wizard-progress li[aria-current]{border-color:#204c40;color:#204c40;font-weight:600}
+#model-form{max-width:790px}#model-form fieldset{margin:0;padding:0;border:0;min-width:0}#model-form legend{font-size:21px;font-weight:600;margin-bottom:12px;letter-spacing:-.025em}
+.model-challenge textarea{resize:vertical;min-height:96px;width:100%;padding:12px;border:1px solid #c5d3ca;border-radius:6px;font:inherit;color:#244636}
+.package-placeholder{padding:18px;border:1px dashed #b5c8b7;border-radius:8px;font-size:13px;background:#f0f4ed}.package-placeholder p{margin:6px 0 0;color:#5e7762}
+.track-choice{display:flex;align-items:start;gap:13px;background:white;border:1px solid #cedcce;border-radius:9px;padding:18px;margin-bottom:12px;cursor:pointer;font-size:13px;line-height:1.7}.track-choice:has(input:checked){border-color:#527d5b;background:#f0f5ea}.track-choice b{display:block;font-size:15px}.track-choice input{width:22px;min-width:22px;min-height:22px;accent-color:#204c40;margin:3px 0}
+.evaluation-spec{padding:20px;margin:22px 0;background:#eaf0e6;border-radius:9px}.evaluation-spec dl,.draft-review{margin:0}.evaluation-spec dl>div,.draft-review>div{display:grid;grid-template-columns:110px 1fr;gap:16px;padding:10px 0;font-size:13px}.evaluation-spec dd,.draft-review dd{margin:0;overflow-wrap:anywhere}.evaluation-spec dt,.draft-review dt{color:#607562}.draft-review>div{border-bottom:1px solid #dce5d8}.draft-review{margin-bottom:20px}
+.confirm-preview{display:flex;align-items:center;gap:12px;font-size:13px;line-height:1.6;min-height:44px}.confirm-preview input{width:20px;min-width:20px;min-height:20px;accent-color:#204c40}
+.wizard-actions{display:flex;gap:10px;flex-wrap:wrap;margin:24px 0 10px}.wizard-actions button{min-width:100px}
+.demo-run{padding:24px;margin-top:28px;border:1px solid #cedccc;border-radius:12px;background:white}.demo-run>p{font-size:13px;color:#59705c}.job-stages{display:flex;list-style:none;gap:12px;padding:0;margin:20px 0}.job-stages li{flex:1;padding:12px;background:#f0f3ec;border-radius:6px;font-size:12px;color:#6a7c6b}.job-stages li[data-done=true]{background:#e3efdb;color:#305a36}.job-stages li[aria-current]{outline:1px solid #60864c}
+#model-demo-result{border-top:1px solid #d6e1d1;padding-top:20px;margin-top:20px}#model-demo-result p{font-size:13px}#model-demo-result .actions{margin-top:16px}
+.workspace-card{border:1px solid #d4e1d3;background:white;border-radius:12px;padding:24px}.workspace-card h3{margin:8px 0}.workspace-card p{font-size:14px;color:#5b715f}.workspace-status{font-size:12px;color:#4a6d4f;font-weight:600}.workspace-card .actions button{font-size:13px}
+.rules-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin:28px 0}.rules-grid article{background:white;border:1px solid #dae4d6;border-radius:10px;padding:24px}.rules-grid h3{margin-top:15px}.rules-grid p{font-size:14px;color:#566e59;margin-bottom:0}.rule-number{font-size:11px;color:#5e8453}.rule-detail{border-top:1px solid #d3dfce}.rule-detail p{font-size:13px;max-width:860px;color:#56705d}
+.legacy-challenge{border-top:1px solid #cbd9cb;margin-top:50px;padding-top:12px}.legacy-challenge>summary{display:flex;align-items:center;gap:14px;flex-wrap:wrap}.legacy-challenge>summary::before{content:"+";font-weight:400;font-size:20px}.legacy-challenge[open]>summary::before{content:"−"}.legacy-challenge>summary span{font-size:11px;color:#687d68;font-weight:400}.legacy-challenge .columns{margin-top:25px}.legacy-challenge .card h2{font-size:22px}
+@media(max-width:900px){.challenge-hero{gap:30px}.round-card{padding:25px}.challenge-hero h1{font-size:50px}.results-layout{grid-template-columns:1.3fr 1fr}.challenge-steps{gap:12px}.challenge-steps span{font-size:12px}.metric-note{max-width:230px}.model-leaderboard th,.model-leaderboard td{padding-inline:12px}}
+@media(max-width:700px){body[data-page=challenge] .site-header{padding:12px 18px;display:block}body[data-page=challenge] .site-header .brand{display:block;font-size:20px;margin-bottom:3px}body[data-page=challenge] .site-header nav{gap:14px;flex-wrap:nowrap;font-size:12px;overflow-x:auto}body[data-page=challenge] .site-header nav a{white-space:nowrap;flex:none}body[data-page=challenge] .site-header .nav-label-full{display:none}body[data-page=challenge] .site-header .nav-label-short{display:inline}body[data-page=challenge] .account-open{padding-inline:0;margin-left:auto}.model-challenge{padding:28px 18px 42px}.challenge-hero{grid-template-columns:1fr;gap:24px;margin-bottom:25px}.challenge-hero h1{font-size:46px;margin:16px 0 20px}.challenge-hero .intro{font-size:16px}.challenge-hero .actions{margin-top:22px}.round-card h2{font-size:27px}.round-card h2 br{display:none}.round-card p{max-width:none}.round-card dl{margin-top:14px}.round-card dl>div{padding:10px 0}.round-card{padding:22px}.challenge-steps{grid-template-columns:1fr 1fr;gap:18px;padding:20px 0;margin-bottom:16px}.challenge-tabs{gap:22px;margin-bottom:26px}.challenge-tabs button{font-size:13px}.challenge-section-head{align-items:start;flex-direction:column;gap:12px}.challenge-section-head h2{font-size:25px}.result-filters{flex-wrap:wrap;gap:14px;padding:16px 0}.result-filters label{flex:1 1 120px}.metric-note{max-width:none;width:100%;margin:0}.results-layout{grid-template-columns:1fr}.comparison-card{padding:20px}.model-chart{max-height:230px}.auth-gate{flex-direction:column;align-items:start;padding:22px}.auth-gate .actions{max-width:none;width:100%}.auth-gate .actions button{width:auto;flex-grow:1}.wizard-progress{gap:10px;font-size:12px}.rules-grid{grid-template-columns:1fr;gap:14px}.rules-grid article{padding:20px}.job-stages{flex-direction:column;gap:8px}.demo-run{padding:20px}.demo-run .challenge-section-head{flex-direction:row}.legacy-challenge{margin-top:36px}.model-leaderboard{font-size:13px}.model-leaderboard th,.model-leaderboard td{padding-inline:10px}.model-leaderboard th{font-size:10px}.table-note{padding-inline:12px}.evaluation-spec dl>div,.draft-review>div{grid-template-columns:86px 1fr;gap:10px}}
+@media(max-width:370px){body[data-page=challenge] .site-header{padding-inline:14px}body[data-page=challenge] .site-header nav{gap:11px}.model-challenge{padding-inline:14px}.challenge-hero h1{font-size:42px}.model-challenge .fields{grid-template-columns:1fr}.model-leaderboard th,.model-leaderboard td{padding-inline:7px}.model-leaderboard td:first-child{width:30px}.challenge-tabs{gap:19px}.wizard-actions button{min-width:88px}}
