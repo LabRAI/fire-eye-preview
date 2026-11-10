@@ -4,11 +4,24 @@
  const revision="08133000efa914b6e77f0cc7c33308fc4e3f65f4",tiers=["low","medium","high"];
  function preferred(){try{const value=localStorage.getItem("fire-eye-scene-quality");if(tiers.includes(value))return value;}catch{}return matchMedia("(pointer:coarse)").matches||(navigator.deviceMemory||8)<=4?"low":"medium";}
  function remember(value){if(tiers.includes(value))try{localStorage.setItem("fire-eye-scene-quality",value);}catch{}}
+ // Display budgets only. The geographic sample and forecast field are shared.
+ function budget(tier,mobile=false){
+  const table=mobile?{
+   low:{trees:1400,detailTrees:70,grass:2800,vrTrees:1000,vrDetail:40,vrGrass:2200,particles:600},
+   medium:{trees:1900,detailTrees:120,grass:4000,vrTrees:1600,vrDetail:65,vrGrass:3500,particles:1000},
+   high:{trees:2200,detailTrees:160,grass:5500,vrTrees:2000,vrDetail:90,vrGrass:5000,particles:1400}
+  }:{
+   low:{trees:2000,detailTrees:100,grass:5500,vrTrees:1600,vrDetail:55,vrGrass:4000,particles:1000},
+   medium:{trees:3800,detailTrees:220,grass:8500,vrTrees:2400,vrDetail:100,vrGrass:6500,particles:2000},
+   high:{trees:5200,detailTrees:360,grass:12000,vrTrees:3000,vrDetail:150,vrGrass:9500,particles:3000}
+  };return {...(table[tier]||table.low)};
+ }
  function createLoader(manifestURL){
   const root=new URL(manifestURL,document.baseURI),base=new URL(".",root),cache=new Map();let disposed=false;
   async function bytes(url,d,signal,max=5000000){
    if(url.origin!==base.origin||!url.pathname.startsWith(base.pathname)||!Number.isInteger(d.bytes)||d.bytes<1||d.bytes>max||!/^[a-f0-9]{64}$/.test(d.sha256))throw Error("Invalid scene asset");
-   const r=await fetch(url,{credentials:"omit",signal});if(!r.ok)throw Error("Scene material unavailable");const b=await r.arrayBuffer();
+   const versioned=new URL(url);versioned.searchParams.set('v',d.sha256.slice(0,16));
+   const r=await fetch(versioned,{credentials:"omit",signal});if(!r.ok)throw Error("Scene material unavailable");const b=await r.arrayBuffer();
    if(b.byteLength!==d.bytes)throw Error("Scene material size mismatch");
    const hash=Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",b)),n=>n.toString(16).padStart(2,"0")).join("");if(hash!==d.sha256)throw Error("Scene material checksum mismatch");return b;
   }
@@ -40,5 +53,5 @@
   }
   return {load,dispose(){disposed=true;for(const meshes of cache.values())for(const a of meshes)for(const p of a.parts)p.image?.bitmap.close();cache.clear();}};
  }
- global.FireEyeSceneQuality={revision,tiers,preferred,remember,createLoader};
+ global.FireEyeSceneQuality={revision,tiers,preferred,remember,budget,createLoader};
 })(window);

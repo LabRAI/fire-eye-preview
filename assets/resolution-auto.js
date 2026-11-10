@@ -49,12 +49,7 @@
   // Stage the new tiles at zero opacity. Only one forecast representation
   // contributes color; no crossfade or default 300 ms opacity transition.
   const loaded=layerId&&map.getSource(layerId)&&map.isSourceLoaded(layerId),blend=R.status==='ready'&&selected&&loaded&&z>=11?1:0;
-  S.refinementMix=blend;S.syncHeatmapDisplay?.();
-  if(layerId&&map.getLayer(layerId)){
-   const visibility=z>=10&&visible?'visible':'none',alpha=visible?blend*(S.riskOpacity??1)*(S.geographyRiskFactor??1):0;
-   if(map.getLayoutProperty(layerId,'visibility')!==visibility)map.setLayoutProperty(layerId,'visibility',visibility);
-   if(map.getPaintProperty(layerId,'raster-opacity')!==alpha)map.setPaintProperty(layerId,'raster-opacity',alpha);
-  }
+  S.setRefinementDisplay?.(layerId?{id:layerId,source_id:R.active?.source_id,issue_time_utc:R.active?.issue_time_utc,ready:!!blend}:null);
   label(z<10?'Zoom in for automatic 50 m detail':blend?'50 m fire-risk detail · Experimental refinement':R.status==='loading'||(R.status==='ready'&&!loaded)?'Preparing 50 m detail · 5 km forecast visible':'5 km fire risk');
   const key=[blend,R.active?.source_id,R.active?.revision].join('|');if(key!==displayKey){displayKey=key;window.dispatchEvent(new Event('fire-eye:refinement-changed'));}
  }
@@ -67,7 +62,7 @@
    probeJob=job;jobs.set(job.id,job);queue.push(job);dispatch();
   });
  }
- function drop(){if(layerId){if(map.getLayer(layerId))map.removeLayer(layerId);if(map.getSource(layerId))map.removeSource(layerId);layerId=null;}for(const job of [...jobs.values()])cancel(job);R.active=null;S.refinementMix=0;S.syncHeatmapDisplay?.();}
+ function drop(){if(layerId){if(map.getLayer(layerId))map.removeLayer(layerId);if(map.getSource(layerId))map.removeSource(layerId);layerId=null;}for(const job of [...jobs.values()])cancel(job);R.active=null;S.setRefinementDisplay?.(null);}
  async function catalog(){
   if(R.manifest)return R.manifest;if(loading)return loading;
   loading=(async()=>{config=await fetch('config.json',{signal:AbortSignal.timeout(6000)}).then(r=>r.json());let value;
@@ -96,11 +91,11 @@
   const sequence=++R.sequence;R.status='loading';R.loadedTiles=0;display();
   try{const run=await resolveRun();if(sequence!==R.sequence||lastKey!==key)return;R.request=run;const id='adaptive-resolution-'+run.revision.slice(0,12)+'-'+sequence;layerId=id;
    map.addSource(id,{type:'raster',tiles:['adaptive50://'+run.revision+'/'+sequence+'/{z}/{x}/{y}'],tileSize:256,minzoom:10,maxzoom:12,bounds:[-128.4,22.4,-64,52.5],attribution:'RAI Lab · experimental 50 m refinement of the selected 5 km forecast'});
-   map.addLayer({id,type:'raster',source:id,minzoom:10,paint:{'raster-opacity':0,'raster-opacity-transition':{duration:0,delay:0},'raster-resampling':'nearest','raster-fade-duration':0}});order();const started=performance.now();await waitLoaded(id,sequence);if(sequence!==R.sequence)return;R.active=run;R.status='ready';R.events.push({source_id:run.source_id,issue_time_utc:run.issue_time_utc,target_time_utc:run.target_time_utc,method:run.native?'selected-native-field':'published-refinement',ready_ms:performance.now()-started});if(R.events.length>30)R.events.shift();display();
+   map.addLayer({id,type:'raster',source:id,minzoom:10,paint:{'raster-opacity':0,'raster-opacity-transition':{duration:0,delay:0},'raster-resampling':'nearest','raster-fade-duration':0}});order();display();const started=performance.now();await waitLoaded(id,sequence);if(sequence!==R.sequence)return;R.active=run;R.status='ready';R.events.push({source_id:run.source_id,issue_time_utc:run.issue_time_utc,target_time_utc:run.target_time_utc,method:run.native?'selected-native-field':'published-refinement',ready_ms:performance.now()-started});if(R.events.length>30)R.events.shift();display();
   }catch{if(sequence===R.sequence){drop();R.status='unavailable';R.failures++;retryAfter=Date.now()+30000;display();}}
  }
  for(let i=0;i<600;i++){S=window.fireEyePreview;P=window.fireEyePlatform;if(S?.ready&&P?.ready)break;await new Promise(r=>setTimeout(r,100));}if(!S?.ready||!P?.ready)return;map=S.map;
- maplibregl.addProtocol('adaptive50',protocol);S.onRefinementSelection=()=>{if(R.active&&(R.active.source_id!==S.active?.run.source_id||R.active.issue_time_utc!==S.manifest?.issue_time_utc)){S.refinementMix=0;if(layerId&&map.getLayer(layerId))map.setPaintProperty(layerId,'raster-opacity',0);}};R.ready=true;R.sync=sync;R.display=display;R.sampleAt=sampleAt;R.retry=()=>{retryAfter=0;R.status='overview';return sync();};
+ maplibregl.addProtocol('adaptive50',protocol);R.ready=true;R.sync=sync;R.display=display;R.sampleAt=sampleAt;R.retry=()=>{retryAfter=0;R.status='overview';return sync();};
  map.on('moveend',sync);map.on('zoom',display);map.on('sourcedata',e=>{if(e.sourceId===layerId)display();});map.on('styledata',()=>{if(layerId&&!map.getLayer(layerId)&&R.status==='ready'){R.status='overview';sync();}});
  map.on('error',e=>{if(e.sourceId===layerId&&R.status==='ready'){drop();R.status='unavailable';R.failures++;retryAfter=Date.now()+30000;display();}});
  window.addEventListener('fire-eye:forecast-changed',sync);window.addEventListener('fire-eye:basemap-changed',()=>{order();display();});

@@ -195,7 +195,7 @@
      status.textContent='Preparing mapped vegetation on this device…';
      const snapshot=await general.build();if(disposed||!requested||seq!==areaSequence||!snapshot)return;
      area=snapshot.area;areaId=area.id;areaData=snapshot.collection;treeData=empty;ensure();map.getSource(objectSource)?.setData(areaData);map.getSource(treeSource)?.setData(empty);
-     note.textContent='Mapped land cover, buildings and streets. Vegetation is schematic; fire follows the selected forecast. '+(environment?.state.terrain?'':'Terrain relief is not loaded here.');
+     note.textContent=(snapshot.metrics.context_trees||snapshot.metrics.context_grass?'Mapped surfaces + historical CONUS cover. Schematic vegetation clusters, not exact plants. ':'Mapped land cover, buildings and streets. Vegetation is schematic. ')+'Fire follows the selected forecast. '+(environment?.state.terrain?'':'Terrain relief is not loaded here.');
      live?.setArea(snapshot);metrics();scheduleMetrics();return;
     }
     const next=found?.id||null,viewKey=map.getCenter().toArray().map(v=>v.toFixed(4)).join(',');if(areaId===next&&(!found||area?.grassViewKey===viewKey))return;areaId=next;const seq=++areaSequence;areaController?.abort();area=null;areaData=null;treeData=null;map.getSource(objectSource)?.setData(empty);map.getSource(treeSource)?.setData(empty);live?.setArea(null);

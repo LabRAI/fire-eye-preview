@@ -1,11 +1,13 @@
-/* Reuse already loaded map geometry; never request or render CONUS as a scene. */
+/* Reuse local map geometry; request bounded cover context only on scene intent. */
 (function(global){
  'use strict';
- const scriptURL=new URL(document.currentScript.src),workerURL=new URL('./on-demand-scene-worker.js?v=9c18e545a6368ce0',scriptURL);
+ const scriptURL=new URL(document.currentScript.src),workerURL=new URL('./on-demand-scene-worker.js?v=62666f50291ac339',scriptURL),coverURL=new URL('./scene-cover.mjs?v=26fc19104245d70e',scriptURL);
+ let coverModule=null,coverFailureAt=0;
+ const loadCoverModule=()=>{if(coverFailureAt&&Date.now()-coverFailureAt>30000){coverModule=null;coverFailureAt=0;}return coverModule||(coverModule=import(coverURL.href).catch(error=>{coverFailureAt=Date.now();throw error;}));};
  function create(map,options={}){
   const H=global.FireEyeTallahassee;let worker=null,sequence=0,last=null,pending=null;
   const contains=()=>{const p=map.getCenter().toArray();return p.every(Number.isFinite)&&Math.abs(p[0])<=180&&Math.abs(p[1])<=85;};
-  function cancel(){sequence++;if(pending){clearTimeout(pending.timer);pending.reject(new DOMException('Scene selection changed','AbortError'));pending=null;}worker?.terminate();worker=null;}
+  function cancel(){sequence++;if(pending){clearTimeout(pending.timer);pending.controller.abort();pending.reject(new DOMException('Scene selection changed','AbortError'));pending=null;}worker?.terminate();worker=null;}
   function collect(center){
    const radius=700/111320,box=[center[0]-radius/Math.cos(center[1]*Math.PI/180),center[1]-radius,center[0]+radius/Math.cos(center[1]*Math.PI/180),center[1]+radius],features=[],seen=new Set();
    for(const sourceLayer of ['landcover','landuse','park','building','water','waterway','transportation']){
@@ -26,14 +28,27 @@
    const center=map.getCenter().toArray();if(!contains()||map.getZoom()<15.5)return null;
    if(!map.getSource('openmaptiles')||!map.isSourceLoaded('openmaptiles'))throw Error('Street geometry loading');
    const key=[...center.map(v=>v.toFixed(5)),map.getZoom().toFixed(2),map.getBearing().toFixed(1),map.getPitch().toFixed(1),matchMedia('(max-width:640px),(max-height:500px) and (pointer:coarse)').matches].join('|');
-   if(last?.key===key)return last.snapshot;if(pending?.key===key)return pending.promise;
+   if(last?.key===key&&Date.now()<last.expires)return last.snapshot;if(pending?.key===key)return pending.promise;
    const features=collect(center);cancel();const id=sequence;worker=new Worker(workerURL.href);
    let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});
-   const timer=setTimeout(()=>{if(pending?.id===id){pending=null;worker?.terminate();worker=null;reject(Error('Local scene generation timed out'));}},12000);
-   pending={id,key,promise,resolve,reject,timer};
-   const finish=(error,snapshot)=>{if(pending?.id!==id)return;clearTimeout(timer);pending=null;worker?.terminate();worker=null;if(error)reject(error);else{last={key,snapshot};resolve(snapshot);}};
+   const controller=new AbortController();
+   let timer;
+   pending={id,key,promise,resolve,reject,timer,controller};
+   const finish=(error,snapshot)=>{if(pending?.id!==id)return;clearTimeout(timer);controller.abort();pending=null;worker?.terminate();worker=null;if(error)reject(error);else{const retry=snapshot.area?.vegetation_context_status==='unavailable'||snapshot.area?.vegetation_context_partial;last={key,snapshot,expires:retry?Date.now()+30000:Infinity};resolve(snapshot);}};
    worker.onmessage=e=>{if(e.data.id===id)finish(e.data.error?Error(e.data.error):null,e.data.snapshot);};worker.onerror=()=>finish(Error('Local scene generation unavailable'));
-   worker.postMessage({id,center,features,mobile:matchMedia('(max-width:640px),(max-height:500px) and (pointer:coarse)').matches});return promise;
+   // Import, index, boundary and local tiles share a single fixed preparation
+   // deadline. Slow or absent context must still allow mapped OSM scenes.
+   let coverTimer;
+   const fallback=new Promise(resolve=>{coverTimer=setTimeout(()=>{controller.abort();resolve({status:'unavailable',cells:[]});},4500);controller.signal.addEventListener('abort',()=>{clearTimeout(coverTimer);resolve({status:'unavailable',cells:[]});},{once:true});});
+   const context=loadCoverModule().then(module=>{if(controller.signal.aborted)return {status:'unavailable',cells:[]};return module.loadSceneCover(center,{signal:controller.signal});}).catch(()=>({status:'unavailable',cells:[]}));
+   Promise.race([context,fallback]).then(coverContext=>{
+    clearTimeout(coverTimer);if(pending?.id!==id)return;
+    // Preparation has its own 4.5 s bound; preserve the worker's complete
+    // 12 s generation allowance even on a cold or slow source connection.
+    timer=setTimeout(()=>{if(pending?.id===id)finish(Error('Local scene generation timed out'));},12000);pending.timer=timer;
+    worker.postMessage({id,center,features,coverContext,mobile:matchMedia('(max-width:640px),(max-height:500px) and (pointer:coarse)').matches});
+   }).catch(()=>finish(Error('Local scene generation unavailable')));
+   return promise;
   }
   return {contains,build,invalidate(){last=null;},cancel,dispose:cancel};
  }

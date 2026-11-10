@@ -44,16 +44,29 @@
  // Keep a same-window image available while detail tiles change with the view.
  state.riskOpacity=1;state.riskVisible=true;
  function syncHeatmapDisplay(){
-  const active=state.active;if(!active||!map.getLayer(active.id))return;state.onRefinementSelection?.();
-  const a=state.riskOpacity*(state.geographyRiskFactor??1)*(1-(state.refinementMix??0)),visible=state.riskVisible,fallback=state.overviewFallbackId;
+  const active=state.active;if(!active||!map.getLayer(active.id))return;
+  const fine=state.refinementDisplay,selected=!!(fine?.ready&&fine.source_id===active.run.source_id&&fine.issue_time_utc===state.manifest?.issue_time_utc&&map.getLayer(fine.id));
+  state.refinementMix=selected?1:0;
+  const alpha=state.riskOpacity*(state.geographyRiskFactor??1),visible=state.riskVisible!==false,fallback=state.overviewFallbackId;
   const detail=active.kind==='vector'&&(!fallback||(!state.detailFailures.has(active.id)&&!state.viewInMotion&&!map.isMoving()&&map.isSourceLoaded(active.id)));
-  const visibility=(id,show)=>{if(!id||!map.getLayer(id))return;const next=show?'visible':'none';if((map.getLayoutProperty(id,'visibility')||'visible')!==next)map.setLayoutProperty(id,'visibility',next);};
-  const paintKey=active.id+'|'+a+'|'+detail;
-  if(state.paintedActive!==paintKey){map.setPaintProperty(active.id,active.kind==='overview'?'raster-opacity':'fill-opacity',active.kind==='overview'?a:detail?['*',a,opacity]:0);state.paintedActive=paintKey;}
-  if(fallback&&map.getLayer(fallback)&&state.paintedFallback!==fallback+'|'+a){map.setPaintProperty(fallback,'raster-opacity',a);state.paintedFallback=fallback+'|'+a;}
-  // Stage detail at zero opacity; its source still loads behind the image.
-  const nativeVisible=visible&&(state.refinementMix??0)<1;visibility(active.id,nativeVisible);visibility(fallback,nativeVisible&&!detail&&active.kind==='vector');
+  const nativeId=active.kind==='vector'&&!detail&&fallback?fallback:active.id;
+  const winner=visible?(selected?fine.id:nativeId):null;
+  let layers;try{layers=map.getStyle()?.layers||[];}catch{return;}
+  // One authority owns all forecast paint. Pending layers can fetch at zero
+  // opacity; cached, failed and superseded representations cannot contribute.
+  const staging=new Set([!selected&&active.kind==='vector'?active.id:null,state.pendingId,state.pendingId&&!state.pendingId.endsWith('-overview')?state.pendingId+'-overview':null,fine&&!fine.ready?fine.id:null]);
+  const forecastLayers=layers.filter(l=>/^(forecast-|adaptive-resolution-|resolution-detail-)/.test(l.id));
+  const apply=(layer,paint,show)=>{
+   const property=layer.type==='fill'?'fill-opacity':'raster-opacity';
+   if(JSON.stringify(map.getPaintProperty(layer.id,property))!==JSON.stringify(paint))map.setPaintProperty(layer.id,property,paint);
+   const visibility=show?'visible':'none';if((map.getLayoutProperty(layer.id,'visibility')||'visible')!==visibility)map.setLayoutProperty(layer.id,'visibility',visibility);
+  };
+  // Retire the previous representation before enabling its replacement.
+  for(const layer of forecastLayers)if(layer.id!==winner)apply(layer,0,staging.has(layer.id));
+  const chosen=forecastLayers.find(l=>l.id===winner);if(chosen)apply(chosen,chosen.type==='fill'?['*',alpha,opacity]:alpha,true);
+  state.forecastDisplay={layer:winner,resolution:selected?50:5000,source_id:active.run.source_id,issue_time_utc:state.manifest?.issue_time_utc};
  }
+ state.setRefinementDisplay=value=>{state.refinementDisplay=value;syncHeatmapDisplay();};
  // Keep forecast colors below actual permanent-water geometry, with roads and
  // buildings above it. Reuse the basemap source: no extra geography download.
  let coastalWater=null,orderingForecast=false;
@@ -141,7 +154,6 @@
    const [,fallback]=await Promise.all([ensureLoaded(id),kind==='vector'?prepareFallback(m,run):Promise.resolve(null)]);const sourceMs=performance.now()-started;
    if(seq!==state.sequence){if(id!==state.active?.id&&id!==state.pendingId)drop(id);if(fallback&&![state.active?.id,state.overviewFallbackId,state.pendingId,state.pendingId+'-overview'].includes(fallback))drop(fallback);return false;}
    if(state.active&&state.active.id!==id&&map.getLayer(state.active.id))map.setLayoutProperty(state.active.id,'visibility','none');
-   map.setPaintProperty(id,kind==='overview'?'raster-opacity':'fill-opacity',kind==='overview'?1:opacity);
    if(state.overviewFallbackId&&state.overviewFallbackId!==fallback&&state.overviewFallbackId!==id&&map.getLayer(state.overviewFallbackId))map.setLayoutProperty(state.overviewFallbackId,'visibility','none');
    state.overviewFallbackId=fallback;state.paintedFallback=null;if(fallback){map.moveLayer(fallback,id);state.lru=state.lru.filter(x=>x!==fallback);state.lru.push(fallback);}
    state.active={id,run,kind};state.pendingId=null;state.manifest=m;if(!m.archive)state.latestManifest=m;state.lru=state.lru.filter(x=>x!==id);state.lru.push(id);syncHeatmapDisplay();prune();orderForecastLayers();

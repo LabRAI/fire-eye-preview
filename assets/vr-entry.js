@@ -1,6 +1,6 @@
 /* Optional immersive rendering. Explicit, persistent entry; large renderer stays lazy. */
 (async()=>{
- const moduleURL=new URL('./vr-viewer.js?v=95351b9f114756ff',document.currentScript.src),terrainURL=new URL('./vr-terrain.mjs?v=5f5ed23adb84968f',document.currentScript.src);let moduleAttempt=0,terrainModule=null,terrainController=null;
+ const moduleURL=new URL('./vr-viewer.js?v=37ad6f5cfc3160e8',document.currentScript.src),terrainURL=new URL('./vr-terrain.mjs?v=5f5ed23adb84968f',document.currentScript.src);let moduleAttempt=0,terrainModule=null,terrainController=null;
  for(let i=0;i<600&&!window.fireEyeGeography;i++)await new Promise(r=>setTimeout(r,100));
  const G=window.fireEyeGeography,S=window.fireEyePreview;if(!G||!S)return;
  const element=(tag,text,cls)=>{const e=document.createElement(tag);if(text)e.textContent=text;if(cls)e.className=cls;return e;};
@@ -18,7 +18,7 @@
  const chooser=element('section',null,'vr-chooser'),intro=element('p','Choose the current map center or your selected point. Only this local area is prepared on your device.'),current=element('button','Use map center','vr-location'),currentHint=element('p',null,'vr-location-hint'),examples=element('div',null,'vr-locations');
  chooser.id='vr-chooser';chooser.hidden=true;current.id='vr-use-center';current.type='button';examples.id='vr-locations';chooser.append(intro,current,currentHint,examples);
  const note=element('p','Trigger: point and teleport. Thumbstick: turn in 30° steps. Home, Pause fire and Exit VR are available inside the headset. The scene uses the selected forecast snapshot; fire effects are illustrative.','vr-note');
- const qualityLabel=element('label','Quality','scene-quality'),qualitySelect=element('select');qualitySelect.id='vr-quality';qualitySelect.setAttribute('aria-label','VR quality');
+ const qualityLabel=element('label','Quality','scene-quality'),qualitySelect=element('select');qualitySelect.id='vr-quality';qualitySelect.setAttribute('aria-label','VR quality');qualitySelect.title='Controls vegetation density, mesh detail and rendering resolution. Forecast values stay the same.';
  for(const value of window.FireEyeSceneQuality.tiers){const item=element('option',value[0].toUpperCase()+value.slice(1));item.value=value;qualitySelect.append(item);}qualitySelect.value=G.simulation.state.assetQuality;qualityLabel.append(qualitySelect);
  actions.append(qualityLabel,enter,retry,places);dialog.append(head,context,chooser,viewport,status,actions,note);document.body.append(dialog);
  let savedView=null,viewer=null,moduleTask=null,sequence=0,restorePause=null,restoreIntent=null,supported=false,busy=false,areaTask=null,opener=null;

@@ -28,13 +28,14 @@
  // clumps farther away; density is bounded independently of regional extent.
  function grassGrid(center,eligible,mobile=false){
   const q=project(center),scale=Math.cos(center[1]*Math.PI/180),band=Math.floor(center[1]/5)*5+2.5;
-  const step=2/Math.max(.09,Math.cos(band*Math.PI/180)),radius=mobile?95:150,nearRadius=mobile?48:78,limit=mobile?4000:10000,candidates=[];
+  const step=2/Math.max(.09,Math.cos(band*Math.PI/180)),radius=mobile?275:340,nearRadius=mobile?48:78,limit=mobile?5500:12000,candidates=[];
   for(let x=Math.floor((q[0]-radius/scale)/step);x<=Math.ceil((q[0]+radius/scale)/step);x++)for(let y=Math.floor((q[1]-radius/scale)/step);y<=Math.ceil((q[1]+radius/scale)/step);y++){
    const id='local-grass/'+band+'/'+x+'/'+y,h=hash(id),xy=[(x+.2+(h%1000)/1667)*step,(y+.2+((h>>>12)%1000)/1667)*step],d=Math.hypot(xy[0]-q[0],xy[1]-q[1])*scale;
-   const t=Math.max(0,Math.min(1,(d-nearRadius)/(radius-nearRadius))),density=.14+.86*(1-t)*(1-t);
+   const t=Math.max(0,Math.min(1,(d-nearRadius)/(radius-nearRadius))),density=.06+.94*(1-t)*(1-t)*(1-t);
    if(d>radius||h/4294967296>density)continue;candidates.push({id,h,d,p:unproject(xy)});
   }
-  candidates.sort((a,b)=>a.d-b.d);const points=[];
+  const priority=v=>v.d<45?v.d:45+hash(v.id+'/density-budget')/4294967296*350+v.d*.15;
+  candidates.sort((a,b)=>priority(a)-priority(b));const points=[];
   for(const v of candidates){if(points.length>=limit)break;if(!eligible(v.p))continue;
    points.push({type:'Feature',geometry:{type:'Point',coordinates:v.p},properties:{kind:'grass',source_id:v.id,synthetic:true,display_height_m:.28+(v.h%23)/100,display_crown_m:1.8,source:'Mapped vegetated ground',placement:'Schematic ground cover; not surveyed plants'}});
   }return points;
@@ -91,7 +92,6 @@
    for(let x=Math.floor((center[0]-radius)/STEP);x<=Math.ceil((center[0]+radius)/STEP);x++)for(let y=Math.floor((center[1]-radius)/STEP);y<=Math.ceil((center[1]+radius)/STEP);y++){
     const id='tallahassee-cover/'+x+'/'+y,seed=hash(id),p=unproject([(x+.2+(seed%1000)/1667)*STEP,(y+.2+((seed>>>12)%1000)/1667)*STEP]);
     const cover=sample(manifest,data,p);if(!cover||cover===6||cover===7||cover===8)continue;
-    const screen=map.project(p),canvas=map.getCanvas();if(screen.x< -70||screen.y< -100||screen.x>canvas.clientWidth+70||screen.y>canvas.clientHeight+100)continue;
     if(mask.polygonsAt(p).some(f=>near(p,f.b)&&contains(f.geometry,p))||mask.roadsAt(p).some(f=>near(p,f.b,.0004)&&roadDistance(f.geometry,p)<f.gap))continue;
     const greens=mask.greensAt(p).filter(f=>near(p,f.b)&&contains(f.geometry,p));
     const has=names=>greens.some(f=>names.includes(f.properties.class));
@@ -103,7 +103,7 @@
     candidates.push({id,p,forest,shrub,cover,plant,grass:grassy||forest&&seed%5===0,seed,
      d:(p[0]-c[0])**2*Math.cos(c[1]*Math.PI/180)**2+(p[1]-c[1])**2});
    }
-   // Stable spatial sampling spans the visible view; a nearest-only cap made
+   // Stable spatial sampling spans the full geographic footprint, including behind the camera; a nearest-only cap made
    // the far half of a forest look bare on phones.
    const features=mask.features,limit=mobile?2200:5200;let trees=0,anchors=0,grass=0;
    candidates.sort((a,b)=>hash(a.id+'budget')-hash(b.id+'budget'));

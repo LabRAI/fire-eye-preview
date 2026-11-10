@@ -2,6 +2,7 @@ Source meshes and texture materials: llll0630/wildfire-simulation.
 Pinned revision: 08133000efa914b6e77f0cc7c33308fc4e3f65f4
 Low, medium and high source assets retain geometry, vertex colors, alpha-mask materials and texture coordinates.
 Browser packing changes the buffer layout and translates each mesh base to ground level.
+Low uses the lighter medium-source grass mesh unchanged, with a smaller instance budget.
 Distant canopy is a Fire-eye procedural display symbol. Plants are schematic; positions use the mapped surface exclusions.
 No upstream license file accompanied this revision; no new license is inferred.
 Fire illustration uses the published risk field and does not simulate physical fire spread.

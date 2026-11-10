@@ -29646,7 +29646,12 @@ function capture({ center, height, features, meshSnapshot, forecast, terrainRead
   }
   if (!spawn) throw Error("No mapped ground suitable for a VR starting position. Choose a nearby outdoor spot.");
   if (meshSnapshot?.emitters.length && meshSnapshot.forecast?.source_id !== forecast.source_id) throw Error("The selected risk field is still loading.");
-  const groups = [];
+  const groups = [], limits = meshSnapshot?.budget || { vrTrees: 2400, vrDetail: mobile ? 40 : 80, vrGrass: mobile ? 3e3 : 6500 };
+  const plantPriority = (row) => {
+    const d = Math.hypot(row[0] - spawn[0], row[2] - spawn[2]);
+    const seed = (Math.imul(Math.round(row[0] * 10), 73856093) ^ Math.imul(Math.round(row[2] * 10), 19349663)) >>> 0;
+    return d < 45 ? d : 45 + seed / 4294967296 * 350 + d * 0.15;
+  };
   if (meshSnapshot) {
     const shift = [(meshSnapshot.origin[0] - frame.mercator[0]) * frame.metresPerUnit, (meshSnapshot.origin[1] - frame.mercator[1]) * frame.metresPerUnit], ratio = meshSnapshot.mercatorUnitsPerMetre * frame.metresPerUnit;
     const canopy = meshSnapshot.groups.find((g) => g.asset.role === "tree-canopy")?.asset, canopyRows = [], detailRows = [];
@@ -29666,8 +29671,8 @@ function capture({ center, height, features, meshSnapshot, forecast, terrainRead
         for (const row of rows) detailRows.push({ row, asset: g.asset });
         continue;
       }
-      const limit = mobile ? 3e3 : 6500;
-      if (rows.length) groups.push({ asset: g.asset, instances: new Float32Array(rows.slice(0, limit).flat()) });
+      rows.sort((a, b) => plantPriority(a) - plantPriority(b));
+      if (rows.length) groups.push({ asset: g.asset, instances: new Float32Array(rows.slice(0, limits.vrGrass).flat()) });
     }
     detailRows.sort((a, b) => (a.row[0] - spawn[0]) ** 2 + (a.row[2] - spawn[2]) ** 2 - ((b.row[0] - spawn[0]) ** 2 + (b.row[2] - spawn[2]) ** 2));
     const detailed = /* @__PURE__ */ new Map(), used = /* @__PURE__ */ new Map();
@@ -29675,7 +29680,7 @@ function capture({ center, height, features, meshSnapshot, forecast, terrainRead
     for (let i = 0; i < detailRows.length; i++) {
       const { row, asset } = detailRows[i];
       const type = String(asset.id || asset.role).replace(/_far$/, "");
-      if (detailCount < (mobile ? 40 : 80) && (used.get(type) || 0) < 40) {
+      if (detailCount < limits.vrDetail) {
         detailCount++;
         used.set(type, (used.get(type) || 0) + 1);
         if (!detailed.has(asset)) detailed.set(asset, []);
@@ -29684,8 +29689,8 @@ function capture({ center, height, features, meshSnapshot, forecast, terrainRead
     }
     for (const [asset, rows] of detailed) groups.push({ asset, instances: new Float32Array(rows) });
     if (canopyRows.length && canopy) {
-      canopyRows.sort((a, b) => (a[0] - spawn[0]) ** 2 + (a[2] - spawn[2]) ** 2 - ((b[0] - spawn[0]) ** 2 + (b[2] - spawn[2]) ** 2));
-      groups.push({ asset: canopy, instances: new Float32Array(canopyRows.slice(0, 2400).flat()) });
+      canopyRows.sort((a, b) => plantPriority(a) - plantPriority(b));
+      groups.push({ asset: canopy, instances: new Float32Array(canopyRows.slice(0, Math.max(0, limits.vrTrees - detailCount)).flat()) });
     }
   }
   const emitters = (meshSnapshot?.emitters || []).map((e) => {
