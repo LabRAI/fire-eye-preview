@@ -54,16 +54,54 @@
   // Stage detail at zero opacity; its source still loads behind the image.
   const nativeVisible=visible&&(state.refinementMix??0)<1;visibility(active.id,nativeVisible);visibility(fallback,nativeVisible&&!detail&&active.kind==='vector');
  }
+ // Keep forecast colors below actual permanent-water geometry, with roads and
+ // buildings above it. Reuse the basemap source: no extra geography download.
+ let coastalWater=null,orderingForecast=false;
+ function orderForecastLayers(){
+  if(orderingForecast)return;let layers;try{layers=map.getStyle()?.layers;}catch{state.coastalMask={ready:false};return;}if(!layers)return;
+  const basemapIds=window.fireEyePlatform?.basemapLayerIds||[];
+  const water=layers.find(l=>basemapIds.includes(l.id)&&l.type==='fill'&&l['source-layer']==='water');
+  if(water)coastalWater=water;
+  if(!coastalWater||!map.getSource(coastalWater.source))return;
+  orderingForecast=true;
+  try{
+   const mask='risk-water-mask',foreground=layers.find(l=>/^(platform-|selection-|vector-context|hurricane-|mapped-scene-)/.test(l.id)||l.type==='symbol')?.id;
+   const color=water?coastalWater.paint?.['fill-color']||'#AECFE2':map.getPaintProperty('ocean','background-color')||'#dce9e9';
+   if(!map.getLayer(mask))map.addLayer({id:mask,type:'fill',source:coastalWater.source,'source-layer':coastalWater['source-layer'],...(coastalWater.filter?{filter:coastalWater.filter}:{}),paint:{'fill-color':color,'fill-opacity':1,'fill-antialias':false}},foreground);
+   else if(JSON.stringify(map.getPaintProperty(mask,'fill-color'))!==JSON.stringify(color))map.setPaintProperty(mask,'fill-color',color);
+   const position=id=>map.getStyle().layers.findIndex(l=>l.id===id);
+   for(const layer of layers.filter(l=>/^(forecast-|adaptive-resolution-|resolution-detail-)/.test(l.id)))if(position(layer.id)>position(mask))map.moveLayer(layer.id,mask);
+   // Water must not cover bridge decks, roads, buildings, or map annotations.
+   for(const layer of layers.filter(l=>basemapIds.includes(l.id)&&(l.type==='line'||l.type==='fill'&&['building','transportation','aeroway'].includes(l['source-layer']))))if(position(layer.id)<position(mask))map.moveLayer(layer.id,foreground);
+   state.coastalMask={ready:true,layer:mask,source:coastalWater.source};
+  }catch{state.coastalMask={ready:false};}finally{orderingForecast=false;}
+ }
+ state.orderForecastLayers=orderForecastLayers;
+ map.on('idle',orderForecastLayers);
+ map.on('styledata',()=>{if(!map.getLayer('risk-water-mask')||state.coastalMask?.ready===false)orderForecastLayers();});
+ window.addEventListener('fire-eye:basemap-changed',orderForecastLayers);
  state.syncHeatmapDisplay=syncHeatmapDisplay;
  state.setRiskDisplay=(alpha,visible)=>{state.riskOpacity=alpha;state.riskVisible=visible;syncHeatmapDisplay();};
  const syncDuringMove=()=>{if(!document.body.classList.contains('resolution-lab'))syncHeatmapDisplay();};
  map.on('movestart',()=>{state.viewInMotion=true;syncDuringMove();});map.on('move',syncDuringMove);map.on('moveend',()=>{state.viewInMotion=false;syncDuringMove();});map.on('idle',syncDuringMove);
  map.on('sourcedata',e=>{if(e.sourceId===state.active?.id||e.sourceId===state.overviewFallbackId)syncDuringMove();});
+ // Reused sources may still hold the previous window's nonzero paint. Stage
+ // them invisibly before loading so cached tiles cannot flash over the selection.
+ function stageForecastLayer(id){
+  const layer=map.getLayer(id);if(!layer)return;
+  const owned=id===state.active?.id||id===state.overviewFallbackId;
+  if(!owned||(state.refinementMix??0)>=1||map.getLayoutProperty(id,'visibility')==='none'){
+   map.setPaintProperty(id,layer.type==='raster'?'raster-opacity':'fill-opacity',0);
+   if(id===state.active?.id)state.paintedActive=null;
+   if(id===state.overviewFallbackId)state.paintedFallback=null;
+  }
+  map.setLayoutProperty(id,'visibility','visible');
+ }
  async function prepareFallback(m,run){
   if(!run.overview||document.body.classList.contains('resolution-lab'))return null;
   const id=sourceId(m,run,'overview');
   if(!map.getSource(id)){map.addSource(id,{type:'image',url:urlFor(m,run.overview.image.path),coordinates:run.overview.coordinates});map.addLayer({id,type:'raster',source:id,paint:{'raster-opacity':0,'raster-opacity-transition':{duration:0,delay:0},'raster-fade-duration':0,'raster-resampling':'nearest'}},state.active?.id);}
-  else{if(id!==state.active?.id&&id!==state.overviewFallbackId)map.setPaintProperty(id,'raster-opacity',0);map.setLayoutProperty(id,'visibility','visible');}
+  else stageForecastLayer(id);
   await ensureLoaded(id);return id;
  }
  function drop(id){if(map.getLayer(id))map.removeLayer(id);if(map.getSource(id))map.removeSource(id);state.lru=state.lru.filter(x=>x!==id);state.detailFailures.delete(id);}
@@ -99,14 +137,14 @@
    if(!map.getSource(id)){
     if(kind==='overview'){map.addSource(id,{type:'image',url:urlFor(m,run.overview.image.path),coordinates:run.overview.coordinates});map.addLayer({id,type:'raster',source:id,paint:{'raster-opacity':0,'raster-opacity-transition':{duration:0,delay:0},'raster-fade-duration':0,'raster-resampling':'nearest'}},state.active?.id);}
     else{map.addSource(id,{type:'vector',url:'pmtiles://'+urlFor(m,run.path),minzoom:run.minzoom,maxzoom:run.maxzoom});map.addLayer({id,type:'fill',source:id,'source-layer':'day1',layout:{'fill-sort-key':['to-number',['get','value'],0]},paint:{'fill-antialias':false,'fill-color':color,'fill-opacity':0,'fill-opacity-transition':{duration:0,delay:0}}},state.active?.id);}
-   }else map.setLayoutProperty(id,'visibility','visible');
+   }else stageForecastLayer(id);
    const [,fallback]=await Promise.all([ensureLoaded(id),kind==='vector'?prepareFallback(m,run):Promise.resolve(null)]);const sourceMs=performance.now()-started;
    if(seq!==state.sequence){if(id!==state.active?.id&&id!==state.pendingId)drop(id);if(fallback&&![state.active?.id,state.overviewFallbackId,state.pendingId,state.pendingId+'-overview'].includes(fallback))drop(fallback);return false;}
    if(state.active&&state.active.id!==id&&map.getLayer(state.active.id))map.setLayoutProperty(state.active.id,'visibility','none');
    map.setPaintProperty(id,kind==='overview'?'raster-opacity':'fill-opacity',kind==='overview'?1:opacity);
    if(state.overviewFallbackId&&state.overviewFallbackId!==fallback&&state.overviewFallbackId!==id&&map.getLayer(state.overviewFallbackId))map.setLayoutProperty(state.overviewFallbackId,'visibility','none');
    state.overviewFallbackId=fallback;state.paintedFallback=null;if(fallback){map.moveLayer(fallback,id);state.lru=state.lru.filter(x=>x!==fallback);state.lru.push(fallback);}
-   state.active={id,run,kind};state.pendingId=null;state.manifest=m;if(!m.archive)state.latestManifest=m;state.lru=state.lru.filter(x=>x!==id);state.lru.push(id);syncHeatmapDisplay();prune();
+   state.active={id,run,kind};state.pendingId=null;state.manifest=m;if(!m.archive)state.latestManifest=m;state.lru=state.lru.filter(x=>x!==id);state.lru.push(id);syncHeatmapDisplay();prune();orderForecastLayers();
    $('heading').textContent='Forecast +'+lead+'h';$('issue').textContent='Issued '+pretty(m.issue_time_utc);$('valid').textContent='12-hour window ending '+pretty(run.target_time_utc);
    document.querySelectorAll('#horizons button').forEach(b=>{const available=m.runs.some(r=>r.lead_hours===Number(b.dataset.lead));b.disabled=!available;b.title=available?'':'Not archived for this issue';b.setAttribute('aria-pressed',String(Number(b.dataset.lead)===lead));b.dataset.pending='false';});
    state.delivery=new URL(m.asset_base,location.href).hostname==='huggingface.co'?'huggingface':'bundled';status('Published forecast');state.ready=true;

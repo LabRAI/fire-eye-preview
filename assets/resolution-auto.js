@@ -13,7 +13,7 @@
  }
  function localIndex(){const a=R.manifest.assets.index,p=config.resolution_assets?.[a.sha256];return p?new URL(p,location.href).href:null;}
  function spawn(){
-  const slot={worker:new Worker('assets/resolution-worker.js?v=b65552adcf125ba5'),job:null};slots.push(slot);
+  const slot={worker:new Worker('assets/resolution-worker.js?v=a28ead289dd19f4d'),job:null};slots.push(slot);
   slot.worker.onmessage=e=>{const job=slot.job;if(!job||e.data.id!==job.id)return;clearTimeout(job.timer);slot.job=null;jobs.delete(job.id);
    if(!job.cancelled){if(e.data.status==='ready'){
      if(job.points){job.callback(null,e.data.values);dispatch();return;}
@@ -41,8 +41,8 @@
  }
 
  const digest=async text=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text))),x=>x.toString(16).padStart(2,'0')).join('');
- function label(text){const node=$('resolution-auto-status');if(node)node.textContent=text;const panel=document.querySelector('.mapped-scene-panel');if(panel){let note=panel.querySelector('.mapped-scene-risk');if(!note){note=document.createElement('p');note.className='mapped-scene-risk';const anchor=panel.querySelector('.mapped-scene-note');(anchor?.parentElement||panel).insertBefore(note,anchor||null);}note.textContent=text;note.title='Experimental terrain/fuel-conditioned redistribution. The regional model and charts remain on the native 5 km grid; this is not a native 50 m forecast.';}}
- function order(){if(!layerId||!map.getLayer(layerId))return;const layers=map.getStyle().layers,anchor=map.getLayer('mapped-scene-buildings')?'mapped-scene-buildings':layers.find(l=>/^(platform-|selection-|vector-context|hurricane-track)/.test(l.id)||l.type==='symbol')?.id;if(anchor)map.moveLayer(layerId,anchor);}
+ function label(text){const node=$('resolution-auto-status');if(node)node.textContent=text;const panel=document.querySelector('.mapped-scene-panel');if(panel){let note=panel.querySelector('.mapped-scene-risk');if(!note){note=document.createElement('p');note.className='mapped-scene-risk';const anchor=panel.querySelector('.mapped-scene-note');(anchor?.parentElement||panel).insertBefore(note,anchor||null);}note.textContent=text;note.title='Experimental terrain/fuel-conditioned redistribution. The regional model and charts remain on the native 5 km grid; this is not a native 50 m forecast. Areas without fine inputs remain unshaded; native regional values are available in Details.';}}
+ function order(){if(!layerId||!map.getLayer(layerId))return;let layers;try{layers=map.getStyle().layers;}catch{return;}const anchor=map.getLayer('mapped-scene-buildings')?'mapped-scene-buildings':layers.find(l=>/^(platform-|selection-|vector-context|hurricane-track)/.test(l.id)||l.type==='symbol')?.id;if(anchor)map.moveLayer(layerId,anchor);S.orderForecastLayers?.();}
  let displayKey='',probeJob=null;
  function display(){
   if(!S?.active)return;const selected=R.active?.source_id===S.active.run.source_id&&R.active?.issue_time_utc===S.manifest.issue_time_utc,visible=S.riskVisible!==false,z=map.getZoom();

@@ -21,7 +21,7 @@
  }
  function localIndex(){const a=R.manifest.assets.index,p=config.resolution_assets?.[a.sha256];return p?new URL(p,location.href).href:null;}
  function spawn(){
-  const slot={worker:new Worker('assets/resolution-worker.js?v=b65552adcf125ba5'),job:null};slots.push(slot);
+  const slot={worker:new Worker('assets/resolution-worker.js?v=a28ead289dd19f4d'),job:null};slots.push(slot);
   slot.worker.onmessage=e=>{const job=slot.job;if(!job||e.data.id!==job.id)return;clearTimeout(job.timer);slot.job=null;jobs.delete(job.id);
    if(!job.cancelled){if(e.data.status==='ready'){
      const data=e.data.data;while(tileCache.size&&(tileCache.size>=(mobile?24:72)||cacheBytes+data.length>(mobile?2:6)*1024*1024)){const first=tileCache.keys().next().value;cacheBytes-=tileCache.get(first).length;tileCache.delete(first);}tileCache.set(job.key,data);cacheBytes+=data.length;
@@ -48,11 +48,11 @@
  function visibility(id,value){if(map.getLayer(id)&&map.getLayoutProperty(id,'visibility')!==value)map.setLayoutProperty(id,'visibility',value);}
  function display(){
   const enabled=R.active&&R.active.source_id===S.active?.run.source_id&&R.status==='ready';
-  if(layerId&&map.getLayer(layerId)){visibility(layerId,enabled?'visible':R.status==='loading'?'visible':'none');map.setPaintProperty(layerId,'raster-opacity',enabled?Number($('risk-opacity').value)/100:R.status==='loading'?.001:0);}
+  if(layerId&&map.getLayer(layerId)){visibility(layerId,enabled?'visible':R.status==='loading'?'visible':'none');map.setPaintProperty(layerId,'raster-opacity',enabled?Number($('risk-opacity').value)/100:0);}
   if(enabled)visibility(S.active.id,'none');else if(S.active)visibility(S.active.id,'visible');
   $('resolution-detail-state').textContent=enabled?(map.getZoom()>=10?'50 m spatial detail':'CONUS overview · zoom in for 50 m detail'):R.status==='loading'?'Loading experimental map…':'Native 5 km map · experimental detail unavailable';
  }
- function order(){if(!layerId||!map.getLayer(layerId))return;const layers=map.getStyle().layers,anchor=layers.find(l=>/^(platform-|selection-|vector-context|hurricane-track)/.test(l.id)||l.type==='symbol');if(anchor&&layers.findIndex(l=>l.id===layerId)!==layers.indexOf(anchor)-1)map.moveLayer(layerId,anchor.id);}
+ function order(){if(!layerId||!map.getLayer(layerId))return;let layers;try{layers=map.getStyle().layers;}catch{return;}const anchor=layers.find(l=>/^(platform-|selection-|vector-context|hurricane-track)/.test(l.id)||l.type==='symbol');if(anchor&&layers.findIndex(l=>l.id===layerId)!==layers.indexOf(anchor)-1)map.moveLayer(layerId,anchor.id);S.orderForecastLayers?.();}
  function drop(){if(layerId){if(map.getLayer(layerId))map.removeLayer(layerId);if(map.getSource(layerId))map.removeSource(layerId);layerId=null;}}
  function labels(run){
   $('resolution-target').querySelector('option[data-native-fallback]')?.remove();$('resolution-range').disabled=false;
@@ -67,7 +67,7 @@
   const run=R.manifest.runs.find(r=>r.source_id===source);if(!run)return false;const sequence=++R.sequence;R.requested=run;R.selected=run;R.loadedTiles=0;R.status='loading';$('resolution-retry').hidden=true;drop();display();
   try{
    switchingMode=true;await P.setMode('forecast');switchingMode=false;S.historyPinned=true;const ref=archives.get(source);if(!await S.showManifest(ref.manifest,run.lead_hours))throw Error();if(sequence!==R.sequence)return false;
-   labels(run);const id='resolution-detail-'+run.revision.slice(0,16)+'-'+sequence;layerId=id;map.addSource(id,{type:'raster',tiles:['detail50://'+run.revision+'/'+sequence+'/{z}/{x}/{y}'],tileSize:256,minzoom:2,maxzoom:12,bounds:[-128.4,22.4,-64,52.5],attribution:'RAI Lab · experimental 50 m spatial refinement · native 5 km source'});map.addLayer({id,type:'raster',source:id,paint:{'raster-opacity':.001,'raster-resampling':'nearest','raster-fade-duration':0}});order();const started=performance.now();await readyLayer(id,sequence);if(sequence!==R.sequence)return false;
+   labels(run);const id='resolution-detail-'+run.revision.slice(0,16)+'-'+sequence;layerId=id;map.addSource(id,{type:'raster',tiles:['detail50://'+run.revision+'/'+sequence+'/{z}/{x}/{y}'],tileSize:256,minzoom:2,maxzoom:12,bounds:[-128.4,22.4,-64,52.5],attribution:'RAI Lab · experimental 50 m spatial refinement · native 5 km source'});map.addLayer({id,type:'raster',source:id,paint:{'raster-opacity':0,'raster-opacity-transition':{duration:0,delay:0},'raster-resampling':'nearest','raster-fade-duration':0}});order();const started=performance.now();await readyLayer(id,sequence);if(sequence!==R.sequence)return false;
    R.active=run;R.status='ready';if(R.fallbackNotice){$('resolution-context').hidden=true;R.fallbackNotice=false;}display();$('status').textContent='Experimental map';R.events.push({source_id:source,ready_ms:performance.now()-started,zoom:map.getZoom()});if(R.events.length>60)R.events.shift();return true;
   }catch{switchingMode=false;if(sequence===R.sequence){
    R.status='unavailable';R.failures++;drop();

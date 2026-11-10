@@ -38,6 +38,7 @@ async function getIndex(){
  if(indexHash!==a.sha256)chunks.clear();index=value;indexHash=a.sha256;return index;
 }
 function keyFor(row,col){return 'r'+String(Math.floor(row/5)*5).padStart(4,'0')+'c'+String(Math.floor(col/5)*5).padStart(4,'0');}
+function fineBlockAvailable(f,row,col){return index?.weights_revision===f.weightsRevision&&!!index.chunks[keyFor(row,col)];}
 function weightChunk(f,row,col){const key=f.weightsRevision+'/'+keyFor(row,col),value=chunks.get(key);if(!value)throw Error('Required detail block not loaded');chunks.delete(key);chunks.set(key,value);return value;}
 async function getChunk(id,f){
  const key=f.weightsRevision+'/'+id;if(chunks.has(key)){metrics.cacheHits++;return;}
@@ -53,7 +54,7 @@ async function getChunk(id,f){
  chunks.set(key,{row,col,rows:nr,cols:nc,codes:raw.subarray(32,32+nr*nc*10000),hist:new Uint16Array(raw.buffer,32+nr*nc*10000,nr*nc*255)});
 }
 function needed(f,job){
- const keys=new Set(),add=(row,col)=>{if(row<0||col<0||row>=f.height||col>=f.width)return;const i=row*f.width+col,c=f.values[i],bias=f.values[3*f.width*f.height+i];if(Number.isFinite(c)&&c!==0&&c!==1&&(f.dynamic||Number.isFinite(bias)))keys.add(keyFor(row,col));};
+ const keys=new Set(),add=(row,col)=>{if(row<0||col<0||row>=f.height||col>=f.width)return;const i=row*f.width+col,c=f.values[i],bias=f.values[3*f.width*f.height+i];if(Number.isFinite(c)&&(job.type!=='probe'||(c!==0&&c!==1&&(f.dynamic||Number.isFinite(bias)))))keys.add(keyFor(row,col));};
  if(job.type==='probe'){for(const p of job.points){const [x,y]=project.forward(p);add(Math.floor((f.oy-y)/f.size),Math.floor((x-f.ox)/f.size));}return keys;}
  if(job.z<10)return keys;const world=40075016.68557849,tile=world/(2**job.z),left=-world/2+job.x*tile,top=world/2-job.y*tile,points=[];
  for(let i=0;i<=16;i++){const t=i/16;for(const p of [[left+t*tile,top],[left+t*tile,top-tile],[left,top-t*tile],[left+tile,top-t*tile]])points.push(project.forward(p));}
@@ -65,7 +66,7 @@ function crc(bytes){let c=0xffffffff;for(const b of bytes)c=table[(c^b)&255]^(c>
 function join(parts){const out=new Uint8Array(parts.reduce((a,p)=>a+p.length,0));let off=0;for(const p of parts){out.set(p,off);off+=p.length;}return out;}
 function chunk(name,body){const tag=new TextEncoder().encode(name),data=join([tag,body]),length=new Uint8Array(4),sum=new Uint8Array(4);new DataView(length.buffer).setUint32(0,body.length);new DataView(sum.buffer).setUint32(0,crc(data));return join([length,data,sum]);}
 function png(rgba){const header=new Uint8Array(13),d=new DataView(header.buffer);d.setUint32(0,256);d.setUint32(4,256);header[8]=8;header[9]=6;const rows=new Uint8Array(256*1025);for(let y=0;y<256;y++)rows.set(rgba.subarray(y*1024,(y+1)*1024),y*1025+1);return join([new Uint8Array([137,80,78,71,13,10,26,10]),chunk('IHDR',header),chunk('IDAT',fflate.zlibSync(rows,{level:3})),chunk('IEND',new Uint8Array(0))]);}
-importScripts('resolution-math.js?v=555a657f5f696f69');
+importScripts('resolution-math.js?v=b7e33a499cabdd12');
 self.onmessage=async event=>{
  if(event.data.type==='cancel'){if(query?.id===event.data.id){cancelRequested=true;aborter?.abort();}return;}
  query=event.data;cancelRequested=false;aborter=new AbortController();const started=performance.now(),before={...metrics},timer=setTimeout(()=>aborter.abort(),24000);
@@ -73,7 +74,7 @@ self.onmessage=async event=>{
   const m=query.manifest,run=query.native?{revision:query.revision}:m.runs.find(r=>r.revision===query.revision);if(!run||m.method!=='learned-conditional-50m-v1'||m.retrospective!==true||m.grid.fine_metres!==50)throw Error('Unsupported experimental request');
   if(query.type==='probe'){if(!Array.isArray(query.points)||query.points.length>256||query.points.some(p=>p.length!==2||!p.every(Number.isFinite)))throw Error('Invalid experimental probes');}
   else if(![query.z,query.x,query.y].every(Number.isInteger)||query.z<2||query.z>12||query.x<0||query.y<0||query.x>=2**query.z||query.y>=2**query.z)throw Error('Invalid experimental tile');
-  const f=query.native?await getNativeField(query.native):await getField(run),keys=[...needed(f,query)];if(keys.length){await getIndex();let next=0;const outcomes=await Promise.allSettled(Array.from({length:Math.min(query.mobile?2:4,keys.length)},async()=>{try{while(next<keys.length){aborter.signal.throwIfAborted();const id=keys[next++];await getChunk(id,f);}}catch(error){aborter.abort();throw error;}}));if(outcomes.some(r=>r.status==='rejected'))throw Error('Experimental block unavailable');}aborter.signal.throwIfAborted();
+  const f=query.native?await getNativeField(query.native):await getField(run),keys=[...needed(f,query)];if(keys.length){await getIndex();let next=0;const outcomes=await Promise.allSettled(Array.from({length:Math.min(query.mobile?2:4,keys.length)},async()=>{try{while(next<keys.length){aborter.signal.throwIfAborted();const id=keys[next++];if(query.type!=='probe'&&!index.chunks[id])continue;await getChunk(id,f);}}catch(error){aborter.abort();throw error;}}));if(outcomes.some(r=>r.status==='rejected'))throw Error('Experimental block unavailable');}aborter.signal.throwIfAborted();
   if(query.type==='probe'){const values=query.points.map(p=>{const [a,b]=project.forward(p),col=Math.floor((a-f.ox)/f.size),row=Math.floor((f.oy-b)/f.size),native=col<0||row<0||col>=f.width||row>=f.height?NaN:f.values[row*f.width+col];return {fine:sample(f,p[0],p[1],true),native};});self.postMessage({id:query.id,status:'ready',values});}
   else{const data=render(query,f);self.postMessage({id:query.id,status:'ready',data,ms:performance.now()-started,metrics:Object.fromEntries(Object.entries(metrics).map(([k,v])=>[k,v-before[k]]))},[data.buffer]);}
   while(chunks.size>(query.mobile?24:80))chunks.delete(chunks.keys().next().value);
