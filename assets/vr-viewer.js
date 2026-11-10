@@ -29819,8 +29819,9 @@ async function createViewer(container, data, { onSession = () => {
     }, overview = function() {
       rig.position.set(0, 0, 0);
       rig.quaternion.identity();
-      camera.position.set(data.spawn[0] + 80, data.spawn[1] + 90, data.spawn[2] + 120);
-      controls.target.set(data.spawn[0], data.spawn[1] + 2, data.spawn[2]);
+      const x = data.spawn[0] + 18, z = data.spawn[2] + 26, ground2 = data.ground(x, z);
+      camera.position.set(x, (Number.isFinite(ground2) ? ground2 : data.spawn[1]) + 9, z);
+      controls.target.set(data.spawn[0], data.spawn[1] + 1.7, data.spawn[2]);
       controls.enabled = true;
       controls.update();
     }, resize = function() {
