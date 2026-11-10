@@ -46,7 +46,7 @@
  function syncHeatmapDisplay(){
   const active=state.active;if(!active||!map.getLayer(active.id))return;
   const fine=state.refinementDisplay,selected=!!(fine?.ready&&fine.source_id===active.run.source_id&&fine.issue_time_utc===state.manifest?.issue_time_utc&&map.getLayer(fine.id));
-  state.refinementMix=selected?1:0;
+  state.refinementMix=selected&&fine.resolution!==5000?1:0;
   const alpha=state.riskOpacity*(state.geographyRiskFactor??1),visible=state.riskVisible!==false,fallback=state.overviewFallbackId;
   const detail=active.kind==='vector'&&(!fallback||(!state.detailFailures.has(active.id)&&!state.viewInMotion&&!map.isMoving()&&map.isSourceLoaded(active.id)));
   const nativeId=active.kind==='vector'&&!detail&&fallback?fallback:active.id;
@@ -64,7 +64,7 @@
   // Retire the previous representation before enabling its replacement.
   for(const layer of forecastLayers)if(layer.id!==winner)apply(layer,0,staging.has(layer.id));
   const chosen=forecastLayers.find(l=>l.id===winner);if(chosen)apply(chosen,chosen.type==='fill'?['*',alpha,opacity]:alpha,true);
-  state.forecastDisplay={layer:winner,resolution:selected?50:5000,source_id:active.run.source_id,issue_time_utc:state.manifest?.issue_time_utc};
+  state.forecastDisplay={layer:winner,resolution:selected?(fine.resolution||50):5000,source_id:active.run.source_id,issue_time_utc:state.manifest?.issue_time_utc};
  }
  state.setRefinementDisplay=value=>{state.refinementDisplay=value;syncHeatmapDisplay();};
  // Keep forecast colors below actual permanent-water geometry, with roads and
@@ -103,7 +103,7 @@
  function stageForecastLayer(id){
   const layer=map.getLayer(id);if(!layer)return;
   const owned=id===state.active?.id||id===state.overviewFallbackId;
-  if(!owned||(state.refinementMix??0)>=1||map.getLayoutProperty(id,'visibility')==='none'){
+  if(!owned||state.refinementDisplay?.ready||map.getLayoutProperty(id,'visibility')==='none'){
    map.setPaintProperty(id,layer.type==='raster'?'raster-opacity':'fill-opacity',0);
    if(id===state.active?.id)state.paintedActive=null;
    if(id===state.overviewFallbackId)state.paintedFallback=null;
@@ -132,7 +132,7 @@
   const loaded=await ensureGrid(m,run);
   if(loaded){const g=loaded.grid,[x,y]=proj4('EPSG:4326','+proj=aea +lat_0=23 +lon_0=-96 +lat_1=29.5 +lat_2=45.5 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs',lnglat),t=g.transform;
    if(!Number.isFinite(x)||!Number.isFinite(y))throw Error('Coordinate conversion failed');const col=Math.floor((x-t[2])/t[0]),row=Math.floor((y-t[5])/t[4]);if(col<0||row<0||col>=g.width||row>=g.height)return null;
-   const raw=loaded.view.getUint16(2*(row*g.width+col),true);if(raw===g.nodata)return null;if(raw>1000)throw Error('Invalid numeric grid value');return raw*g.scale;
+   const raw=loaded.view.getUint16(2*(row*g.width+col),true);if(raw===g.nodata){const R=window.fireEyeAdaptiveResolution;if(R?.status==='ready'&&R.active?.source_id===run.source_id&&R.active?.issue_time_utc===m.issue_time_utc&&R.nativeAt)return (await R.nativeAt([lnglat]))[0];return null;}if(raw>1000)throw Error('Invalid numeric grid value');return raw*g.scale;
   }
   const f=map.queryRenderedFeatures(map.project(lnglat),{layers:[state.active.id]}).find(f=>!Number(f.properties.background));return f?Number(f.properties.prob_fire):null;
  }

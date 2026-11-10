@@ -1,7 +1,7 @@
 'use strict';
 // Sampling and color rules retained from the established experiment renderer.
 // Reapply the existing conditional field to the selected native mean.
-// Numeric probes retain the native fallback; the fine display leaves missing inputs unshaded.
+// Missing fine inputs retain the same-window native value inside this one raster.
 // Valid fine pixels preserve the native mean in aggregate.
 function solveBias(counts,target){
  if(!(target>0&&target<1))return 0;
@@ -16,14 +16,16 @@ function sample(f,x,y,fine,displayOnly=false){
  const col=Math.floor(xx),row=Math.floor(yy);if(col<0||row<0||col>=f.width||row>=f.height)return NaN;
  const n=f.width*f.height,i=row*f.width+col,c=f.values[i];if(!Number.isFinite(c))return NaN;
  if(fine&&f.weightsRevision){
+  if(!fineBlockAvailable(f,row,col))return c;
   let chunk,code;
   const readCode=()=>{chunk ||= weightChunk(f,row,col);const sr=Math.min(99,Math.floor((yy-row)*100)),sc=Math.min(99,Math.floor((xx-col)*100));return chunk.codes[((row-chunk.row)*100+sr)*chunk.cols*100+(col-chunk.col)*100+sc];};
-  // Missing fine inputs are not a second, coarse forecast. This mask affects
-  // display only; existing native/probe values and published fields are unchanged.
-  if(displayOnly){if(!fineBlockAvailable(f,row,col))return NaN;code=readCode();if(code===255)return NaN;}
+  // Fill only a missing fine sample with its own valid native parent. Never
+  // enable a second forecast layer or invent a value for a missing native cell.
+  // Permanent water remains clipped by the shared shoreline mask.
+  if(displayOnly){code=readCode();if(code===255)return c;}
   if(c===0||c===1)return c;
   let bias=f.values[3*n+i];if(f.dynamic&&!Number.isFinite(bias)){chunk ||= weightChunk(f,row,col);const start=((row-chunk.row)*chunk.cols+col-chunk.col)*255;bias=f.values[3*n+i]=solveBias(chunk.hist.subarray(start,start+255),c);}
-  if(!Number.isFinite(bias))return displayOnly?NaN:c;
+  if(!Number.isFinite(bias))return c;
   if(code===undefined)code=readCode();if(code===255)return c;
   return 1/(1+Math.exp(-(-6+code/254*12+bias)));
  }
