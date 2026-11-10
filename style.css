@@ -44,6 +44,7 @@ body.simulation-embedded #scene-dialog .dialog-heading h2,body.simulation-embedd
 
 .header-actions .team-link,.header-actions .report-link{display:inline-flex;align-items:center;justify-content:center;min-height:44px;min-width:44px;white-space:nowrap}
 /* Keep Report and sign-in directly accessible on small screens. */
+.masthead.navigation-open{z-index:20}
 .header-more-links{display:contents}
 .header-actions .header-more-open{display:none}
 .header-actions .report-link{order:2}
