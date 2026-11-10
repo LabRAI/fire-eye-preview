@@ -80,7 +80,12 @@
   const actual=index.runs.find(r=>r.source_id===source.source_id&&r.lead_hours===source.lead_hours&&r.target_time_utc===source.target_time_utc),g=index.grid;
   if(index.issue_time_utc!==issue||!actual||g.crs!=='EPSG:5070'||g.width!==938||g.height!==609||g.transform.join(',')!=='5000,0,-2362425,0,-5000,3267405')throw Error('Selected forecast mismatch');
   const asset={...assets[actual.asset]};asset.url=new URL(asset.url,location.href).href;
-  if(saved){if(saved.native_grid_sha256!==asset.sha256)throw Error('Refinement source mismatch');return {...saved,native:null};}
+  if(saved){
+   if(saved.native_grid_sha256===asset.sha256)return {...saved,native:null};
+   if(asset.coverage?.status!=='verified'||asset.coverage.original_numeric_sha256!==saved.native_grid_sha256)throw Error('Refinement source mismatch');
+   // A separately verified coastal revision uses the same native interior and
+   // original fine weights, with newly restored native edge cells.
+  }
   return {...source,issue_time_utc:issue,revision:await digest(asset.sha256+'|'+m.weights_revision+'|'+source.source_id),native:{asset,source_id:source.source_id}};
  }
  function waitLoaded(id,sequence){return new Promise((resolve,reject)=>{let timer;const finish=e=>{clearTimeout(timer);map.off('render',check);map.off('sourcedata',check);map.off('error',failed);e?reject(e):resolve();};const check=()=>{if(sequence!==R.sequence)return finish(Error('Selection changed'));if(R.loadedTiles>0&&map.getSource(id)&&map.isSourceLoaded(id))finish();};const failed=e=>{if(e.sourceId===id)finish(Error('Fine detail unavailable'));};timer=setTimeout(()=>finish(Error('Fine detail timeout')),45000);map.on('render',check);map.on('sourcedata',check);map.on('error',failed);check();});}
