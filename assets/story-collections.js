@@ -44,14 +44,52 @@
   const cutoff=minimumScore(edition);
   return eligible(edition).filter(c=>presentation(c).point_score>=cutoff);
  }
- function stories(edition){
+ const RANKING_POLICY=Object.freeze({version:'casebook-area-score-ranks-v1',default_order:'balanced',area_weight:0.5,score_weight:0.5});
+ function reportedArea(c){
+  const p=presentation(c),raw=p.impact;
+  if(!/^\s*acres?\b/i.test(p.impact_caption||''))return null;
+  const text=typeof raw==='number'?String(raw):typeof raw==='string'?raw.trim():'';
+  if(!/^(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?\+?$/.test(text))return null;
+  const value=Number(text.replace(/[,+]/g,''));
+  return Number.isFinite(value)&&value>=0?{value,lower_bound:text.endsWith('+'),reported:text}:null;
+ }
+ function ranking(cases,order='balanced'){
+  if(!['balanced','area','score'].includes(order))order='balanced';
+  const rows=cases.map(c=>{const score=presentation(c).point_score;return {record:c,case_id:id(c),area:reportedArea(c),score:typeof score==='number'&&Number.isFinite(score)&&score>=0&&score<=1?score:null};});
+  const known=rows.filter(r=>r.area&&typeof r.score==='number'&&Number.isFinite(r.score)&&r.score>=0&&r.score<=1);
+  for(const r of rows){
+   r.area_rank=known.includes(r)?1+known.filter(other=>other.area.value>r.area.value).length:null;
+   r.score_rank=known.includes(r)?1+known.filter(other=>other.score>r.score).length:null;
+  }
+  const desc=(a,b)=>{const valid=x=>typeof x==='number'&&Number.isFinite(x);return valid(a)?valid(b)?b-a:-1:valid(b)?1:0;};
+  rows.sort((a,b)=>{
+   let comparison=0;
+   if(order==='balanced'){
+    comparison=desc(a.area_rank!==null?-(a.area_rank+a.score_rank):null,b.area_rank!==null?-(b.area_rank+b.score_rank):null);
+   }else if(order==='area')comparison=desc(a.area?.value,b.area?.value);
+   else comparison=desc(a.score,b.score);
+   return comparison||desc(a.score,b.score)||desc(a.area?.value,b.area?.value)||String(a.case_id).localeCompare(String(b.case_id),'en');
+  });
+  return {order,rows};
+ }
+ function navigation(editions){
+  const seen=new Set(),unique=editions.filter(e=>{if(seen.has(e.id))return false;seen.add(e.id);return true;});
+  const monthly=e=>/^\d{4}-(0[1-9]|1[0-2])$/.test(e.id||'');
+  const months=unique.filter(monthly).sort((a,b)=>b.id.localeCompare(a.id));
+  return {primary:unique.filter(e=>!monthly(e)),recent:months.slice(0,4),older:months.slice(4),visible_month_limit:4};
+ }
+ function stories(edition,order='balanced'){
   const allowed=review(edition);
   // The reviewed casebook includes strong shorter-lead comparisons. Featured
   // checks describe the evidence; they are not a second visibility requirement.
-  if(edition.id==='selected')return allowed;
+  if(edition.id==='selected')return ranking(allowed,order).rows.map(row=>row.record);
   return [...allowed.filter(featured),...allowed.filter(c=>!featured(c))];
  }
- function evidence(edition,feed){return edition.source_edition?{schema:'fire-eye-story-edition-view-v1',edition:edition.source_edition,casebook_source_sha256:feed.casebook?.source_sha256||null,curated_comparisons:edition.curated_cases||[],display_selection:{...selection(edition),selected_case_ids:stories(edition).map(id),purpose:'Editorial display selection only; original scores, featured evidence flags and evaluation totals are unchanged.'},grouping:'Curated comparisons use official discovery month where available, otherwise the dated reported fire observation. News records retain the reporting edition.'}:feed.casebook||edition;}
- const api={DISPLAY_POLICY,presentation,featured,id,eventMonth,collections,stories,review,selection,minimumScore,passesScore,evidence};
+ function evidence(edition,feed,order='balanced'){
+  if(edition.source_edition)return {schema:'fire-eye-story-edition-view-v1',edition:edition.source_edition,casebook_source_sha256:feed.casebook?.source_sha256||null,curated_comparisons:edition.curated_cases||[],display_selection:{...selection(edition),selected_case_ids:stories(edition).map(id),purpose:'Editorial display selection only; original scores, featured evidence flags and evaluation totals are unchanged.'},grouping:'Curated comparisons use official discovery month where available, otherwise the dated reported fire observation. News records retain the reporting edition.'};
+  const ranked=ranking(review(edition),order);
+  return {schema:'fire-eye-casebook-view-v1',casebook:feed.casebook||edition,display_ranking:{...RANKING_POLICY,order:ranked.order,method:'Equal mean of descending acreage and fire-location-score ranks among records with both values. Ties use higher score, then area, then case ID. Missing areas sort last in the combined order. A reported plus-suffixed area is ranked by its stated lower bound.',purpose:'Case presentation order only, not a model-performance measure.',cases:ranked.rows.map((r,i)=>({position:i+1,case_id:r.case_id,reported_acres:r.area?.value??null,area_is_lower_bound:r.area?.lower_bound??null,point_score:r.score,area_rank:r.area_rank,score_rank:r.score_rank}))}};
+ }
+ const api={DISPLAY_POLICY,RANKING_POLICY,presentation,featured,id,eventMonth,collections,stories,review,selection,minimumScore,passesScore,reportedArea,ranking,navigation,evidence};
  if(typeof module==='object'&&module.exports)module.exports=api;else root.FireEyeStoryCollections=api;
 })(typeof window==='object'?window:globalThis);

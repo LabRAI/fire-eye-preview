@@ -43,7 +43,7 @@ body.simulation-embedded> :not(#scene-dialog){visibility:hidden!important;pointe
 body.simulation-embedded #scene-dialog .dialog-heading h2,body.simulation-embedded #scene-dialog .dialog-heading .eyebrow{display:none}body.simulation-embedded #scene-dialog .dialog-heading{margin-bottom:6px}
 
 .header-actions .team-link,.header-actions .report-link{display:inline-flex;align-items:center;justify-content:center;min-height:44px;min-width:44px;white-space:nowrap}
-/* Keep Report and sign-in directly accessible on small screens. */
+/* Keep Forecast Records and sign-in directly accessible on small screens. */
 .masthead.navigation-open{z-index:20}
 .header-more-links{display:contents}
 .header-actions .header-more-open{display:none}
@@ -64,4 +64,8 @@ body.simulation-embedded #scene-dialog .dialog-heading h2,body.simulation-embedd
  .header-actions .header-more-links #updates-open{width:100%;min-height:44px;font-size:13px;gap:8px}
  .header-actions .header-more-links #refresh{display:none}
  .header-more-links>a:hover,.header-more-links>button:hover{background:#eef5f0;border-radius:5px}
+}
+@media(max-width:430px){
+ .header-actions .report-link{flex:0 0 56px;white-space:normal;text-align:center;line-height:1.2}
+ .header-actions #assistant-global-open{flex:0 0 44px;width:44px;white-space:normal;text-align:center;line-height:1.2}
 }
