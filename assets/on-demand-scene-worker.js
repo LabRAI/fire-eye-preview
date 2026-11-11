@@ -1,6 +1,6 @@
 /* Local schematic vegetation, generated only after explicit simulation intent. */
 'use strict';
-importScripts('tallahassee-scene.js?v=5e1f7206f92f4630');
+importScripts('tallahassee-scene.js?v=e7350c12496318f1');
 const H=FireEyeTallahassee,R=6378137;
 const project=p=>[p[0]*Math.PI/180*R,Math.log(Math.tan(Math.PI/4+p[1]*Math.PI/360))*R];
 const unproject=p=>[p[0]/R*180/Math.PI,(2*Math.atan(Math.exp(p[1]/R))-Math.PI/2)*180/Math.PI];
@@ -34,7 +34,7 @@ function generate({center,features,mobile,coverContext},sampleCover=()=>null){
   const type=classification==='forest_woodland'?'forest':classification==='shrubland'?'shrub':classification==='grass_herbaceous'?'grass':null;
   return {classes:type?[type]:[],sample};
  };
- const grassy=(v,p)=>v.classes.includes('grass')||v.classes.includes('park')||v.classes.includes('forest')&&H.hash(p.map(n=>n.toFixed(5)).join(','))%3===0;
+ const grassy=(v,p)=>v.classes.includes('grass')||v.classes.includes('park')||v.classes.includes('forest')&&H.grassCluster(p);
  const contextProps=sample=>sample?{source:'Published CONUS 3 km cover composition',source_cell_id:sample.cell_id,source_edition:coverContext?.source_edition,source_resolution_m:3000,placement:'Schematic clusters from historical 3 km cover fractions; not exact plants, tree density, or current conditions.'}:{};
  const candidates=[];
  // Latitude bands belong to the locations, not the selected center. Enumerate
@@ -56,13 +56,9 @@ function generate({center,features,mobile,coverContext},sampleCover=()=>null){
   if(v.tree&&trees<treeLimit){objects.push(point('tree',v.id,v.p,{height_m:null,class:v.forest?'forest':v.shrub?'shrub':'park',display_height_m:v.shrub?3:v.forest?14+(v.seed%900)/100:8+(v.seed%500)/100,display_crown_m:v.shrub?4:v.forest?9+(v.seed%300)/100:6+(v.seed%200)/100,...contextProps(v.sample)}));trees++;if(v.sample)contextTrees++;}
   else if(!v.tree&&anchors<160){objects.push(point('scenario_anchor',v.id,v.p,contextProps(v.sample)));anchors++;}
  }
- const grassFeatures=H.grassGrid(center,p=>eligible(p)&&grassy(vegetationAt(p),p),mobile);
- // Keep the helper's dense local grass; reserve a bounded share for schematic
- // clumps across the remaining full footprint, including behind the camera.
- const grassLimit=mobile?5500:12000,nearRadius=mobile?275:340,far=candidates.filter(v=>v.grass&&v.d>nearRadius).slice(0,Math.floor(grassLimit/6));
- grassFeatures.length=Math.min(grassFeatures.length,grassLimit-far.length);
+ const grassEligible=p=>eligible(p)&&grassy(vegetationAt(p),p);
+ const grassFeatures=H.grassGrid(center,grassEligible,mobile,H.grassMask(grassEligible,{surfaces:cover,blocked:polygons,roads}));
  for(const f of grassFeatures){const sample=vegetationAt(f.geometry.coordinates).sample;if(sample){Object.assign(f.properties,contextProps(sample));contextGrass++;}}
- for(const v of far){grassFeatures.push(point('grass',v.id+'/grass',v.p,{display_height_m:.28+(v.seed%23)/100,display_crown_m:1.8,...contextProps(v.sample)}));if(v.sample)contextGrass++;}
  objects.push(...grassFeatures);grass=grassFeatures.length;
  return {area:{id:'on-demand',title:'Selected area',bbox_wgs84:box,prediction_linked:true,synthetic_vegetation:true,vegetation_source:contextTrees||contextGrass?'Mapped local cover + published CONUS 3 km composition':'OpenStreetMap mapped land cover',vegetation_context_status:coverContext?.status||'not_requested',vegetation_context_note:coverContext?.note||null,vegetation_context_partial:!!coverContext?.partial,source_edition:coverContext?.source_edition,feature_counts:{tree:trees,grass}},collection:{type:'FeatureCollection',features:objects},metrics:{trees,grass,anchors,cover_polygons:cover.length,source_features:features.length,context_trees:contextTrees,context_grass:contextGrass,context_cells:coverContext?.cells?.length||0,generated_on_device:true}};
 }

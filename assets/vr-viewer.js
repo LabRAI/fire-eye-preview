@@ -29593,6 +29593,49 @@ function contains(g, p) {
 function boundedPoint(p, radius) {
   return Array.isArray(p) && p.length >= 2 && p.slice(0, 2).every(Number.isFinite) && Math.abs(p[0]) < radius - 4 && Math.abs(p[1]) < radius - 4;
 }
+function groundCoverAsset(asset, row, ground, radius, remaining) {
+  const stride = 11, perCell = asset.grass_vertices_per_cell, src = asset.vertices, offsets = asset.ground_offsets, vertices = [], heights = [], remap = /* @__PURE__ */ new Map();
+  let cells = 0;
+  if (!Number.isInteger(perCell) || perCell < 4 || src.length !== asset.grass_cells * perCell * stride || offsets?.length !== src.length / stride) throw Error("Invalid grass patch geometry");
+  for (let cell = 0; cell < asset.grass_cells; cell++) {
+    const start = cell * perCell, points = [];
+    for (let j = 0; j < perCell; j++) {
+      const i = (start + j) * stride, x = row[0] + src[i] * row[3], z = row[2] + src[i + 2] * row[3];
+      points.push([x, z]);
+    }
+    if (!points.every((p) => boundedPoint(p, radius))) continue;
+    if (cells >= remaining) break;
+    cells++;
+    for (let j = 0; j < perCell; j++) {
+      const old = start + j, i = old * stride, p = points[j], v = Array.from(src.slice(i, i + stride));
+      v[1] = (ground(...p) - row[1] + offsets[old]) / row[4];
+      remap.set(old, vertices.length / stride);
+      vertices.push(...v);
+      heights.push(offsets[old]);
+    }
+  }
+  if (!cells) return null;
+  const indices = [], parts = [];
+  for (const part of asset.parts) {
+    const start = indices.length;
+    for (let k = part.start; k < part.start + part.count; k += 3) {
+      const tri = Array.from(asset.indices.slice(k, k + 3));
+      if (tri.every((i) => remap.has(i))) indices.push(...tri.map((i) => remap.get(i)));
+    }
+    if (indices.length > start) parts.push({ ...part, start, count: indices.length - start });
+  }
+  for (let start = 0; start < vertices.length / stride; start += perCell) {
+    const a = start * stride, b = (start + 1) * stride, c = (start + 3) * stride, dx = vertices[b] - vertices[a], dz = vertices[a + 2] - vertices[c + 2], nx = -(vertices[b + 1] - vertices[a + 1]) / dx, nz = -(vertices[a + 1] - vertices[c + 1]) / dz, n = Math.hypot(nx, 1, nz);
+    for (let j = 0; j < 4; j++) {
+      const k = (start + j) * stride + 3;
+      vertices[k] = nx / n;
+      vertices[k + 1] = 1 / n;
+      vertices[k + 2] = nz / n;
+    }
+  }
+  const data = new Float32Array(vertices), index = new Uint16Array(indices);
+  return { ...asset, vertices: data, indices: index, parts, ground_offsets: new Float32Array(heights), grass_cells: cells, bytes: data.byteLength + index.byteLength };
+}
 function capture({ center, height, features, meshSnapshot, forecast, terrainReady, terrainStatus, terrainSource = "Published local terrain", mobile = false, radius = 240 }) {
   if (!terrainReady && terrainStatus === "outside") throw Error("Local terrain has not loaded for this location. Reload the scene.");
   if (!terrainReady || !center?.every(Number.isFinite) || typeof height !== "function") throw Error("Mapped terrain must finish loading before VR.");
@@ -29647,6 +29690,7 @@ function capture({ center, height, features, meshSnapshot, forecast, terrainRead
   if (!spawn) throw Error("No mapped ground suitable for a VR starting position. Choose a nearby outdoor spot.");
   if (meshSnapshot?.emitters.length && meshSnapshot.forecast?.source_id !== forecast.source_id) throw Error("The selected risk field is still loading.");
   const groups = [], limits = meshSnapshot?.budget || { vrTrees: 2400, vrDetail: mobile ? 40 : 80, vrGrass: mobile ? 3e3 : 6500 };
+  let grassCount = 0;
   const plantPriority = (row) => {
     const d = Math.hypot(row[0] - spawn[0], row[2] - spawn[2]);
     const seed = (Math.imul(Math.round(row[0] * 10), 73856093) ^ Math.imul(Math.round(row[2] * 10), 19349663)) >>> 0;
@@ -29672,7 +29716,19 @@ function capture({ center, height, features, meshSnapshot, forecast, terrainRead
         continue;
       }
       rows.sort((a, b) => plantPriority(a) - plantPriority(b));
-      if (rows.length) groups.push({ asset: g.asset, instances: new Float32Array(rows.slice(0, limits.vrGrass).flat()) });
+      if (g.asset.ground_cover) {
+        for (const row of rows) {
+          const asset = groundCoverAsset(g.asset, row, ground, radius, Math.max(0, limits.vrGrass - grassCount));
+          if (asset) {
+            groups.push({ asset, instances: new Float32Array(row) });
+            grassCount += asset.grass_cells;
+          }
+        }
+      } else if (rows.length) {
+        const kept = rows.slice(0, Math.max(0, limits.vrGrass - grassCount));
+        if (kept.length) groups.push({ asset: g.asset, instances: new Float32Array(kept.flat()) });
+        grassCount += kept.length;
+      }
     }
     detailRows.sort((a, b) => (a.row[0] - spawn[0]) ** 2 + (a.row[2] - spawn[2]) ** 2 - ((b.row[0] - spawn[0]) ** 2 + (b.row[2] - spawn[2]) ** 2));
     const detailed = /* @__PURE__ */ new Map(), used = /* @__PURE__ */ new Map();
@@ -29715,7 +29771,7 @@ function capture({ center, height, features, meshSnapshot, forecast, terrainRead
     canStand,
     forecast: { issue_time_utc: forecast.issue_time_utc, target_time_utc: forecast.target_time_utc, source_id: forecast.source_id, lead_hours: forecast.lead_hours, resolution: forecast.resolution, field_status: forecast.field_status },
     bounds_m: [-radius, -radius, radius, radius],
-    counts: { buildings: objects.filter((f) => f.properties.kind === "building").length, trees: groups.filter((g) => g.asset.role !== "grass").reduce((n, g) => n + g.instances.length / 7, 0), grass: groups.filter((g) => g.asset.role === "grass").reduce((n, g) => n + g.instances.length / 7, 0), emitters: emitters.length }
+    counts: { buildings: objects.filter((f) => f.properties.kind === "building").length, trees: groups.filter((g) => g.asset.role !== "grass").reduce((n, g) => n + g.instances.length / 7, 0), grass: grassCount, grassPatches: groups.filter((g) => g.asset.ground_cover).length, emitters: emitters.length }
   };
 }
 

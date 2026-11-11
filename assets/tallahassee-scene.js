@@ -17,36 +17,86 @@
  // Index source geometry so denser vegetation does not multiply polygon scans.
  function spatial(items,pad=0){
   const bins=new Map(),large=[],cell=100;
-  for(const f of items){const a=project([f.b[0]-pad,f.b[1]-pad]),b=project([f.b[2]+pad,f.b[3]+pad]),x0=Math.floor(a[0]/cell),y0=Math.floor(a[1]/cell),x1=Math.floor(b[0]/cell),y1=Math.floor(b[1]/cell);
+  // Source tiles often join thousands of unrelated building/road footprints.
+  // Index their components, retaining exact rings and holes, so a local query
+  // does not repeatedly scan a tile-wide MultiPolygon or MultiLineString.
+  function* components(){for(const f of items){const g=f.geometry;
+   if(g?.type==='MultiPolygon'){for(const coordinates of g.coordinates){const geometry={type:'Polygon',coordinates};yield {...f,geometry,b:bounds(geometry)};}}
+   else if(g?.type==='LineString'||g?.type==='MultiLineString'){for(const line of g.type==='LineString'?[g.coordinates]:g.coordinates)for(let i=0;i<line.length-1;i+=63){const geometry={type:'LineString',coordinates:line.slice(i,i+64)};yield {...f,geometry,b:bounds(geometry)};}}
+   else yield f;
+  }}
+  for(const f of components()){const a=project([f.b[0]-pad,f.b[1]-pad]),b=project([f.b[2]+pad,f.b[3]+pad]),x0=Math.floor(a[0]/cell),y0=Math.floor(a[1]/cell),x1=Math.floor(b[0]/cell),y1=Math.floor(b[1]/cell);
    if((x1-x0+1)*(y1-y0+1)>2500){large.push(f);continue;}
    for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++){const key=x+','+y;if(!bins.has(key))bins.set(key,[]);bins.get(key).push(f);}
   }
   return p=>{const q=project(p);return [...large,...bins.get(Math.floor(q[0]/cell)+','+Math.floor(q[1]/cell))||[]];};
  }
  function sample(m,data,p){const t=m.grid.transform,col=Math.floor((p[0]-t[2])/t[0]),row=Math.floor((p[1]-t[5])/t[4]);return inBox(p,m.bbox_wgs84)&&row>=0&&col>=0&&row<m.grid.height&&col<m.grid.width?data[row*m.grid.width+col]:0;}
- // Stable, source-constrained local grass. Fine clumps near the viewer, sparse
- // clumps farther away; density is bounded independently of regional extent.
- function grassGrid(center,eligible,mobile=false){
-  const q=project(center),scale=Math.cos(center[1]*Math.PI/180),band=Math.floor(center[1]/5)*5+2.5;
-  const step=2/Math.max(.09,Math.cos(band*Math.PI/180)),radius=mobile?275:340,nearRadius=mobile?48:78,limit=mobile?5500:12000,candidates=[];
-  for(let x=Math.floor((q[0]-radius/scale)/step);x<=Math.ceil((q[0]+radius/scale)/step);x++)for(let y=Math.floor((q[1]-radius/scale)/step);y<=Math.ceil((q[1]+radius/scale)/step);y++){
-   const id='local-grass/'+band+'/'+x+'/'+y,h=hash(id),xy=[(x+.2+(h%1000)/1667)*step,(y+.2+((h>>>12)%1000)/1667)*step],d=Math.hypot(xy[0]-q[0],xy[1]-q[1])*scale;
-   const t=Math.max(0,Math.min(1,(d-nearRadius)/(radius-nearRadius))),density=.06+.94*(1-t)*(1-t)*(1-t);
-   if(d>radius||h/4294967296>density)continue;candidates.push({id,h,d,p:unproject(xy)});
+ // A grass cell is an area, not just a plant center. Reject intersecting edges
+ // and enclosed holes too: testing corners alone misses small buildings/paths.
+ function segmentBox(a,b,box){
+  let lo=0,hi=1;for(let k=0;k<2;k++){const d=b[k]-a[k];if(!d){if(a[k]<box[k]||a[k]>box[k+2])return false;continue;}const x=(box[k]-a[k])/d,y=(box[k+2]-a[k])/d;lo=Math.max(lo,Math.min(x,y));hi=Math.min(hi,Math.max(x,y));if(lo>hi)return false;}return true;
+ }
+ function grassMask(eligible,{surfaces=[],blocked=[],roads=[]}={}){
+  const items=a=>a.map(f=>({...f,b:f.b||bounds(f.geometry)})),blocks=items(blocked),all=items([...surfaces,...blocked]),street=items(roads);
+  // Padding includes the largest cell and actual road width, also at high latitudes.
+  const latitude=Math.max(0,...[...all,...street].flatMap(f=>[Math.abs(f.b[1]),Math.abs(f.b[3])])),cosine=Math.max(.087,Math.cos(latitude*Math.PI/180)),pad=3/111320/cosine;
+  // Index edges once. Large parks can have tens of thousands of vertices;
+  // rescanning their complete rings for every 2 m cell exceeds the worker limit.
+  const edges=features=>{const result=[];for(const f of features){const g=f.geometry,lines=g.type==='Polygon'?g.coordinates:g.type==='MultiPolygon'?g.coordinates.flat():g.type==='LineString'?[g.coordinates]:g.type==='MultiLineString'?g.coordinates:[],gap=f.gap||((Number(f.properties?.width_m)||12)/2+1);
+   for(const line of lines)for(let i=1;i<line.length;i++){const a=line[i-1],z=line[i];result.push({a,z,gap,b:[Math.min(a[0],z[0]),Math.min(a[1],z[1]),Math.max(a[0],z[0]),Math.max(a[1],z[1])]});}}return result;};
+  const at=spatial(edges(all),pad),blockAt=spatial(blocks,pad),roadPolygons=spatial(street.filter(f=>['Polygon','MultiPolygon'].includes(f.geometry.type)),pad),roadAt=spatial(edges(street),(3+Math.max(0,...street.map(f=>f.gap||((Number(f.properties?.width_m)||12)/2+1))))/111320/cosine),cache=new Map();
+  const eligibleAt=p=>{const key=p.join(',');if(cache.has(key))return cache.get(key);const value=eligible(p);if(cache.size<160000)cache.set(key,value);return value;};
+  return (p,box)=>{
+   const corners=[[box[0],box[1]],[box[2],box[1]],[box[2],box[3]],[box[0],box[3]]];
+   if(!eligibleAt(p)||!corners.every(eligibleAt)||blockAt(p).some(f=>contains(f.geometry,p)))return false;
+   if(at(p).some(f=>f.b[0]<=box[2]&&f.b[2]>=box[0]&&f.b[1]<=box[3]&&f.b[3]>=box[1]&&segmentBox(f.a,f.z,box)))return false;
+   const cos=Math.max(.087,Math.cos(p[1]*Math.PI/180));
+   return !roadPolygons(p).some(f=>contains(f.geometry,p))&&!roadAt(p).some(f=>{const dy=f.gap/111320,dx=dy/cos;return segmentBox(f.a,f.z,[box[0]-dx,box[1]-dy,box[2]+dx,box[3]+dy]);});
+  };
+ }
+ // Shared 32 m patch IDs retain entire neighbouring 2 m cover cells. Budgets
+ // select patches, never randomly punch holes in a lawn. Distant woodland
+ // understory uses the same stable clusters as the near view.
+ const grassCluster=p=>{const q=project(p),s=32/Math.max(.09,Math.cos((Math.floor(p[1]/5)*5+2.5)*Math.PI/180));return hash('grass-understory/'+Math.floor(q[0]/s)+'/'+Math.floor(q[1]/s))%3===0;};
+ function grassGrid(center,eligible,mobile=false,footprint=grassMask(eligible)){
+  const q=project(center),scale=Math.cos(center[1]*Math.PI/180),radius=650,limit=mobile?5500:12000,patches=[];
+  const south=unproject([q[0],q[1]-radius/scale])[1],north=unproject([q[0],q[1]+radius/scale])[1];
+  for(let band=Math.floor(south/5)*5;band<=Math.floor(north/5)*5;band+=5){
+   const step=2/Math.max(.09,Math.cos((band+2.5)*Math.PI/180)),size=step*16;
+   const y0=project([0,Math.max(south,band)])[1],y1=project([0,Math.min(north,band+5)])[1];
+   for(let x=Math.floor((q[0]-radius/scale)/size);x<=Math.floor((q[0]+radius/scale)/size);x++)for(let y=Math.floor(y0/size);y<=Math.floor(y1/size);y++){
+    const id='grass-patch/'+band+'/'+x+'/'+y,xy=[(x+.5)*size,(y+.5)*size],d=Math.hypot(xy[0]-q[0],xy[1]-q[1])*scale;
+    if(d>radius||d>100&&hash(id+'/coverage')/4294967296>.16)continue;
+    patches.push({id,x,y,band,step,size,d,center:unproject(xy)});
+   }
   }
-  const priority=v=>v.d<45?v.d:45+hash(v.id+'/density-budget')/4294967296*350+v.d*.15;
-  candidates.sort((a,b)=>priority(a)-priority(b));const points=[];
-  for(const v of candidates){if(points.length>=limit)break;if(!eligible(v.p))continue;
-   points.push({type:'Feature',geometry:{type:'Point',coordinates:v.p},properties:{kind:'grass',source_id:v.id,synthetic:true,display_height_m:.28+(v.h%23)/100,display_crown_m:1.8,source:'Mapped vegetated ground',placement:'Schematic ground cover; not surveyed plants'}});
+  // Reserve a small share for intact distant patches in all viewing directions.
+  const priority=v=>v.d<100?v.d:100+hash(v.id+'/budget')/4294967296*650;
+  patches.sort((a,b)=>priority(a)-priority(b)||a.id.localeCompare(b.id));const points=[];let nearCount=0;
+  for(const v of patches){
+   const cells=[];
+   for(let i=0;i<16;i++)for(let j=0;j<16;j++){
+    const x=v.x*16+i,y=v.y*16+j,xy=[(x+.5)*v.step,(y+.5)*v.step],p=unproject(xy);
+    if(Math.floor(p[1]/5)*5!==v.band||Math.abs(xy[0]-q[0])*scale>radius||Math.abs(xy[1]-q[1])*scale>radius)continue;
+    const sw=unproject([x*v.step,y*v.step]),ne=unproject([(x+1)*v.step,(y+1)*v.step]),box=[...sw,...ne];
+    // Do not bridge a latitude-band seam or any footprint boundary.
+    if(sw[1]<v.band||ne[1]>v.band+5||!footprint(p,box))continue;
+    cells.push({type:'Feature',geometry:{type:'Point',coordinates:p},properties:{kind:'grass',source_id:v.id+'/'+i+'/'+j,grass_patch_id:v.id,grass_patch_center:v.center,grass_bounds:box,synthetic:true,display_height_m:.18,display_crown_m:v.step*Math.cos(p[1]*Math.PI/180),source:'Mapped vegetated ground',placement:'Schematic continuous ground cover; not surveyed plants'}});
+   }
+   if(v.d<100&&nearCount+cells.length>Math.floor(limit*5/6))continue;
+   if(points.length+cells.length<=limit){points.push(...cells);if(v.d<100)nearCount+=cells.length;}
+   if(points.length>limit-256)break;
   }return points;
  }
  function addGroundCover(collection,options={}){
   const lawns=collection.features.filter(f=>f.properties?.kind==='land_area'&&['grass','garden','meadow','grassland','recreation_ground'].includes(f.properties?.class)&&['Polygon','MultiPolygon'].includes(f.geometry?.type)).map(f=>({...f,b:bounds(f.geometry)}));
   if(!lawns.length)return collection;
-  const blocked=collection.features.filter(f=>['building','water','pedestrian_area'].includes(f.properties?.kind)).map(f=>({...f,b:bounds(f.geometry)})),at=spatial(blocked),lawnAt=spatial(lawns);
-  const roads=collection.features.filter(f=>f.properties?.kind==='transportation'&&['LineString','MultiLineString'].includes(f.geometry?.type)).map(f=>({...f,b:bounds(f.geometry)})),roadsAt=spatial(roads,.0005);
+  const blocked=collection.features.filter(f=>['building','water','pedestrian_area'].includes(f.properties?.kind)||['parking','sand','rock','bare_rock','bare_ground','barren','beach','quarry','ice'].includes(f.properties?.class)).map(f=>({...f,b:bounds(f.geometry)})),at=spatial(blocked),lawnAt=spatial(lawns);
+  const roads=collection.features.filter(f=>f.properties?.kind==='transportation'&&!f.properties.below_ground).map(f=>({...f,b:bounds(f.geometry)})),roadsAt=spatial(roads,.0005);
   const b=lawns[0].b,center=options.center||[(b[0]+b[2])/2,(b[1]+b[3])/2];
-  const added=grassGrid(center,p=>lawnAt(p).some(f=>contains(f.geometry,p))&&!at(p).some(o=>contains(o.geometry,p))&&!roadsAt(p).some(o=>roadDistance(o.geometry,p)<(Number(o.properties.width_m)||4)/2+1),!!options.mobile);
+  const eligible=p=>lawnAt(p).some(f=>contains(f.geometry,p))&&!at(p).some(o=>contains(o.geometry,p))&&!roadsAt(p).some(o=>contains(o.geometry,p)||roadDistance(o.geometry,p)<(Number(o.properties.width_m)||4)/2+1);
+  const added=grassGrid(center,eligible,!!options.mobile,grassMask(eligible,{surfaces:lawns,blocked,roads:roads.map(f=>({...f,gap:(Number(f.properties.width_m)||4)/2+1}))}));
   return {...collection,features:[...collection.features.filter(f=>f.properties?.kind!=='grass'),...added]};
  }
  function create(map,url,options={}){
@@ -115,15 +165,16 @@
       placement:'Schematic vegetation; not a measured tree location'}});trees++;
     }else if(!v.plant&&anchors<160){features.push({type:'Feature',geometry:{type:'Point',coordinates:v.p},properties:{kind:'scenario_anchor',source_id:v.id,synthetic:true,class:manifest.classes[v.cover]}});anchors++;}
    }
-   const added=grassGrid(c,p=>{
+   const grassEligible=p=>{
     if(mask.polygonsAt(p).some(f=>contains(f.geometry,p))||mask.roadsAt(p).some(f=>roadDistance(f.geometry,p)<f.gap))return false;
     const cover=sample(manifest,data,p),greens=mask.greensAt(p).filter(f=>contains(f.geometry,p));
-    return greens.some(f=>['grass','garden','meadow','recreation_ground'].includes(f.properties.class))||cover===3||cover===1&&hash(p.map(v=>v.toFixed(5)).join(','))%3===0;
-   },mobile);features.push(...added);grass=added.length;
+    return greens.some(f=>['grass','garden','meadow','recreation_ground'].includes(f.properties.class))||cover===3||cover===1&&grassCluster(p);
+   };
+   const added=grassGrid(c,grassEligible,mobile,grassMask(grassEligible,{surfaces:mask.greens,blocked:mask.polygons,roads:mask.roads}));features.push(...added);grass=added.length;
    const snapshot={area:{id:'tallahassee',title:'Tallahassee',bbox_wgs84:box,prediction_linked:true,synthetic_vegetation:true,source_edition:2020,feature_counts:{tree:trees,grass}},collection:{type:'FeatureCollection',features},metrics:{trees,anchors,grass,mask_features:mask.features.length,cover_bytes:manifest.asset.bytes,key}};
    last={key,snapshot};return snapshot;
   }
   return {contains:()=>inBox(map.getCenter().toArray(),PILOT),build,sample:p=>data?sample(manifest,data,p):null,get manifest(){return manifest;},invalidate:()=>{last=null;}};
  }
- global.FireEyeTallahassee={create,contains,inBox,roadDistance,sample,hash,boundsOf:bounds,spatial,grassGrid,addGroundCover,bounds:()=>PILOT.slice()};
+ global.FireEyeTallahassee={create,contains,inBox,roadDistance,sample,hash,boundsOf:bounds,spatial,grassGrid,grassMask,grassCluster,addGroundCover,bounds:()=>PILOT.slice()};
 })(typeof window==='undefined'?globalThis:window);

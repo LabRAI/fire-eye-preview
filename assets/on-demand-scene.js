@@ -1,7 +1,7 @@
 /* Reuse local map geometry; request bounded cover context only on scene intent. */
 (function(global){
  'use strict';
- const scriptURL=new URL(document.currentScript.src),workerURL=new URL('./on-demand-scene-worker.js?v=62666f50291ac339',scriptURL),coverURL=new URL('./scene-cover.mjs?v=26fc19104245d70e',scriptURL);
+ const scriptURL=new URL(document.currentScript.src),workerURL=new URL('./on-demand-scene-worker.js?v=8c3774f5090227d4',scriptURL),coverURL=new URL('./scene-cover.mjs?v=26fc19104245d70e',scriptURL);
  let coverModule=null,coverFailureAt=0;
  const loadCoverModule=()=>{if(coverFailureAt&&Date.now()-coverFailureAt>30000){coverModule=null;coverFailureAt=0;}return coverModule||(coverModule=import(coverURL.href).catch(error=>{coverFailureAt=Date.now();throw error;}));};
  function create(map,options={}){
