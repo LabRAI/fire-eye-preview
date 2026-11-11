@@ -1,6 +1,6 @@
 /* Optional immersive rendering. Explicit, persistent entry; large renderer stays lazy. */
 (async()=>{
- const moduleURL=new URL('./vr-viewer.js?v=2ce95c82256ad96c',document.currentScript.src),terrainURL=new URL('./vr-terrain.mjs?v=5f5ed23adb84968f',document.currentScript.src),qrURL=new URL('./vr-qr.mjs?v=dbe8802f554d6d8c',document.currentScript.src);let moduleAttempt=0,terrainModule=null,terrainController=null;
+ const moduleURL=new URL('./vr-viewer.js',document.currentScript.src),terrainURL=new URL('./vr-terrain.mjs',document.currentScript.src),qrURL=new URL('./vr-qr.mjs',document.currentScript.src);let moduleAttempt=0,terrainModule=null,terrainController=null;
  for(let i=0;i<600&&!window.fireEyeGeography;i++)await new Promise(r=>setTimeout(r,100));
  const G=window.fireEyeGeography,S=window.fireEyePreview;if(!G||!S)return;
  const element=(tag,text,cls)=>{const e=document.createElement(tag);if(text)e.textContent=text;if(cls)e.className=cls;return e;};
@@ -134,12 +134,13 @@
   }catch(error){if(seq===sequence){restore();report(/^(VR (?:terrain|scene)|Mapped terrain|Local (?:terrain|scene)|Terrain is|No mapped ground|This scene exceeds|Choose a location|The selected risk)/.test(error.message||'')?error.message:'VR could not load. Reload the scene or return to the map.');}}
   finally{if(seq===sequence){busy=false;retry.disabled=places.disabled=false;qualitySelect.disabled=!!viewer?.sessionActive;qualitySelect.value=G.simulation.state.loadedQuality||G.simulation.state.assetQuality;}}
  }
- function open(event){if(dialog.open)return;opener=event?.currentTarget instanceof HTMLElement?event.currentTarget:mapButton;window.dispatchEvent(new Event('fire-eye:vr-open'));S.map.stop();savedView=captureView();restoreIntent=G.requested;dialog.showModal();const point=valid(S.selected)?S.selected.slice():S.map.getCenter().toArray();void loadLocation(point);}
+ async function open(event){if(dialog.open||!await window.fireEyeAccount?.require('vr'))return;opener=event?.currentTarget instanceof HTMLElement?event.currentTarget:mapButton;window.dispatchEvent(new Event('fire-eye:vr-open'));S.map.stop();savedView=captureView();restoreIntent=G.requested;dialog.showModal();const point=valid(S.selected)?S.selected.slice():S.map.getCenter().toArray();void loadLocation(point);}
  enter.onclick=()=>{if(!viewer||busy||!supported)return;if(viewer.sessionActive){void viewer.endSession();return;}busy=true;enter.disabled=true;
   viewer.enterVR().catch(error=>report(error.message)).finally(()=>{busy=false;enter.disabled=!supported;});
  };
  retry.onclick=()=>{if(!busy&&!viewer?.sessionActive){if(chooser.hidden)void prepare();else void chooseLocation();}};places.onclick=()=>{if(!viewer?.sessionActive)void chooseLocation();};openButton.onclick=sideButton.onclick=mapButton.onclick=open;
  qualitySelect.onchange=async()=>{if(busy||viewer?.sessionActive)return;busy=true;qualitySelect.disabled=true;const seq=sequence;report('Loading selected materials…');await G.simulation.setQuality(qualitySelect.value);if(seq!==sequence||!dialog.open)return;busy=false;if(G.simulation.state.qualityError){qualitySelect.disabled=false;qualitySelect.value=G.simulation.state.loadedQuality;report('The selected materials could not load. Your previous scene is still available.');return;}await prepare();};
  window.fireEyeVR={open,close:closeView,viewer:null,snapshot:null};
+ window.addEventListener('fire-eye:account-state',e=>{if(!e.detail.signedIn&&dialog.open)void closeView();});
  window.addEventListener('pagehide',()=>{void closeView();},{once:true});
 })().catch(()=>{});

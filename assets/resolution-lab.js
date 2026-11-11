@@ -21,7 +21,7 @@
  }
  function localIndex(){const a=R.manifest.assets.index,p=config.resolution_assets?.[a.sha256];return p?new URL(p,location.href).href:null;}
  function spawn(){
-  const slot={worker:new Worker('assets/resolution-worker.js?v=17f7eb8948fd7f16'),job:null};slots.push(slot);
+  const slot={worker:new Worker('assets/resolution-worker.js'),job:null};slots.push(slot);
   slot.worker.onmessage=e=>{const job=slot.job;if(!job||e.data.id!==job.id)return;clearTimeout(job.timer);slot.job=null;jobs.delete(job.id);
    if(!job.cancelled){if(e.data.status==='ready'){
      const data=e.data.data;while(tileCache.size&&(tileCache.size>=(mobile?24:72)||cacheBytes+data.length>(mobile?2:6)*1024*1024)){const first=tileCache.keys().next().value;cacheBytes-=tileCache.get(first).length;tileCache.delete(first);}tileCache.set(job.key,data);cacheBytes+=data.length;
@@ -62,7 +62,7 @@
   for(const b of document.querySelectorAll('#horizons button')){const r=R.manifest.runs.find(r=>r.issue_time_utc===run.issue_time_utc&&r.lead_hours===Number(b.dataset.lead));b.disabled=!r;b.title=r?'Refined output for this issue':'No refined output for this lead in the October snapshot';b.onclick=()=>{if(r)select(r.source_id);};}
  }
  function readyLayer(id,sequence){return new Promise((resolve,reject)=>{let timer,finished=false;const cleanup=()=>{clearTimeout(timer);map.off('sourcedata',check);map.off('render',check);map.off('error',error);};const done=err=>{if(finished)return;finished=true;cleanup();err?reject(err):resolve();};const check=()=>{if(sequence!==R.sequence)return done(Error('Selection changed'));if(R.loadedTiles>0&&map.getSource(id)&&map.isSourceLoaded(id))done();};const error=e=>{if(e.sourceId===id)done(Error('Experimental source unavailable'));};timer=setTimeout(()=>done(Error('Experimental view timeout')),45000);map.on('sourcedata',check);map.on('render',check);map.on('error',error);check();});}
- async function select(source){
+ async function select(source){if(!await window.fireEyeAccount?.require('resolution')){$('resolution-detail-state').textContent='Sign in to load 50 m detail.';return false;}
   const run=R.manifest.runs.find(r=>r.source_id===source);if(!run)return false;const sequence=++R.sequence;R.requested=run;R.selected=run;R.loadedTiles=0;R.status='loading';$('resolution-retry').hidden=true;drop();display();
   try{
    switchingMode=true;await P.setMode('forecast');switchingMode=false;S.historyPinned=true;const ref=archives.get(source);if(!await S.showManifest(ref.manifest,run.lead_hours))throw Error();if(sequence!==R.sequence)return false;
@@ -82,7 +82,8 @@
    display();$('resolution-retry').hidden=false;$('status').textContent='Native 5 km map retained';
   }return false;}
  }
- R.select=select;R.retry=()=>select((R.requested||R.selected).source_id);R.protocol=protocol;
+ R.select=select;R.retry=()=>select((R.requested||R.selected)?.source_id||$('resolution-target').value);
+ window.addEventListener('fire-eye:account-state',e=>{if(e.detail.signedIn||!map)return;++R.sequence;drop();R.status='signin';for(const slot of slots)slot.worker.terminate();slots.length=0;display();$('resolution-detail-state').textContent='Sign in to load 50 m detail.';});R.protocol=protocol;
  for(let i=0;i<600;i++){S=window.fireEyePreview;P=window.fireEyePlatform;if(S?.ready&&P?.ready)break;await new Promise(r=>setTimeout(r,100));}if(!S?.ready||!P?.ready)throw Error();map=S.map;
  config=await fetch('config.json',{signal:AbortSignal.timeout(6000)}).then(r=>r.json());let manifest;
  try{const u=new URL(config.resolution_url);if(u.origin!=='https://huggingface.co'||u.search||u.hash||!/^\/datasets\/[^/]+\/[^/]+\/resolve\/main\/resolution[.]json$/.test(u.pathname))throw Error();const r=await fetch(u.href,{credentials:'omit',cache:'no-store',signal:AbortSignal.timeout(10000)});if(!r.ok)throw Error();manifest=validate(await r.json());}

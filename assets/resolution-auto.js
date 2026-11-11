@@ -13,7 +13,7 @@
  }
  function localIndex(){const a=R.manifest.assets.index,p=config.resolution_assets?.[a.sha256];return p?new URL(p,location.href).href:null;}
  function spawn(){
-  const slot={worker:new Worker('assets/resolution-worker.js?v=17f7eb8948fd7f16'),job:null};slots.push(slot);
+  const slot={worker:new Worker('assets/resolution-worker.js'),job:null};slots.push(slot);
   slot.worker.onmessage=e=>{const job=slot.job;if(!job||e.data.id!==job.id)return;clearTimeout(job.timer);slot.job=null;jobs.delete(job.id);
    if(!job.cancelled){if(e.data.status==='ready'){
      if(job.points){job.callback(null,e.data.values);dispatch();return;}
@@ -48,9 +48,14 @@
   if(!S?.active)return;const selected=R.active?.source_id===S.active.run.source_id&&R.active?.issue_time_utc===S.manifest.issue_time_utc,visible=S.riskVisible!==false,z=map.getZoom();
   // Stage the new tiles at zero opacity. Only one forecast representation
   // contributes color; no crossfade or default 300 ms opacity transition.
-  const loaded=layerId&&map.getSource(layerId)&&map.isSourceLoaded(layerId),blend=R.status==='ready'&&selected&&loaded&&z>=6?1:0;
+  // After the first complete load, MapLibre retains parent tiles while fetching
+  // another zoom. Keep those same-forecast tiles visible instead of switching
+  // back to a native source whose hidden tiles may already have been evicted.
+  const retained=R.status==='ready'&&(map.style?.sourceCaches?.[layerId]?.getRenderableIds?.().length||0)>0;
+  const loaded=layerId&&map.getSource(layerId)&&(map.isSourceLoaded(layerId)||retained),blend=R.status==='ready'&&selected&&loaded&&z>=6?1:0;
   S.setRefinementDisplay?.(layerId?{id:layerId,source_id:R.active?.source_id,issue_time_utc:R.active?.issue_time_utc,resolution:z>=11?50:5000,ready:!!blend}:null);
-  label(z<10?'Zoom in for automatic 50 m detail':blend&&z>=11?'50 m fire-risk detail · Native values in coverage gaps':blend?'5 km fire risk':R.status==='loading'||(R.status==='ready'&&!loaded)?'Preparing 50 m detail · 5 km forecast visible':'5 km fire risk');
+  const signIn=document.getElementById('resolution-signin');if(signIn)signIn.hidden=!!window.fireEyeAccount?.signedIn||z<6;
+  label(R.status==='signin'?'5 km fire risk · sign in for 50 m detail':z<10?'Zoom in for automatic 50 m detail':blend&&z>=11?'50 m fire-risk detail · Native values in coverage gaps':blend?'5 km fire risk':R.status==='loading'||(R.status==='ready'&&!loaded)?'Preparing 50 m detail · 5 km forecast visible':'5 km fire risk');
   const key=[blend,R.active?.source_id,R.active?.revision].join('|');if(key!==displayKey){displayKey=key;window.dispatchEvent(new Event('fire-eye:refinement-changed'));}
  }
  function sampleAt(points,nativeOnly=false){
@@ -90,7 +95,7 @@
  }
  function waitLoaded(id,sequence){return new Promise((resolve,reject)=>{let timer;const finish=e=>{clearTimeout(timer);map.off('render',check);map.off('sourcedata',check);map.off('error',failed);e?reject(e):resolve();};const check=()=>{if(sequence!==R.sequence)return finish(Error('Selection changed'));if(R.loadedTiles>0&&map.getSource(id)&&map.isSourceLoaded(id))finish();};const failed=e=>{if(e.sourceId===id)finish(Error('Fine detail unavailable'));};timer=setTimeout(()=>finish(Error('Fine detail timeout')),45000);map.on('render',check);map.on('sourcedata',check);map.on('error',failed);check();});}
  async function sync(){
-  if(!S?.active)return;display();const key=S.active.run.source_id+'|'+S.manifest.issue_time_utc;
+  if(!S?.active)return;if(!window.fireEyeAccount?.signedIn){if(R.status!=='signin'){++R.sequence;drop();R.status='signin';}display();return;}if(!await window.fireEyeAccount.require('resolution',{interactive:false}))return;display();const key=S.active.run.source_id+'|'+S.manifest.issue_time_utc;
   if(lastKey!==key){++R.sequence;drop();lastKey=key;R.status='overview';retryAfter=0;}
   if(map.getZoom()<6||R.status==='loading'||R.status==='ready'||Date.now()<retryAfter)return;
   const sequence=++R.sequence;R.status='loading';R.loadedTiles=0;display();
@@ -100,6 +105,8 @@
   }catch{if(sequence===R.sequence){drop();R.status='unavailable';R.failures++;retryAfter=Date.now()+30000;display();}}
  }
  for(let i=0;i<600;i++){S=window.fireEyePreview;P=window.fireEyePlatform;if(S?.ready&&P?.ready)break;await new Promise(r=>setTimeout(r,100));}if(!S?.ready||!P?.ready)return;map=S.map;
+ const detailEntry=document.createElement('button');detailEntry.id='resolution-signin';detailEntry.type='button';detailEntry.textContent='Sign in for 50 m detail';detailEntry.className='wide-button';detailEntry.style.minHeight='44px';detailEntry.hidden=true;detailEntry.onclick=()=>window.fireEyeAccount?.open();$('resolution-auto-status')?.after(detailEntry);
+ window.addEventListener('fire-eye:account-state',()=>{void sync();});
  maplibregl.addProtocol('adaptive50',protocol);R.ready=true;R.sync=sync;R.display=display;R.sampleAt=sampleAt;R.nativeAt=points=>sampleAt(points,true);R.retry=()=>{retryAfter=0;R.status='overview';return sync();};
  map.on('moveend',sync);map.on('zoom',display);map.on('sourcedata',e=>{if(e.sourceId===layerId)display();});map.on('styledata',()=>{if(layerId&&!map.getLayer(layerId)&&R.status==='ready'){R.status='overview';sync();}});
  map.on('error',e=>{if(e.sourceId===layerId&&R.status==='ready'){drop();R.status='unavailable';R.failures++;retryAfter=Date.now()+30000;display();}});

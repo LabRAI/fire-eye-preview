@@ -25,12 +25,14 @@
    const r=await fetch(url.href+'/'+path,{method:'POST',credentials:'omit',referrerPolicy:'no-referrer',
     headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},
     body:JSON.stringify(body),signal:AbortSignal.timeout(path==='challenge-submit'?90000:path==='exchange'?40000:12000)});
-   if(!r.ok){let message=r.status===401?'Please sign in again.':'Sign-in is temporarily unavailable. You can continue using the map.';if(path==='challenge-submit'){try{const body=await r.json();if(typeof body.error==='string'&&body.error.length<240)message=body.error;}catch{}}const error=Error(message);error.status=r.status;throw error;}
+   if(!r.ok){let message=r.status===401?'Please sign in again.':'Account service is temporarily unavailable. You can continue using the map.',retryAfter=0;if(path==='challenge-submit'||path==='download-permit'){try{const body=await r.json();if(typeof body.error==='string'&&body.error.length<240)message=body.error;if(r.status===429)retryAfter=Math.max(1,Math.min(180,Number(body.retry_after)||180));}catch{}}const error=Error(message);error.status=r.status;error.retryAfter=retryAfter;throw error;}
    if(!r.headers.get('content-type')?.includes('application/json'))throw Error('Sign-in response unavailable.');return r.json();
   }
   function returnURL(value){const target=new URL(value,app);if(target.origin!==app.origin||!['','index.html','resolution.html','stories.html','challenge.html','what-if.html','team.html'].some(name=>target.pathname===app.pathname+name))return app.href;return target.href;}
   return {
    get signedIn(){return !!saved();},
+   async authorize(){const s=saved();if(!s)throw Object.assign(Error('Please sign in to continue.'),{status:401});try{return await call('session',{},s.session_token);}catch(e){if(e.status===401)sessionStorage.removeItem(KEY);throw e;}},
+   async permitDownload(format){const s=saved();if(!s)throw Object.assign(Error('Please sign in before downloading.'),{status:401});try{return await call('download-permit',{format},s.session_token);}catch(e){if(e.status===401)sessionStorage.removeItem(KEY);throw e;}},
    async submitForecast(data){const s=saved();if(!s)throw Error('Please sign in before submitting.');return call('challenge-submit',data,s.session_token);},
    get avatarURL(){return avatarURL(saved()?.avatar_url);},
    async restore(){const s=saved();if(!s)return false;try{await call('session',{},s.session_token);return true;}catch(e){if(e.status===401)sessionStorage.removeItem(KEY);return false;}},

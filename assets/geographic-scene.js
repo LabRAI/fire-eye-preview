@@ -227,12 +227,14 @@
   }
   const capture=()=>({center:map.getCenter().toArray(),zoom:map.getZoom(),pitch:map.getPitch(),bearing:map.getBearing()});
   async function enter(lnglat){
+   if(!await global.fireEyeAccount?.require('simulation'))return false;
    if(!Array.isArray(lnglat)||lnglat.length!==2||!lnglat.every(Number.isFinite))return false;
    previous=capture();requested=true;selectedObject=null;detail.hidden=true;if(compactScreen.matches){document.getElementById('sidebar-close')?.click();if(!document.getElementById('inspection')?.hidden)document.getElementById('close-inspection')?.click();panelDismissed=false;panelCollapsed=true;try{sessionStorage.removeItem('fire-eye-scene-dismissed');}catch{}panelLayout();}else openControls();
    const seq=++intentSequence;await options.ensureStreet?.();if(disposed||!requested||seq!==intentSequence)return false;ensure();terrainTilt=true;
    map.flyTo({center:lnglat,zoom:17.8,pitch:52,bearing:map.getBearing(),duration:matchMedia('(prefers-reduced-motion: reduce)').matches?0:1600,essential:false});
    void environment?.retry();sync();return true;
   }
+  global.addEventListener('fire-eye:account-state',e=>{if(!e.detail.signedIn)stopSimulation();});
   function stopSimulation(){
    requested=false;intentSequence++;areaSequence++;areaController?.abort();clearTimeout(localTimer);general?.cancel();local?.invalidate();general?.invalidate();
    area=null;areaId=null;areaData=null;treeData=null;live?.setArea(null);map.getSource(objectSource)?.setData(empty);map.getSource(treeSource)?.setData(empty);
@@ -291,6 +293,7 @@
   map.setMaxZoom(20);ensure();sync();loadArea();
   const vrStatus=()=>({sceneBounds:area?.bbox_wgs84?.slice()||null,terrainArea:environment?.state.area||null,terrainStatus:environment?.state.status||'unavailable',terrainReady:!!(environment?.state.terrain&&environment?.state.status==='ready'&&map.isSourceLoaded('scene-environment-dem'))});
   return {ready:true,enter,regional,stopSimulation,get requested(){return requested;},vrStatus,async prepareVR(isCurrent=()=>true){
+   if(!await global.fireEyeAccount?.require('vr'))return;
    await options.ensureStreet?.();if(disposed||!isCurrent())return;requested=true;panelLayout();
    ensure();void environment?.retry();if(!areaData)areaId=null;
    local?.invalidate();void loadArea();live?.retry();

@@ -77,7 +77,7 @@
   }
   if(token!==runToken)return;items.at(-1).setAttribute('data-done','true');items.at(-1).removeAttribute('aria-current');runComplete=true;$('model-demo-result').hidden=false;$('model-run').disabled=false;paintWorkspace();
  });
- function downloadDraft(value){const blob=new Blob([JSON.stringify(value,null,2)+'\n'],{type:'application/json'}),url=URL.createObjectURL(blob),a=node('a');a.href=url;a.download='fire-eye-model-draft.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+ async function downloadDraft(value){const account=window.fireEyeAccount;if(!account)return;const ok=await account.download({name:'fire-eye-model-draft.json',blob:new Blob([JSON.stringify(value,null,2)+'\n'],{type:'application/json'}),format:'challenge-template'});if(!ok&&document.getElementById('community-status'))document.getElementById('community-status').textContent=account.lastError;}
  $('model-export').onclick=()=>{if(runComplete)downloadDraft(metadata());};
  $('model-see-results').onclick=()=>{showTab('results',true);$('tab-results').scrollIntoView({block:'start',behavior:'instant'});};
  // Model-family labels demonstrate the interface; these values are not measured performance.

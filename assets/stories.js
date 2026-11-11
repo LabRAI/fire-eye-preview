@@ -14,7 +14,7 @@ const number=n=>finite(n)?n.toLocaleString('en-US'):'—';
 function date(t){if(!t)return 'Date under review';const d=new Date(t);if(!Number.isFinite(+d))return 'Date under review';if(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(t))return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',timeZone:'UTC'});return d.toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23',timeZone:'UTC'})+' UTC';}
 function safeURL(v){try{const u=new URL(v);return u.protocol==='https:'&&!u.username&&!u.password?u.href:null;}catch{return null;}}
 function anchor(label,value){const a=el('a',label);const u=safeURL(value);if(u){a.href=u;a.target='_blank';a.rel='noopener noreferrer';}return a;}
-function save(name,data){const u=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));const a=el('a');a.href=u;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000);}
+async function save(name,data){const account=window.fireEyeAccount;if(!account){$('report-download-status').textContent='Sign-in is still loading. Please retry.';return;}const ok=await account.download({name,blob:new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),format:'evidence-json'});$('report-download-status').textContent=ok?'Evidence download started. Next download in 3:00.':account.lastError;}
 async function request(url,timeout,signal){const c=new AbortController(),abort=()=>c.abort();if(signal?.aborted)c.abort();signal?.addEventListener('abort',abort,{once:true});const timer=setTimeout(abort,timeout);try{const r=await fetch(url,{signal:c.signal,cache:'no-cache'});if(!r.ok)throw Error('Unavailable publication');return await r.arrayBuffer();}finally{clearTimeout(timer);signal?.removeEventListener('abort',abort);}}
 async function json(url,timeout){const b=await request(url,timeout);if(b.byteLength>8000000)throw Error('Publication too large');const j=JSON.parse(new TextDecoder().decode(b));if(j.schema!=='fire-eye-community-v1'||!Array.isArray(j.stories))throw Error('Invalid publication');return j;}
 function status(saved=false){$('community-status').textContent=(saved?'Saved publication · ':'Published ')+date(feed.published_at_utc);}
@@ -147,6 +147,15 @@ function renderReview(active){const root=$('story-review');root.replaceChildren(
  const actions=el('div',undefined,'actions');if(safeURL(active.archive_url))actions.append(anchor('Read the Zenodo archive ↗',active.archive_url));
  const download=el('button','Download edition evidence');download.type='button';download.addEventListener('click',()=>save('Fire-eye_'+active.id+'_evidence.json',FireEyeStoryCollections.evidence(active,feed,sortOrder)));actions.append(download);d.append(actions);root.append(d);
 }
+$('report-download-markdown').onclick=async()=>{
+ const account=window.fireEyeAccount;if(!account){$('report-download-status').textContent='Sign-in is still loading. Please retry.';return;}
+ if(!await account.require('download')){$('report-download-status').textContent=account.lastError;return;}
+ const edition=collections().find(e=>e.id===editionId);if(!edition)return;
+ const button=$('report-download-markdown');button.disabled=true;
+ try{const report=FireEyeReportMarkdown.render({edition,feed,order:sortOrder,collections:FireEyeStoryCollections});const ok=await account.download({name:report.name,blob:new Blob([report.content],{type:'text/markdown;charset=utf-8'}),format:'report-markdown'});$('report-download-status').textContent=ok?'Markdown download started. Next download in 3:00.':account.lastError;}
+ catch{$('report-download-status').textContent='This report could not be exported. Please retry.';}finally{button.disabled=false;}
+};
+window.addEventListener('fire-eye:download-state',e=>{if(e.detail.remaining){const seconds=e.detail.remaining;$('report-download-status').textContent='Next download in '+Math.floor(seconds/60)+':'+String(seconds%60).padStart(2,'0')+'.';}else if(!e.detail.message)$('report-download-status').textContent='Sign in to download · one file every 3 minutes.';else $('report-download-status').textContent=e.detail.message;});
 $('community-refresh').addEventListener('click',load);
 addEventListener('pagehide',()=>{imageController?.abort();for(const u of imageCache.values())URL.revokeObjectURL(u);imageCache.clear();});
 addEventListener('pageshow',e=>{if(e.persisted&&feed)render();});
