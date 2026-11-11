@@ -8,14 +8,17 @@
  const icon=document.createElementNS('http://www.w3.org/2000/svg','svg');icon.setAttribute('viewBox','0 0 24 24');icon.setAttribute('aria-hidden','true');
  for(const [tag,attrs] of [['circle',{cx:12,cy:8,r:3.5}],['path',{d:'M4.5 21v-2a7.5 7.5 0 0 1 15 0v2'}]]){const n=document.createElementNS(icon.namespaceURI,tag);for(const [k,v] of Object.entries(attrs))n.setAttribute(k,String(v));icon.append(n);}
  const label=element('span','Sign in','account-label');button.replaceChildren(icon,label);if(!button.isConnected)host.append(button);document.body.classList.add('account-entry-enabled');
+ const avatar=element('img',null,'account-avatar');avatar.alt='Your GitHub avatar';avatar.width=28;avatar.height=28;avatar.referrerPolicy='no-referrer';avatar.hidden=true;button.insertBefore(avatar,label);
+ avatar.onerror=()=>{avatar.hidden=true;icon.removeAttribute('hidden');};
  const dialog=element('dialog',null,'account-dialog'),heading=element('div',null,'account-heading'),title=element('h2','Sign in to Fire-eye'),close=element('button','×','account-close');
  close.type='button';close.setAttribute('aria-label','Close account');heading.append(title,close);
- const status=element('p'),privacy=element('p','GitHub verifies your identity. Fire-eye stores a pseudonymous ID and sign-in/export activity. We do not retain your GitHub profile, email or provider access token.','muted');
+ const status=element('p'),privacy=element('p','GitHub verifies your identity. Supabase stores only a pseudonymous ID and activity records. Your avatar stays in this browser tab until sign-out; your email and provider access token are not retained.','muted');
  const action=element('button','Checking sign-in…','account-action'),notice=element('p','Browsing and downloads remain available without signing in.','muted');action.type='button';action.disabled=true;privacy.hidden=true;
  status.setAttribute('role','status');status.setAttribute('aria-live','polite');dialog.setAttribute('aria-label','Fire-eye account');dialog.append(heading,status,privacy,action,notice);document.body.append(dialog);
  let client=null,signedIn=false,busy=false,loading=true,ready=false,configurationFailed=false;
  function paint(){
   signedIn=!!client?.signedIn&&signedIn;label.textContent=signedIn?'Account':'Sign in';title.textContent=signedIn?'Your account':'Sign in to Fire-eye';
+  const avatarURL=signedIn?client?.avatarURL:null;if(avatarURL){if(avatar.src!==avatarURL)avatar.src=avatarURL;avatar.hidden=false;icon.setAttribute('hidden','');}else{avatar.hidden=true;avatar.removeAttribute('src');icon.removeAttribute('hidden');}
   button.setAttribute('aria-label',signedIn?'Open your Fire-eye account':'Sign in to Fire-eye');button.title=signedIn?'Your account':'Sign in to Fire-eye';privacy.hidden=!client;
   action.disabled=busy||loading||!client;action.textContent=loading?'Checking sign-in…':!client?'GitHub sign-in coming soon':signedIn?'Sign out':'Continue with GitHub';
   status.textContent=loading?'Checking sign-in availability…':!client?(configurationFailed?'Sign-in is currently unavailable. You can continue using Fire-eye.':'GitHub sign-in is not enabled yet. You can continue using Fire-eye without an account.'):signedIn?'Signed in with GitHub.':'Sign in using your GitHub account.';
@@ -29,7 +32,7 @@
   catch{signedIn=client.signedIn;paint();status.textContent='Account service is temporarily unavailable. You can continue using Fire-eye.';}
   finally{busy=false;action.disabled=!client;}
  };
- window.fireEyeAccount={get signedIn(){return signedIn;},get configured(){return !!client;},get ready(){return ready;},open:()=>button.click()};paint();
+ window.fireEyeAccount={get signedIn(){return signedIn;},get configured(){return !!client;},get ready(){return ready;},open:()=>button.click(),submitForecast:data=>{if(!signedIn||!client)throw Error('Please sign in before submitting.');return client.submitForecast(data);}};paint();
  try{const r=await fetch('config.json',{signal:AbortSignal.timeout(5000)});if(!r.ok)throw Error('Account configuration unavailable');const config=await r.json(),endpoint=window.FireEyeAccountClient?.configuredEndpoint(config);if(endpoint)client=FireEyeAccountClient.create(endpoint);}
  catch{configurationFailed=true;}
  if(!client){loading=false;ready=true;paint();return;}

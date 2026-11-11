@@ -1,13 +1,12 @@
 ---
 name: Forecast challenge
-about: Submit a future-window prediction validated on the Fire-eye Challenge page.
+about: Open the weekly prediction submission page.
 title: '[Forecast challenge] '
 ---
 
-Paste the full copied submission from the Challenge page here, replacing this text.
-Do not attach executable code, model weights, credentials or private information.
+Weekly forecasts are submitted directly at:
+https://labrai.github.io/fire-eye-preview/challenge.html
 
-Only the data in the JSON submission is processed. Your receipt and accepted
-forecast bytes will be public. Collection occurs every ten minutes; both model
-predictions must be fixed before the target window starts. Later issue edits do
-not change a locked prediction. Close a pending issue to withdraw it.
+Sign in, download the weekly template and submit your completed forecast there.
+This issue form does not accept forecast files and does not create an evaluation receipt.
+Do not post model weights, credentials or private information.
