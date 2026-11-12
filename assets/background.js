@@ -62,7 +62,6 @@
  }
  function scheduleLoaded(){if(B.status==='loading'&&!readyCheck)readyCheck=setTimeout(()=>{readyCheck=null;loaded();},150);}
  async function select(id){
-  if(id&&!await window.fireEyeAccount?.require('layers')){$('background-select').value=B.selected;return;}
   if(id&&!B.manifest?.layers.some(l=>l.id===id))return;
   clearTimeout(timeout);clearTimeout(readyCheck);readyCheck=null;
   if(map.getLayer(sourceId))map.removeLayer(sourceId);if(map.getSource(sourceId))map.removeSource(sourceId);
@@ -91,7 +90,7 @@
  B.refresh=refresh;
  for(let i=0;i<600;i++){S=window.fireEyePreview;if(S?.ready)break;await new Promise(r=>setTimeout(r,100));}
  if(!S?.ready)throw Error('Map not ready');map=S.map;
- $('background-select').onchange=e=>select(e.target.value);window.addEventListener('fire-eye:account-state',e=>{if(!e.detail.signedIn)void select('');});
+ $('background-select').onchange=e=>select(e.target.value);
  $('background-opacity').oninput=()=>{$('background-opacity-value').textContent=$('background-opacity').value+'%';if(map.getLayer(sourceId))map.setPaintProperty(sourceId,'raster-opacity',Number($('background-opacity').value)/100);};
  $('background-retry').onclick=()=>select(B.selected);$('background-index-retry').onclick=refresh;
  map.on('sourcedata',e=>{if(e.sourceId===sourceId)scheduleLoaded();});

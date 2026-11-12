@@ -34,7 +34,7 @@
   let color='#33a69e';if(l.id!=='buildings')color=['match',['get',l.id==='wui'?'wuiClass':'burn_severity'],...l.legend.flatMap(x=>[x.value,x.color]),'#999999'];
   map.addLayer({id:sourceId,type:'fill',source:sourceId,paint:{'fill-color':color,'fill-opacity':a,'fill-outline-color':l.id==='buildings'?'#16675f':'rgba(0,0,0,0)'}});order();
  }
- async function request(){if(V.selected&&!await window.fireEyeAccount?.require('layers',{interactive:false}))return;
+ async function request(){
   clearTimeout(debounce);clear();const layer=selected();if(!layer){state('idle','Choose one feature overlay.');return;}
   if(map.getZoom()<layer.minzoom){state('zoom','Zoom in to see '+layer.label.toLowerCase()+'.');return;}
   const b=map.getBounds(),bounds=[Math.max(-125,b.getWest()),Math.max(24,b.getSouth()),Math.min(-66,b.getEast()),Math.min(50,b.getNorth())];
@@ -55,7 +55,7 @@
   const seed=layer.asset.index_seeds?.find(s=>s.tier==='compact');
   worker.postMessage({id:generation,layer,seed:seed?{...seed,local_url:config?.vector_seeds?.[seed.sha256]?new URL(config.vector_seeds[seed.sha256],location.href).href:null}:null,bounds,year:layer.id==='burn-severity'&&$('vector-year').value?Number($('vector-year').value):null,featureLimit:mobile?6000:15000,coordinateLimit:mobile?200000:500000,byteLimit:(mobile?6:12)*1024*1024});
  }
- async function select(id){if(id&&!await window.fireEyeAccount?.require('layers')){$('vector-select').value=V.selected;return;}if(id&&!kinds[id])return;V.selected=id;$('vector-select').value=id;meta();if(id==='burn-severity'){$('vector-year').replaceChildren(new Option('All available years',''));for(const y of selected().years)$('vector-year').append(new Option(String(y),String(y)));}request();}
+ async function select(id){if(id&&!kinds[id])return;V.selected=id;$('vector-select').value=id;meta();if(id==='burn-severity'){$('vector-year').replaceChildren(new Option('All available years',''));for(const y of selected().years)$('vector-year').append(new Option(String(y),String(y)));}request();}
  async function refresh(){
   try{config ||= await fetch('config.json',{signal:AbortSignal.timeout(6000)}).then(r=>r.json());let m;try{const u=new URL(config.vectors_url);if(u.protocol!=='https:'||u.hostname!=='huggingface.co'||!new RegExp('^/datasets/[^/]+/[^/]+/resolve/main/vectors[.]json$').test(u.pathname))throw Error();const r=await fetch(u.href,{cache:'no-store',credentials:'omit',signal:AbortSignal.timeout(8000)});if(!r.ok)throw Error();m=validate(await r.json());V.saved=false;}catch{V.saved=true;if(V.manifest)m=V.manifest;else{const r=await fetch('vectors-bootstrap.json',{signal:AbortSignal.timeout(6000)});if(!r.ok)throw Error();m=validate(await r.json());}}
    const old=selected()?.asset.sha256;V.manifest=m;$('vector-select').replaceChildren(new Option('None',''));for(const l of m.layers)$('vector-select').append(new Option(l.label,l.id));$('vector-select').value=V.selected;$('vector-select').disabled=false;V.ready=true;$('vector-index-retry').hidden=true;if(old&&old!==selected()?.asset.sha256){viewCache.clear();cachedCoordinates=0;select(V.selected);}else if(!V.selected)state('idle','Choose one feature overlay.');return true;
@@ -63,7 +63,7 @@
  }
  V.select=select;V.refresh=refresh;V.request=request;
  for(let i=0;i<600;i++){S=window.fireEyePreview;if(S?.ready)break;await new Promise(r=>setTimeout(r,100));}if(!S?.ready)throw Error();map=S.map;map.setMaxZoom(16);
- $('vector-select').onchange=e=>select(e.target.value);window.addEventListener('fire-eye:account-state',e=>{if(!e.detail.signedIn)void select('');});$('vector-year').onchange=filterYear;$('vector-retry').onclick=request;$('vector-index-retry').onclick=refresh;
+ $('vector-select').onchange=e=>select(e.target.value);$('vector-year').onchange=filterYear;$('vector-retry').onclick=request;$('vector-index-retry').onclick=refresh;
  $('vector-zoom').onclick=()=>map.easeTo({zoom:Math.min(16,Math.max(selected()?.minzoom||10,map.getZoom()+1)),duration:400});
  $('vector-opacity').oninput=()=>{$('vector-opacity-value').textContent=$('vector-opacity').value+'%';if(map.getLayer(sourceId))map.setPaintProperty(sourceId,'fill-opacity',Number($('vector-opacity').value)/100);};
  map.on('moveend',()=>{if(V.selected){clearTimeout(debounce);debounce=setTimeout(request,250);}});

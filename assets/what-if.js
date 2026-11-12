@@ -233,7 +233,6 @@
  }
  const mapsReady = setupMaps();
  async function selectCase(id) {
-  if(!await window.fireEyeAccount?.require('scenario')){W.status='signin';put('result-status','Sign in to load a published comparison.');$('comparison').setAttribute('aria-busy','false');return;}
   const entry = W.manifest?.cases.find(c => c.id === id); if (!entry) return false;
   retryId = id;
   const seq = ++sequence; activeController?.abort(); activeController = new AbortController(); const signal = activeController.signal;
