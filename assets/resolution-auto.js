@@ -2,8 +2,10 @@
 (async function(){
  if(document.body.classList.contains('resolution-lab'))return;
  const $=id=>document.getElementById(id),mobile=matchMedia('(max-width:640px)').matches,hex=/^[a-f0-9]{64}$/;
+ // Cover the native overview/vector hysteresis band in both zoom directions.
+ const nativeZoom=5.75;
  const R={ready:false,status:'overview',manifest:null,request:null,active:null,sequence:0,loadedTiles:0,events:[],tileStats:[],failures:0};window.fireEyeAdaptiveResolution=R;
- let S,P,map,config,layerId=null,requestId=0,loading=null,lastKey='',retryAfter=0;const slots=[],queue=[],jobs=new Map(),tileCache=new Map();let cacheBytes=0;
+ let S,P,map,config,layerId=null,requestId=0,loading=null,lastKey='',retryAfter=0,resolveController=null;const slots=[],queue=[],jobs=new Map(),tileCache=new Map(),indexCache=new Map();let cacheBytes=0;
  function approved(a){const u=new URL(a.url);if(!hex.test(a.sha256)||!Number.isSafeInteger(a.bytes)||a.bytes<=0||u.origin!=='https://huggingface.co'||u.username||u.password||u.search||u.hash||!new RegExp('^/datasets/[^/]+/[^/]+/resolve/[a-f0-9]{40}/resolution/assets/'+a.sha256+'/[A-Za-z0-9.-]+$').test(u.pathname))throw Error('Invalid experimental asset');}
  function validate(m){
   if(m.schema_version!==1||m.kind!=='experimental-resolution'||m.method!=='learned-conditional-50m-v1'||m.retrospective!==true||m.grid?.crs!=='EPSG:5070'||m.grid.width!==938||m.grid.height!==609||m.grid.origin.join(',')!=='-2362425,3267405'||m.grid.native_metres!==5000||m.grid.fine_metres!==50||!hex.test(m.weights_revision)||!Number.isFinite(Date.parse(m.fitted_at_utc))||!Array.isArray(m.runs)||!m.runs.length||m.runs.length>100||new Set(m.runs.map(r=>r.target_time_utc)).size!==m.runs.length)throw Error('Invalid resolution catalog');
@@ -52,7 +54,7 @@
   // another zoom. Keep those same-forecast tiles visible instead of switching
   // back to a native source whose hidden tiles may already have been evicted.
   const retained=R.status==='ready'&&(map.style?.sourceCaches?.[layerId]?.getRenderableIds?.().length||0)>0;
-  const loaded=layerId&&map.getSource(layerId)&&(map.isSourceLoaded(layerId)||retained),blend=R.status==='ready'&&selected&&loaded&&z>=6?1:0;
+  const loaded=layerId&&map.getSource(layerId)&&(map.isSourceLoaded(layerId)||retained),blend=R.status==='ready'&&selected&&loaded&&z>=nativeZoom?1:0;
   S.setRefinementDisplay?.(layerId?{id:layerId,source_id:R.active?.source_id,issue_time_utc:R.active?.issue_time_utc,resolution:z>=11?50:5000,ready:!!blend}:null);
   label(z<10?'Zoom in for automatic 50 m detail':blend&&z>=11?'50 m fire-risk detail · Native values in coverage gaps':blend?'5 km fire risk':R.status==='loading'||(R.status==='ready'&&!loaded)?'Preparing 50 m detail · 5 km forecast visible':'5 km fire risk');
   const key=[blend,R.active?.source_id,R.active?.revision].join('|');if(key!==displayKey){displayKey=key;window.dispatchEvent(new Event('fire-eye:refinement-changed'));}
@@ -66,7 +68,7 @@
    probeJob=job;jobs.set(job.id,job);queue.push(job);dispatch();
   });
  }
- function drop(){if(layerId){if(map.getLayer(layerId))map.removeLayer(layerId);if(map.getSource(layerId))map.removeSource(layerId);layerId=null;}for(const job of [...jobs.values()])cancel(job);R.active=null;S.setRefinementDisplay?.(null);}
+ function drop(){resolveController?.abort();resolveController=null;if(layerId){if(map.getLayer(layerId))map.removeLayer(layerId);if(map.getSource(layerId))map.removeSource(layerId);layerId=null;}for(const job of [...jobs.values()])cancel(job);R.active=null;S.setRefinementDisplay?.(null);}
  async function catalog(){
   if(R.manifest)return R.manifest;if(loading)return loading;
   loading=(async()=>{config=await fetch('config.json',{signal:AbortSignal.timeout(6000)}).then(r=>r.json());let value;
@@ -74,13 +76,29 @@
    catch{const r=await fetch('resolution-bootstrap.json',{signal:AbortSignal.timeout(6000)});if(!r.ok)throw Error();value=validate(await r.json());}R.manifest=value;return value;
   })().finally(()=>{loading=null;});return loading;
  }
- async function resolveRun(){
-  const source=S.active.run,issue=S.manifest.issue_time_utc,m=await catalog();
+ async function readForecastIndex(assets,signal){
+  signal.throwIfAborted();const a=assets?.forecast;if(!a||!hex.test(a.sha256)||!Number.isSafeInteger(a.bytes)||a.bytes<1||a.bytes>1024*1024)throw Error('Selected forecast index unavailable');
+  const u=new URL(a.url,location.href);if(u.origin!=='https://huggingface.co'||u.username||u.password||u.search||u.hash||!/^\/datasets\/[^/]+\/[^/]+\/resolve\/[a-f0-9]{40}\/(archive|platform)\//.test(u.pathname))throw Error('Invalid selected forecast source');
+  if(indexCache.has(a.sha256))return indexCache.get(a.sha256);
+  const r=await fetch(u,{credentials:'omit',signal:AbortSignal.any([signal,AbortSignal.timeout(12000)])});if(!r.ok||Number(r.headers.get('Content-Length'))>a.bytes)throw Error('Selected forecast index unavailable');
+  const b=new Uint8Array(await r.arrayBuffer());if(b.length!==a.bytes||Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',b)),x=>x.toString(16).padStart(2,'0')).join('')!==a.sha256)throw Error('Selected forecast checksum mismatch');
+  const index=JSON.parse(new TextDecoder().decode(a.encoding==='gzip'?fflate.gunzipSync(b):b));signal.throwIfAborted();indexCache.set(a.sha256,index);while(indexCache.size>8)indexCache.delete(indexCache.keys().next().value);return index;
+ }
+ async function resolveRun(signal){
+  const snapshot=S.manifest,source=S.active.run,issue=snapshot.issue_time_utc,m=await catalog();signal.throwIfAborted();
   const saved=m.runs.find(r=>r.source_id===source.source_id&&r.issue_time_utc===issue&&r.target_time_utc===source.target_time_utc);
 
   let index,assets;
-  if(S.manifest.archive){assets=S.manifest.regional_assets;const a=assets?.forecast;if(!a)throw Error('Selected archive unavailable');const u=new URL(a.url,location.href);if(u.origin!=='https://huggingface.co'||!/^\/datasets\/[^/]+\/[^/]+\/resolve\/[a-f0-9]{40}\/archive\//.test(u.pathname))throw Error();const r=await fetch(u,{signal:AbortSignal.timeout(12000)}),b=new Uint8Array(await r.arrayBuffer());if(b.length!==a.bytes||Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',b)),x=>x.toString(16).padStart(2,'0')).join('')!==a.sha256)throw Error();index=JSON.parse(new TextDecoder().decode(a.encoding==='gzip'?fflate.gunzipSync(b):b));}
-  else{assets=P.manifest.assets;index=await P.loadAsset('forecast');}
+  if(snapshot.archive){assets=snapshot.regional_assets;index=await readForecastIndex(assets,signal);}
+  else{
+   const published=P.manifest;assets=published.assets;try{index=await P.loadAsset('forecast');}catch{signal.throwIfAborted();}signal.throwIfAborted();
+   if(index?.issue_time_utc!==issue||!index.runs?.some(r=>r.source_id===source.source_id&&r.lead_hours===source.lead_hours&&r.target_time_utc===source.target_time_utc)){
+    // The numerical snapshot rotates independently of the displayed heatmap.
+    // Resolve the same issue and original source, never substitute a newer run.
+    const matched=await P.matchingRegionalForecast(snapshot,{manifest:published},signal);signal.throwIfAborted();
+    assets=matched.assets;index=await readForecastIndex(assets,signal);
+   }
+  }
   const actual=index.runs.find(r=>r.source_id===source.source_id&&r.lead_hours===source.lead_hours&&r.target_time_utc===source.target_time_utc),g=index.grid;
   if(index.issue_time_utc!==issue||!actual||g.crs!=='EPSG:5070'||g.width!==938||g.height!==609||g.transform.join(',')!=='5000,0,-2362425,0,-5000,3267405')throw Error('Selected forecast mismatch');
   const asset={...assets[actual.asset]};asset.url=new URL(asset.url,location.href).href;
@@ -96,12 +114,12 @@
  async function sync(){
   if(!S?.active)return;display();const key=S.active.run.source_id+'|'+S.manifest.issue_time_utc;
   if(lastKey!==key){++R.sequence;drop();lastKey=key;R.status='overview';retryAfter=0;}
-  if(map.getZoom()<6||R.status==='loading'||R.status==='ready'||Date.now()<retryAfter)return;
-  const sequence=++R.sequence;R.status='loading';R.loadedTiles=0;display();
-  try{const run=await resolveRun();if(sequence!==R.sequence||lastKey!==key)return;R.request=run;const id='adaptive-resolution-'+run.revision.slice(0,12)+'-'+sequence;layerId=id;
-   map.addSource(id,{type:'raster',tiles:['adaptive50://'+run.revision+'/'+sequence+'/{z}/{x}/{y}'],tileSize:256,minzoom:6,maxzoom:12,bounds:[-128.4,22.4,-64,52.5],attribution:'RAI Lab · experimental 50 m refinement of the selected 5 km forecast'});
-   map.addLayer({id,type:'raster',source:id,minzoom:6,paint:{'raster-opacity':0,'raster-opacity-transition':{duration:0,delay:0},'raster-resampling':'nearest','raster-fade-duration':0}});order();display();const started=performance.now();await waitLoaded(id,sequence);if(sequence!==R.sequence)return;R.active=run;R.status='ready';R.events.push({source_id:run.source_id,issue_time_utc:run.issue_time_utc,target_time_utc:run.target_time_utc,method:run.native?'selected-native-field':'published-refinement',ready_ms:performance.now()-started});if(R.events.length>30)R.events.shift();display();
-  }catch{if(sequence===R.sequence){drop();R.status='unavailable';R.failures++;retryAfter=Date.now()+30000;display();}}
+  if(map.getZoom()<nativeZoom||R.status==='loading'||R.status==='ready'||Date.now()<retryAfter)return;
+  const sequence=++R.sequence,controller=new AbortController();resolveController=controller;R.status='loading';R.loadedTiles=0;display();
+  try{const run=await resolveRun(AbortSignal.any([controller.signal,AbortSignal.timeout(30000)]));if(sequence!==R.sequence||lastKey!==key)return;R.request=run;const id='adaptive-resolution-'+run.revision.slice(0,12)+'-'+sequence;layerId=id;
+   map.addSource(id,{type:'raster',tiles:['adaptive50://'+run.revision+'/'+sequence+'/{z}/{x}/{y}'],tileSize:256,minzoom:5,maxzoom:12,bounds:[-128.4,22.4,-64,52.5],attribution:'RAI Lab · experimental 50 m refinement of the selected 5 km forecast'});
+   map.addLayer({id,type:'raster',source:id,minzoom:nativeZoom,paint:{'raster-opacity':0,'raster-opacity-transition':{duration:0,delay:0},'raster-resampling':'nearest','raster-fade-duration':0}});order();display();const started=performance.now();await waitLoaded(id,sequence);if(sequence!==R.sequence)return;R.active=run;R.status='ready';R.events.push({source_id:run.source_id,issue_time_utc:run.issue_time_utc,target_time_utc:run.target_time_utc,method:run.native?'selected-native-field':'published-refinement',ready_ms:performance.now()-started});if(R.events.length>30)R.events.shift();display();
+  }catch{if(sequence===R.sequence){drop();R.status='unavailable';R.failures++;retryAfter=Date.now()+30000;display();}}finally{if(resolveController===controller){controller.abort();resolveController=null;}}
  }
  for(let i=0;i<600;i++){S=window.fireEyePreview;P=window.fireEyePlatform;if(S?.ready&&P?.ready)break;await new Promise(r=>setTimeout(r,100));}if(!S?.ready||!P?.ready)return;map=S.map;
  maplibregl.addProtocol('adaptive50',protocol);R.ready=true;R.sync=sync;R.display=display;R.sampleAt=sampleAt;R.nativeAt=points=>sampleAt(points,true);R.retry=()=>{retryAfter=0;R.status='overview';return sync();};

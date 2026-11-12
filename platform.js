@@ -139,6 +139,7 @@
   }catch{signal.throwIfAborted();}}
   signal.throwIfAborted();return fetchIndex();
  }
+ P.matchingRegionalForecast=matchingRegionalForecast;
  function retryMatchingForecast(message){
   const id=P.workerGeneration;if(message.kind!=='forecast'||message.code!=='FORECAST_ISSUE_MISMATCH'||S.manifest.archive||P.forecastRetryGeneration===id)return false;
   P.forecastRetryGeneration=id;const snapshot=S.manifest,request=P.lastRegionalRequest,abort=new AbortController();
