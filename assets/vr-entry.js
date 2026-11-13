@@ -1,6 +1,7 @@
 /* Optional immersive rendering. Explicit, persistent entry; large renderer stays lazy. */
 (async()=>{
- const moduleURL=new URL('./vr-viewer.js',document.currentScript.src),terrainURL=new URL('./vr-terrain.mjs',document.currentScript.src),qrURL=new URL('./vr-qr.mjs',document.currentScript.src);let moduleAttempt=0,terrainModule=null,terrainController=null;
+ const standalone=document.body.classList.contains('vr-standalone');
+ const moduleURL=new URL('./vr-viewer.js?v=2ce95c82256ad96c',document.currentScript.src),terrainURL=new URL('./vr-terrain.mjs?v=5f5ed23adb84968f',document.currentScript.src),qrURL=new URL('./vr-qr.mjs?v=dbe8802f554d6d8c',document.currentScript.src);let moduleAttempt=0,terrainModule=null,terrainController=null;
  for(let i=0;i<600&&!window.fireEyeGeography;i++)await new Promise(r=>setTimeout(r,100));
  const G=window.fireEyeGeography,S=window.fireEyePreview;if(!G||!S)return;
  const element=(tag,text,cls)=>{const e=document.createElement(tag);if(text)e.textContent=text;if(cls)e.className=cls;return e;};
@@ -20,7 +21,7 @@
  const note=element('p','Trigger: point and teleport. Thumbstick: turn in 30° steps. Home, Pause fire and Exit VR are available inside the headset. The scene uses the selected forecast snapshot; fire effects are illustrative.','vr-note');
  const qualityLabel=element('label','Quality','scene-quality'),qualitySelect=element('select');qualitySelect.id='vr-quality';qualitySelect.setAttribute('aria-label','VR quality');qualitySelect.title='Controls vegetation density, mesh detail and rendering resolution. Forecast values stay the same.';
  for(const value of window.FireEyeSceneQuality.tiers){const item=element('option',value[0].toUpperCase()+value.slice(1));item.value=value;qualitySelect.append(item);}qualitySelect.value=G.simulation.state.assetQuality;qualityLabel.append(qualitySelect);
- const share=element('button','Share location');share.id='vr-share';share.type='button';share.setAttribute('aria-haspopup','dialog');share.setAttribute('aria-controls','vr-share-dialog');
+ const share=element('button','VR QR code');share.id='vr-share';share.type='button';share.setAttribute('aria-haspopup','dialog');share.setAttribute('aria-controls','vr-share-dialog');
  actions.append(qualityLabel,enter,retry,places,share);dialog.append(head,context,chooser,viewport,status,actions,note);document.body.append(dialog);
  let savedView=null,viewer=null,moduleTask=null,sequence=0,restorePause=null,restoreIntent=null,supported=false,busy=false,areaTask=null,opener=null;
  let shareSelection=null,shareUI=null,shareSequence=0,qrAttempt=0,qrTask=null;
@@ -31,7 +32,7 @@
   if(!shareSelection||!valid(shareSelection.center))throw Error('Choose a location first.');
   // resolution-entry.js restores view + source + issue. Source identifies the
   // exact target window, including archived forecasts; never forward page params.
-  const base=new URL('./',location.href);if(!['https:','http:'].includes(base.protocol))throw Error('Share links require a website address.');
+  const base=new URL('vr.html',location.href);if(!['https:','http:'].includes(base.protocol))throw Error('VR links require a website address.');
   // A shared scene opens locally even when its owner entered from an overview.
   // savedView remains solely the owner's return-camera state.
   const url=new URL(base.origin+base.pathname),zoom=17.8;
@@ -50,19 +51,20 @@
  function ensureShareUI(){
   if(shareUI)return shareUI;
   const box=element('dialog',null,'vr-share-dialog');box.id='vr-share-dialog';box.setAttribute('aria-labelledby','vr-share-title');
-  const heading=element('div',null,'vr-share-heading'),label=element('h2','Share this location'),dismiss=element('button','×','vr-close');label.id='vr-share-title';dismiss.id='vr-share-close';dismiss.type='button';dismiss.setAttribute('aria-label','Close share location');heading.append(label,dismiss);
-  const body=element('div',null,'vr-share-body'),description=element('p',null,'vr-share-description'),hint=element('p','Scan to open this location on the map. VR starts only when you choose it. Archived forecasts depend on continued availability.'),code=element('div',null,'vr-share-code'),qrStatus=element('p','Generating QR code locally…'),linkLabel=element('label','Location link'),link=element('input'),copy=element('button','Copy link'),copyStatus=element('p');
+  const heading=element('div',null,'vr-share-heading'),label=element('h2','Open this scene in VR'),dismiss=element('button','×','vr-close');label.id='vr-share-title';dismiss.id='vr-share-close';dismiss.type='button';dismiss.setAttribute('aria-label','Close VR QR code');heading.append(label,dismiss);
+  const body=element('div',null,'vr-share-body'),description=element('p',null,'vr-share-description'),hint=element('p','Scan to open the dedicated full-screen scene. On a compatible headset, select Enter VR to begin. The location and forecast window stay the same.'),code=element('div',null,'vr-share-code'),qrStatus=element('p','Generating QR code locally…'),linkLabel=element('label','VR scene link'),link=element('input'),copy=element('button','Copy link'),copyStatus=element('p'),launch=element('a','Open VR page','vr-page-link');
+  launch.id='vr-share-open';launch.target='_blank';launch.rel='noopener noreferrer';launch.hidden=true;
   link.id='vr-share-link';link.type='url';link.readOnly=true;link.spellcheck=false;linkLabel.htmlFor=link.id;copy.id='vr-share-copy';copy.type='button';qrStatus.id='vr-share-qr-status';copyStatus.id='vr-share-copy-status';qrStatus.setAttribute('role','status');copyStatus.setAttribute('role','status');
-  body.append(description,hint,code,qrStatus,linkLabel,link,copy,copyStatus);box.append(heading,body);document.body.append(box);
+  body.append(description,hint,code,qrStatus,launch,linkLabel,link,copy,copyStatus);box.append(heading,body);document.body.append(box);
   dismiss.onclick=()=>dismissShare();box.addEventListener('cancel',event=>{event.preventDefault();dismissShare();});
   copy.onclick=async()=>{const seq=shareSequence,url=link.value;try{if(!navigator.clipboard?.writeText)throw Error();await navigator.clipboard.writeText(url);if(seq===shareSequence&&box.open)copyStatus.textContent='Link copied.';}catch{if(seq===shareSequence&&box.open){link.focus({preventScroll:true});link.select();copyStatus.textContent='Clipboard unavailable. Select and copy the link above.';}}};
-  shareUI={dialog:box,description,code,qrStatus,link,copy,copyStatus};return shareUI;
+  shareUI={dialog:box,description,code,qrStatus,link,copy,copyStatus,launch};return shareUI;
  }
  async function openShare(){
   if(!dialog.open||viewer?.sessionActive)return;
-  const ui=ensureShareUI(),seq=++shareSequence;ui.code.replaceChildren();ui.qrStatus.textContent='Generating QR code locally…';ui.copyStatus.textContent='';ui.link.value='';ui.copy.disabled=true;
+  const ui=ensureShareUI(),seq=++shareSequence;ui.code.replaceChildren();ui.qrStatus.textContent='Generating QR code locally…';ui.copyStatus.textContent='';ui.link.value='';ui.copy.disabled=true;ui.launch.hidden=true;ui.launch.removeAttribute('href');
   if(!ui.dialog.open)ui.dialog.showModal();
-  let result;try{result=shareLink();ui.link.value=result.url;ui.description.textContent=result.description;ui.copy.disabled=false;}catch{ui.description.textContent='Choose a valid location to share.';ui.qrStatus.textContent='The location link is unavailable.';return;}
+  let result;try{result=shareLink();ui.link.value=result.url;ui.description.textContent=result.description;ui.copy.disabled=false;ui.launch.href=result.url;ui.launch.hidden=false;}catch{ui.description.textContent='Choose a valid location to share.';ui.qrStatus.textContent='The location link is unavailable.';return;}
   try{
    if(!qrTask){const url=new URL(qrURL);url.searchParams.set('attempt',String(qrAttempt++));qrTask=import(url.href).catch(error=>{qrTask=null;throw error;});}
    const module=await qrTask;if(seq!==shareSequence||!ui.dialog.open)return;const canvas=await module.createQRCanvas(result.url);
@@ -71,10 +73,13 @@
  }
  share.onclick=()=>{void openShare();};
  const report=message=>{status.textContent=message;};
+ const sceneState=phase=>{if(standalone)window.dispatchEvent(new CustomEvent('fire-eye:vr-state',{detail:{phase}}));};
  function restore(){if(restorePause!==null){G.simulation.pause(restorePause);restorePause=null;}}
  function captureView(){return {center:S.map.getCenter().toArray(),zoom:S.map.getZoom(),pitch:S.map.getPitch(),bearing:S.map.getBearing()};}
  async function closeView(){sequence++;dismissShare(false);shareSelection=null;terrainController?.abort();terrainController=null;busy=false;const old=viewer;viewer=null;dialog.close();restore();if(restoreIntent===false)G.stopSimulation();restoreIntent=null;if(savedView){const view=savedView;savedView=null;S.map.stop();S.map.jumpTo(view);}window.fireEyeVR.viewer=null;window.fireEyeVR.snapshot=null;opener?.focus({preventScroll:true});await old?.dispose();}
- close.onclick=()=>{void closeView();};dialog.addEventListener('cancel',e=>{e.preventDefault();void closeView();});
+ const leave=()=>{if(standalone){void window.fireEyeVRPage?.back();}else void closeView();};
+ close.onclick=leave;dialog.addEventListener('cancel',e=>{e.preventDefault();leave();});
+ if(standalone){title.textContent='Fire-eye · VR';close.setAttribute('aria-label','Back to Fire-eye map');close.title='Back to map';retry.textContent='↻';retry.title='Reload scene';retry.setAttribute('aria-label','Reload VR scene');}
  const valid=p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite)&&Math.abs(p[0])<=180&&Math.abs(p[1])<=85;
  async function chooseLocation(){const seq=++sequence;dismissShare(false);shareSelection=null;share.hidden=true;terrainController?.abort();busy=false;const old=viewer;viewer=null;window.fireEyeVR.viewer=null;await old?.dispose();if(seq!==sequence||!dialog.open)return;
   restore();chooser.hidden=false;viewport.hidden=true;viewport.replaceChildren();context.textContent='Choose a point on the map';enter.hidden=true;retry.hidden=true;places.hidden=true;note.hidden=true;examples.replaceChildren();
@@ -105,6 +110,7 @@
   }return null;
  }
  async function prepare(){
+  sceneState('loading');
   dismissShare(false);rememberShare(S.map.getCenter().toArray());share.hidden=false;share.disabled=false;
   const seq=++sequence;busy=true;qualitySelect.disabled=true;qualitySelect.value=G.simulation.state.assetQuality;chooser.hidden=true;viewport.hidden=false;enter.hidden=false;retry.hidden=false;places.hidden=false;note.hidden=false;enter.disabled=true;retry.disabled=true;report('Preparing the selected geographic scene…');const old=viewer;viewer=null;window.fireEyeVR.viewer=null;await old?.dispose();if(seq!==sequence||!dialog.open)return;restore();viewport.replaceChildren();
   try{
@@ -130,16 +136,17 @@
    rememberShare(data.center,forecast);
    const next=await module.createViewer(viewport,data,{onSession:active=>{if(seq!==sequence||!dialog.open)return;enter.textContent=active?'Exit VR':'Enter VR';retry.disabled=places.disabled=qualitySelect.disabled=share.disabled=active;report(active?'VR is active. Use the in-headset Exit VR control to return.':readyMessage());},onFailure:message=>{if(seq!==sequence||!dialog.open)return;enter.disabled=true;report(message);}});
    if(seq!==sequence||!dialog.open){await next.dispose();return;}viewer=next;window.fireEyeVR.viewer=next;window.fireEyeVR.snapshot={forecast,center:data.center,counts:data.counts,quality:data.quality,terrainSource:data.terrainSource,terrainResolutionMetres:source.terrainResolutionMetres||null};enter.disabled=!supported;enter.textContent='Enter VR';
-   report(readyMessage());
-  }catch(error){if(seq===sequence){restore();report(/^(VR (?:terrain|scene)|Mapped terrain|Local (?:terrain|scene)|Terrain is|No mapped ground|This scene exceeds|Choose a location|The selected risk)/.test(error.message||'')?error.message:'VR could not load. Reload the scene or return to the map.');}}
+   report(readyMessage());sceneState('ready');
+  }catch(error){if(seq===sequence){restore();report(/^(VR (?:terrain|scene)|Mapped terrain|Local (?:terrain|scene)|Terrain is|No mapped ground|This scene exceeds|Choose a location|The selected risk)/.test(error.message||'')?error.message:'VR could not load. Reload the scene or return to the map.');sceneState('unavailable');}}
   finally{if(seq===sequence){busy=false;retry.disabled=places.disabled=false;qualitySelect.disabled=!!viewer?.sessionActive;qualitySelect.value=G.simulation.state.loadedQuality||G.simulation.state.assetQuality;}}
  }
- async function open(event){if(dialog.open)return;opener=event?.currentTarget instanceof HTMLElement?event.currentTarget:mapButton;window.dispatchEvent(new Event('fire-eye:vr-open'));S.map.stop();savedView=captureView();restoreIntent=G.requested;dialog.showModal();const point=valid(S.selected)?S.selected.slice():S.map.getCenter().toArray();void loadLocation(point);}
+ async function open(event){if(dialog.open)return;opener=event?.currentTarget instanceof HTMLElement?event.currentTarget:mapButton;window.dispatchEvent(new Event('fire-eye:vr-open'));S.map.stop();savedView=captureView();restoreIntent=G.requested;if(standalone)dialog.show();else dialog.showModal();const point=valid(S.selected)?S.selected.slice():S.map.getCenter().toArray();void loadLocation(point);}
  enter.onclick=()=>{if(!viewer||busy||!supported)return;if(viewer.sessionActive){void viewer.endSession();return;}busy=true;enter.disabled=true;
   viewer.enterVR().catch(error=>report(error.message)).finally(()=>{busy=false;enter.disabled=!supported;});
  };
- retry.onclick=()=>{if(!busy&&!viewer?.sessionActive){if(chooser.hidden)void prepare();else void chooseLocation();}};places.onclick=()=>{if(!viewer?.sessionActive)void chooseLocation();};openButton.onclick=sideButton.onclick=mapButton.onclick=open;
+ const reload=()=>{if(!busy&&!viewer?.sessionActive)return chooser.hidden?prepare():chooseLocation();};
+ retry.onclick=()=>{void reload();};places.onclick=()=>{if(!viewer?.sessionActive)void chooseLocation();};openButton.onclick=sideButton.onclick=mapButton.onclick=open;
  qualitySelect.onchange=async()=>{if(busy||viewer?.sessionActive)return;busy=true;qualitySelect.disabled=true;const seq=sequence;report('Loading selected materials…');await G.simulation.setQuality(qualitySelect.value);if(seq!==sequence||!dialog.open)return;busy=false;if(G.simulation.state.qualityError){qualitySelect.disabled=false;qualitySelect.value=G.simulation.state.loadedQuality;report('The selected materials could not load. Your previous scene is still available.');return;}await prepare();};
- window.fireEyeVR={open,close:closeView,viewer:null,snapshot:null};
+ window.fireEyeVR={open,close:closeView,reload,viewer:null,snapshot:null};
  window.addEventListener('pagehide',()=>{void closeView();},{once:true});
 })().catch(()=>{});
