@@ -29594,7 +29594,7 @@ function boundedPoint(p, radius) {
   return Array.isArray(p) && p.length >= 2 && p.slice(0, 2).every(Number.isFinite) && Math.abs(p[0]) < radius - 4 && Math.abs(p[1]) < radius - 4;
 }
 function groundCoverAsset(asset, row, ground, radius, remaining) {
-  const stride = 11, perCell = asset.grass_vertices_per_cell, src = asset.vertices, offsets = asset.ground_offsets, vertices = [], heights = [], groundTypes = [], remap = /* @__PURE__ */ new Map();
+  const stride = 11, perCell = asset.grass_vertices_per_cell, src = asset.vertices, offsets = asset.ground_offsets, vertices = [], heights = [], groundTypes = [], dryCounts = [], remap = /* @__PURE__ */ new Map();
   let cells = 0;
   if (!Number.isInteger(perCell) || perCell < 4 || src.length !== asset.grass_cells * perCell * stride || offsets?.length !== src.length / stride) throw Error("Invalid grass patch geometry");
   for (let cell = 0; cell < asset.grass_cells; cell++) {
@@ -29607,6 +29607,7 @@ function groundCoverAsset(asset, row, ground, radius, remaining) {
     if (cells >= remaining) break;
     cells++;
     groundTypes.push(asset.ground_types?.[cell] || 0);
+    dryCounts.push(asset.dry_blades_per_cell?.[cell] || 0);
     for (let j = 0; j < perCell; j++) {
       const old = start + j, i = old * stride, p = points[j], v = Array.from(src.slice(i, i + stride));
       v[1] = (ground(...p) - row[1] + offsets[old]) / row[4];
@@ -29635,7 +29636,7 @@ function groundCoverAsset(asset, row, ground, radius, remaining) {
     }
   }
   const data = new Float32Array(vertices), index = new Uint16Array(indices), litterCells = groundTypes.filter((t) => t === 1).length;
-  return { ...asset, vertices: data, indices: index, parts, ground_offsets: new Float32Array(heights), ground_types: new Uint8Array(groundTypes), litter_cells: litterCells, leaf_count: litterCells * (asset.leaf_slots_per_cell || 0), grass_cells: cells, bytes: data.byteLength + index.byteLength };
+  return { ...asset, vertices: data, indices: index, parts, ground_offsets: new Float32Array(heights), ground_types: new Uint8Array(groundTypes), dry_blades_per_cell: new Uint8Array(dryCounts), dry_blade_count: dryCounts.reduce((n, v) => n + v, 0), litter_cells: litterCells, leaf_count: litterCells * (asset.leaf_slots_per_cell || 0), grass_cells: cells, bytes: data.byteLength + index.byteLength };
 }
 function capture({ center, height, features, meshSnapshot, forecast, terrainReady, terrainStatus, terrainSource = "Published local terrain", mobile = false, radius = 240 }) {
   if (!terrainReady && terrainStatus === "outside") throw Error("Local terrain has not loaded for this location. Reload the scene.");
@@ -29773,7 +29774,7 @@ function capture({ center, height, features, meshSnapshot, forecast, terrainRead
     canStand,
     forecast: { issue_time_utc: forecast.issue_time_utc, target_time_utc: forecast.target_time_utc, source_id: forecast.source_id, lead_hours: forecast.lead_hours, resolution: forecast.resolution, field_status: forecast.field_status },
     bounds_m: [-radius, -radius, radius, radius],
-    counts: { buildings: objects.filter((f) => f.properties.kind === "building").length, trees: groups.filter((g) => g.asset.role !== "grass").reduce((n, g) => n + g.instances.length / 7, 0), grass: grassCount, grassPatches: groups.filter((g) => g.asset.ground_cover).length, litterCells: groups.reduce((n, g) => n + (g.asset.litter_cells || 0), 0), leaves: groups.reduce((n, g) => n + (g.asset.leaf_count || 0), 0), emitters: emitters.length }
+    counts: { buildings: objects.filter((f) => f.properties.kind === "building").length, trees: groups.filter((g) => g.asset.role !== "grass").reduce((n, g) => n + g.instances.length / 7, 0), grass: grassCount, grassPatches: groups.filter((g) => g.asset.ground_cover).length, litterCells: groups.reduce((n, g) => n + (g.asset.litter_cells || 0), 0), leaves: groups.reduce((n, g) => n + (g.asset.leaf_count || 0), 0), dryBlades: groups.reduce((n, g) => n + (g.asset.dry_blade_count || 0), 0), emitters: emitters.length }
   };
 }
 

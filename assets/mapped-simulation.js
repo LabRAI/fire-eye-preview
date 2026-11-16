@@ -34,12 +34,13 @@
   }
   const priority=p=>p.distance<100?p.distance:100+hash(p.id+'/budget')/4294967296*650;
   const ordered=[...patches.values()].sort((a,b)=>priority(a)-priority(b)||a.id.localeCompare(b.id)),groups=[];let count=0,nearCount=0;
-  const blades=quality==='high'?6:quality==='medium'?4:2,leaves=quality==='high'?3:quality==='medium'?2:1;
   const world=p=>{const scale=Math.cos((Math.floor(p[1]/5)*5+2.5)*Math.PI/180);return [p[0]*Math.PI/180*6378137*scale,Math.log(Math.tan(Math.PI/4+p[1]*Math.PI/360))*6378137*scale];};
   for(const patch of ordered){
    if(groups.length>=maxGroups)break;
    if(count+patch.cells.length>budget||patch.distance<100&&nearCount+patch.cells.length>Math.floor(budget*5/6))continue;
+   const near=patch.distance<55,blades=near?(quality==='high'?12:quality==='medium'?9:6):(quality==='high'?6:quality==='medium'?4:2),leaves=near?(quality==='high'?8:quality==='medium'?6:4):(quality==='high'?3:quality==='medium'?2:1),leafVertices=9;
    const anchor=local(patch.center),vertices=[],groundOffsets=[],groundIndices={grass:[],litter:[],dry:[]},bladeIndices=[],groundTypes=[],worldOrigin=world(patch.center).map(v=>Math.floor(v/4)*4);
+   const dryCounts=[];
    const vertex=(p,n,c,uv=[0,0],aboveGround=.035)=>{const index=vertices.length/11;vertices.push(p[0]-anchor[0],p[1]-anchor[1],p[2]-anchor[2],...n,...c,...uv);groundOffsets.push(aboveGround);return index;};
    for(const f of patch.cells){
     const b=f.properties.grass_bounds,geo=[[b[0],b[1]],[b[2],b[1]],[b[2],b[3]],[b[0],b[3]]],corners=geo.map(local);
@@ -49,30 +50,33 @@
      const color=materials?.[kind]?[.88+shade*.12,.88+shade*.12,.88+shade*.12]:kind==='litter'?[.095+shade*.04,.060+shade*.025,.025+shade*.01]:kind==='dry'?[.17+shade*.05,.13+shade*.035,.055+shade*.02]:[.075+shade*.025,.155+shade*.035,.028+shade*.015];
      return vertex([p[0],p[1]+.035,p[2]],normal,color,uv);});
     groundIndices[kind].push(ids[0],ids[1],ids[2],ids[0],ids[2],ids[3]);
-    const rng=random(hash(f.properties.source_id+'/blades')),base=local(f.geometry.coordinates);
+    const rng=random(hash(f.properties.source_id+'/blades')),base=local(f.geometry.coordinates);let dryCount=0;
     for(let k=0;k<blades;k++){
      // Thin, individually jittered blades replace the dark texture-card tuft.
      // Keep every root and tip strictly inside this already-approved footprint.
-     const ox=(rng()-.5)*dx*.8,oz=(rng()-.5)*dz*.8,angle=rng()*Math.PI*2,halfWidth=.025+rng()*.025,h=.055+rng()*.07,ax=Math.cos(angle)*halfWidth,az=Math.sin(angle)*halfWidth,bendX=(rng()-.5)*.05,bendZ=(rng()-.5)*.05;
+     const dry=kind==='dry'||rng()<(kind==='litter'?.65:.24);if(dry)dryCount++;
+     const ox=(rng()-.5)*dx*.68,oz=(rng()-.5)*dz*.68,angle=rng()*Math.PI*2,halfWidth=dry?.012+rng()*.014:.025+rng()*.025,h=dry?.13+rng()*.14:.055+rng()*.07,ax=Math.cos(angle)*halfWidth,az=Math.sin(angle)*halfWidth,bendX=(rng()-.5)*(dry?.19:.05),bendZ=(rng()-.5)*(dry?.19:.05);
      const ground=(x,z)=>[base[0]+x,base[1]+.035-nx*x-nz*z,base[2]+z],a=ground(ox-ax,oz-az),b=ground(ox+ax,oz+az),tip=ground(ox+bendX,oz+bendZ);tip[1]+=h;
-     const shade=rng(),dry=kind!=='grass'||rng()<.16,c=dry?[.22+shade*.05,.15+shade*.035,.055+shade*.02]:[.085+shade*.015,.17+shade*.025,.035+shade*.012],n=[0,1,0],v=vertex(a,n,c),w=vertex(b,n,c),t=vertex(tip,n,c,[0,0],.035+h);bladeIndices.push(v,w,t);
+     const shade=rng(),c=dry?[.48+shade*.12,.33+shade*.11,.12+shade*.07]:[.085+shade*.015,.17+shade*.025,.035+shade*.012],n=[0,1,0],v=vertex(a,n,c),w=vertex(b,n,c),t=vertex(tip,n,c,[0,0],.035+h);bladeIndices.push(v,w,t);
     }
+    dryCounts.push(dryCount);
     // Small folded leaf silhouettes add relief above the continuous litter
     // material. Fixed slots preserve map/VR cell clipping and quality budgets.
     const leafRng=random(hash(f.properties.source_id+'/litter'));
     for(let k=0;k<leaves;k++){
-     const ox=(leafRng()-.5)*dx*.65,oz=(leafRng()-.5)*dz*.65,angle=leafRng()*Math.PI*2,halfLength=.07+leafRng()*.07,halfWidth=.025+leafRng()*.035,tint=leafRng(),color=[.20+tint*.11,.075+tint*.075,.022+tint*.022],leaf=[];
-     for(const [x,z,h] of [[-halfWidth,0,.014],[0,halfLength,0],[halfWidth,0,.014],[-halfWidth,0,.014],[halfWidth,0,.014],[0,-halfLength,0]]){
+     const ox=(leafRng()-.5)*dx*.65,oz=(leafRng()-.5)*dz*.65,angle=leafRng()*Math.PI*2,halfLength=.085+leafRng()*.07,halfWidth=.055+leafRng()*.045,tint=leafRng(),color=[.36+tint*.19,.19+tint*.14,.055+tint*.07],leaf=[];
+     const outline=[[0,0,.022],[0,halfLength,0],[halfWidth*.7,halfLength*.45,.008],[halfWidth,0,.012],[halfWidth*.55,-halfLength*.4,.008],[0,-halfLength*.8,0],[-halfWidth*.55,-halfLength*.4,.008],[-halfWidth,0,.012],[-halfWidth*.7,halfLength*.45,.008]];
+     for(let j=0;j<outline.length;j++){const [x,z,h]=outline[j];
       const a=kind==='litter'?ox+x*Math.cos(angle)-z*Math.sin(angle):0,b=kind==='litter'?oz+x*Math.sin(angle)+z*Math.cos(angle):0,above=.048+(kind==='litter'?h:0);
-      leaf.push(vertex([base[0]+a,base[1]-nx*a-nz*b+above,base[2]+b],normal,color,[0,0],above));
+      const c=color.map(v=>v*(j===0?1.2:j>5?.82:1));leaf.push(vertex([base[0]+a,base[1]-nx*a-nz*b+above,base[2]+b],normal,c,[0,0],above));
      }
-     if(kind==='litter')bladeIndices.push(...leaf);
+     if(kind==='litter')for(let j=1;j<=8;j++)bladeIndices.push(leaf[0],leaf[j],leaf[j===8?1:j+1]);
     }
    }
    const orderedIndices=[],parts=[];
    for(const kind of ['grass','litter','dry'])if(groundIndices[kind].length){parts.push({start:orderedIndices.length,count:groundIndices[kind].length,alpha_test:0,opacity:1,surface:kind,...(materials?.[kind]?{image:materials[kind]}:{})});orderedIndices.push(...groundIndices[kind]);}
    if(bladeIndices.length){parts.push({start:orderedIndices.length,count:bladeIndices.length,alpha_test:0,opacity:1,surface:'detail'});orderedIndices.push(...bladeIndices);}
-   const indices=new Uint16Array(orderedIndices),data=new Float32Array(vertices),litterCells=groundTypes.filter(t=>t===1).length,asset={id:patch.id,role:'grass',ground_cover:true,grass_cells:patch.cells.length,grass_vertices_per_cell:4+blades*3+leaves*6,grass_blades_per_cell:blades,leaf_slots_per_cell:leaves,ground_types:new Uint8Array(groundTypes),litter_cells:litterCells,leaf_count:litterCells*leaves,ground_offsets:new Float32Array(groundOffsets),height_m:1,crown_diameter_m:1,stride_bytes:44,vertices:data,indices,parts,bytes:data.byteLength+indices.byteLength};
+   const indices=new Uint16Array(orderedIndices),data=new Float32Array(vertices),litterCells=groundTypes.filter(t=>t===1).length,asset={id:patch.id,role:'grass',ground_cover:true,grass_cells:patch.cells.length,grass_vertices_per_cell:4+blades*3+leaves*leafVertices,grass_blades_per_cell:blades,leaf_slots_per_cell:leaves,leaf_vertices_per_leaf:leafVertices,ground_types:new Uint8Array(groundTypes),dry_blades_per_cell:new Uint8Array(dryCounts),dry_blade_count:dryCounts.reduce((n,v)=>n+v,0),litter_cells:litterCells,leaf_count:litterCells*leaves,ground_offsets:new Float32Array(groundOffsets),height_m:1,crown_diameter_m:1,stride_bytes:44,vertices:data,indices,parts,bytes:data.byteLength+indices.byteLength};
    groups.push({asset,instances:new Float32Array([...anchor,1,1,0,1]),count:1});count+=patch.cells.length;if(patch.distance<100)nearCount+=patch.cells.length;
   }
   return groups;
@@ -170,7 +174,7 @@
    return candidates.sort((a,b)=>distance(a.lnglat)-distance(b.lnglat))[0]||(available[0]?ignition(available[0]):null);
   }
   function rebuild(ignite=false){
-   if(!area||!collection||!assets){groups=[];fireGroups=[];C.treeCount=0;C.renderedTrees=0;C.grassCount=0;C.grassPatches=0;C.litterCells=0;C.leafCount=0;C.detailTrees=0;C.canopyTrees=0;C.ignition=null;C.candidates=[];C.candidateKey="";C.emitters=[];C.cluster=null;if(gpu)uploadInstances();return;}
+   if(!area||!collection||!assets){groups=[];fireGroups=[];C.treeCount=0;C.renderedTrees=0;C.grassCount=0;C.grassPatches=0;C.litterCells=0;C.leafCount=0;C.dryBladeCount=0;C.detailTrees=0;C.canopyTrees=0;C.ignition=null;C.candidates=[];C.candidateKey="";C.emitters=[];C.cluster=null;if(gpu)uploadInstances();return;}
    const b=area.bbox_wgs84;origin=merc([(b[0]+b[2])/2,(b[1]+b[3])/2]);metres=origin.meterInMercatorCoordinateUnits();
    const extra=(options.exclusions?.()||[]).map(f=>({...f,b:global.FireEyeTallahassee.boundsOf?.(f.geometry)}));
    const extraAt=global.FireEyeTallahassee.spatial(extra,.0004);
@@ -190,10 +194,10 @@
    const grass=collection.features.filter(f=>f.properties?.kind==='grass'&&f.geometry?.type==='Point');
    const grassBlocked=[...extra,...collection.features.filter(f=>['building','water','pedestrian_area','transportation'].includes(f.properties?.kind))];
    const grassAllowed=global.FireEyeTallahassee.grassMask(allowed,{blocked:grassBlocked.filter(f=>f.properties.kind!=='transportation'),roads:grassBlocked.filter(f=>f.properties.kind==='transportation'&&!f.properties.below_ground)});
-   const canopyAt=global.FireEyeTallahassee.spatial(allTrees.map(f=>{const p=f.geometry.coordinates,r=Math.min(12,Math.max(2,(Number(f.properties.display_crown_m)||6)/2)),dy=r/111320,dx=dy/Math.cos(p[1]*Math.PI/180);return {...f,r,b:[p[0]-dx,p[1]-dy,p[0]+dx,p[1]+dy]};}));
+   const canopyAt=global.FireEyeTallahassee.spatial(allTrees.map(f=>{const p=f.geometry.coordinates,r=Math.min(14,Math.max(3,(Number(f.properties.display_crown_m)||6)*.675+1)),dy=r/111320,dx=dy/Math.cos(p[1]*Math.PI/180);return {...f,r,b:[p[0]-dx,p[1]-dy,p[0]+dx,p[1]+dy]};}));
    const surfaceAt=f=>{if(f.properties.ground_kind==='litter')return 'litter';const p=f.geometry.coordinates;return canopyAt(p).some(t=>Math.hypot((p[0]-t.geometry.coordinates[0])*Math.cos(p[1]*Math.PI/180),p[1]-t.geometry.coordinates[1])*111320<t.r)?'litter':f.properties.ground_kind;};
    const groundGroups=grassPatchGroups(grass,{center,local,limits,quality:C.loadedQuality,footprint:grassAllowed,mobile,materials:groundMaterials,surfaceAt});
-   C.litterCells=groundGroups.reduce((n,g)=>n+g.asset.litter_cells,0);C.leafCount=groundGroups.reduce((n,g)=>n+g.asset.leaf_count,0);
+   C.litterCells=groundGroups.reduce((n,g)=>n+g.asset.litter_cells,0);C.leafCount=groundGroups.reduce((n,g)=>n+g.asset.leaf_count,0);C.dryBladeCount=groundGroups.reduce((n,g)=>n+g.asset.dry_blade_count,0);
    C.renderBudget=limits;C.grassCount=groundGroups.reduce((n,g)=>n+g.asset.grass_cells,0);C.grassPatches=groundGroups.length;C.detailTrees=near.length;C.canopyTrees=trees.length-near.length;
    const treeKind=f=>/pine|conifer|needleleaf|evergreen/i.test(String(f.properties.class||''))?'tree_pine_01':hash(f.properties.source_id)%2?'tree_oak_02':'tree_oak_01';
    groups=assets.filter(asset=>asset.role!=='grass').map(asset=>{
