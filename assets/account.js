@@ -1,4 +1,4 @@
-/* Browsing, analysis and simulation are public; exports and assistant requests require a live session. */
+/* Browsing is public. Exports and personal-API requests use an account; institutional Flamme uses its own verified access code. */
 (async()=>{
  'use strict';
  const element=(tag,text,cls)=>{const e=document.createElement(tag);if(text)e.textContent=text;if(cls)e.className=cls;return e;};
@@ -13,7 +13,7 @@
  const dialog=element('dialog',null,'account-dialog'),heading=element('div',null,'account-heading'),title=element('h2','Sign in to Fire-eye'),close=element('button','×','account-close');
  close.type='button';close.setAttribute('aria-label','Close account');heading.append(title,close);
  const status=element('p'),privacy=element('p','GitHub verifies your identity. Supabase stores only a pseudonymous ID and activity records. Your avatar stays in this browser tab until sign-out; your email and provider access token are not retained.','muted');
- const action=element('button','Checking sign-in…','account-action'),notice=element('p','Explore the map, regional details, Simulation and VR without an account. Sign in for downloads, Ask Flamme and challenge submissions. Downloads are limited to one file every 3 minutes per account.','muted');action.type='button';action.disabled=true;privacy.hidden=true;
+ const action=element('button','Checking sign-in…','account-action'),notice=element('p','Explore the map, regional details, Simulation and VR without an account. A Flamme access code works without sign-in. Sign in for downloads, your own assistant API and challenge submissions. Downloads are limited to one file every 3 minutes per account.','muted');action.type='button';action.disabled=true;privacy.hidden=true;
  status.setAttribute('role','status');status.setAttribute('aria-live','polite');dialog.setAttribute('aria-label','Fire-eye account');dialog.append(heading,status,privacy,action,notice);document.body.append(dialog);
  let client=null,signedIn=false,busy=false,loading=true,ready=false,configurationFailed=false,leaseUntil=0,authorization=null,downloadBusy=false,nextDownloadAt=0,lastError='';
  const activityNames={download:'download files',assistant:'use Ask Flamme'};

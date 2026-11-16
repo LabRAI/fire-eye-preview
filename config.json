@@ -7,7 +7,7 @@
   "background_url": "https://huggingface.co/datasets/yx21e/fire-eye-forecasts-preview/resolve/main/background.json",
   "vectors_url": "https://huggingface.co/datasets/yx21e/fire-eye-forecasts-preview/resolve/main/vectors.json",
   "assistant_url": null,
-  "assistant_gateway_url": null,
+  "assistant_gateway_url": "https://rai-fire.com/api/flamme",
   "visitor_url": null,
   "account_gateway_url": "https://eqgdsqomvegnmsuwxnjo.supabase.co/functions/v1/fire-eye-account",
   "account_check_gateway_url": null,
