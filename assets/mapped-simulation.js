@@ -29,15 +29,15 @@
   const salts=new Map(),noise=(x,z,scale,tag)=>{x/=scale;z/=scale;if(!salts.has(tag))salts.set(tag,hash(tag));const salt=salts.get(tag),i=Math.floor(x),j=Math.floor(z),u=smooth(x-i),v=smooth(z-j),h=(a,b)=>{let n=Math.imul(a,374761393)^Math.imul(b,668265263)^salt;n=Math.imul(n^(n>>>13),1274126177);return ((n^(n>>>16))>>>0)/4294967296;};return (h(i,j)*(1-u)+h(i+1,j)*u)*(1-v)+(h(i,j+1)*(1-u)+h(i+1,j+1)*u)*v;};
   const world=p=>{const scale=Math.cos((Math.floor(p[1]/5)*5+2.5)*Math.PI/180);return [p[0]*Math.PI/180*6378137*scale,Math.log(Math.tan(Math.PI/4+p[1]*Math.PI/360))*6378137*scale];};
   // Small, open leaf groups: keep the green understory continuous, not large clearings.
-  const amount=(xy,kind)=>kind==='grass'?0:smooth((noise(...xy,3.5,'cover')*.70+noise(...xy,9,'cover-wide')*.30-.52)/.25);
+  const amount=(xy,kind)=>{if(kind==='grass')return 0;const u=xy[0]*.8660254-xy[1]*.5,v=xy[0]*.5+xy[1]*.8660254;return smooth((noise(u,v,5,'cover')*.7+noise(u,v,15,'cover-wide')*.3-.40)/.37);};
   for(const f of features){const p=f.properties,b=p.grass_bounds;if(!b||!p.grass_patch_id||!footprint(f.geometry.coordinates,b))continue;
    if(!patches.has(p.grass_patch_id)){const c=p.grass_patch_center;patches.set(p.grass_patch_id,{id:p.grass_patch_id,center:c,cells:[],distance:Math.hypot((c[0]-center[0])*cos,c[1]-center[1])*111320});}patches.get(p.grass_patch_id).cells.push(f);
   }
   const ordered=[...patches.values()].sort((a,b)=>a.distance-b.distance||a.id.localeCompare(b.id)),groups=[];let count=0;
   for(const patch of ordered){
    if(groups.length>=maxGroups)break;if(count+patch.cells.length>budget)continue;
-   const ribbons=patch.distance<65?(quality==='high'?12:quality==='medium'?10:8):0,perCell=13+ribbons*9;
-   const anchor=local(patch.center),vertices=[],groundOffsets=[],coverage=[],groundTypes=[],raisedCells=[],groundIndices={grass:[],litter:[],dry:[],turf:[]},worldOrigin=world(patch.center).map(v=>Math.floor(v/4)*4);
+   const ribbons=patch.distance<65?(quality==='high'?6:quality==='medium'?4:3):0,perCell=13+ribbons*9;
+   const anchor=local(patch.center),vertices=[],groundOffsets=[],coverage=[],groundTypes=[],raisedCells=[],groundIndices={grass:[],litter:[],dry:[],turf:[]},worldOrigin=world(patch.center).map(v=>Math.floor(v/4)*4),leafOrigin=[worldOrigin[0]*.8660254-worldOrigin[1]*.5,worldOrigin[0]*.5+worldOrigin[1]*.8660254].map(v=>Math.floor(v/2)*2);
    const vertex=(p,n,c,uv,above,cover=1)=>{const index=vertices.length/11;vertices.push(p[0]-anchor[0],p[1]-anchor[1],p[2]-anchor[2],...n,...c,...uv);groundOffsets.push(above);coverage.push(cover);return index;};
    for(const f of patch.cells){
     const b=f.properties.grass_bounds,geo=[[b[0],b[1]],[b[2],b[1]],[b[2],b[3]],[b[0],b[3]]],corners=geo.map(local),xy=geo.map(world);
@@ -48,22 +48,22 @@
     const point=(u,v)=>{const a=corners[0],c=corners[1],d=corners[2],e=corners[3];return a.map((x,k)=>(x*(1-u)+c[k]*u)*(1-v)+(e[k]*(1-u)+d[k]*u)*v);};
     const overlay=[];let raised=0;
     for(let y=0;y<3;y++)for(let x=0;x<3;x++){
-     const u=x/2,v=y/2,p=point(u,v),w=[xy[0][0]+(xy[1][0]-xy[0][0])*u,xy[0][1]+(xy[3][1]-xy[0][1])*v],cover=amount(w,kind),h=.043+cover*(kind==='dry'?.014:.019)+noise(...w,1.4,'relief')*.009;
-     if(cover>.5)raised=1;overlay.push(vertex([p[0],p[1]+h,p[2]],[0,0,0],materials?.[kind]?[.9,.9,.9]:kind==='dry'?[.36,.29,.14]:[.49,.38,.17],w.map((v,k)=>(v-worldOrigin[k])/2),h,cover));
+     const u=x/2,v=y/2,p=point(u,v),w=[xy[0][0]+(xy[1][0]-xy[0][0])*u,xy[0][1]+(xy[3][1]-xy[0][1])*v],cover=amount(w,kind),h=.065+cover*(kind==='dry'?.018:.025)+noise(...w,2,'relief')*.006;
+     if(cover>.5)raised=1;overlay.push(vertex([p[0],p[1]+h,p[2]],[0,0,0],materials?.[kind]?[.9,.9,.9]:kind==='dry'?[.36,.29,.14]:[.49,.38,.17],[w[0]*.8660254-w[1]*.5,w[0]*.5+w[1]*.8660254].map((v,k)=>(v-leafOrigin[k])/2),h,cover));
     }
     raisedCells.push(raised);
     const face=(a,b,c)=>{const av=a*11,bv=b*11,cv=c*11,u=[vertices[bv]-vertices[av],vertices[bv+1]-vertices[av+1],vertices[bv+2]-vertices[av+2]],v=[vertices[cv]-vertices[av],vertices[cv+1]-vertices[av+1],vertices[cv+2]-vertices[av+2]],n=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]];for(const i of [av,bv,cv])for(let k=0;k<3;k++)vertices[i+3+k]+=n[k];};
     for(let y=0;y<2;y++)for(let x=0;x<2;x++){const a=overlay[y*3+x],b=overlay[y*3+x+1],c=overlay[(y+1)*3+x+1],d=overlay[(y+1)*3+x];face(a,b,c);face(a,c,d);if(kind!=='grass'&&[a,b,c,d].some(i=>coverage[i]>.25))groundIndices[kind].push(a,b,c,a,c,d);}
     for(const i of overlay){const j=i*11+3,length=Math.hypot(vertices[j],vertices[j+1],vertices[j+2])||1;for(let k=0;k<3;k++)vertices[j+k]/=length;}
-    const rng=random(hash(f.properties.source_id+'/grass-ribbons')),mid=point(.5,.5),w=world(f.geometry.coordinates),cover=amount(w,kind),h=.26+noise(...w,2,'grass-height')*.20;
+    const rng=random(hash(f.properties.source_id+'/grass-ribbons')),mid=point(.5,.5),w=world(f.geometry.coordinates),cover=amount(w,kind),h=(.22+noise(...w,4,'grass-height')*.12)*(1-cover*.20);
     for(let k=0;k<ribbons;k++){
-     const angle=rng()*Math.PI,ax=Math.cos(angle)*dx*.20,az=Math.sin(angle)*dz*.20,bendX=Math.sin(angle)*.045,bendZ=-Math.cos(angle)*.045,cx=(rng()-.5)*dx*.55,cz=(rng()-.5)*dz*.55,ids=[];
-     for(let row=0;row<3;row++)for(const side of [-1,0,1]){const t=row/2,ox=cx+ax*side+bendX*t*t,oz=cz+az*side+bendZ*t*t,above=.036+h*t*(1-.20*Math.abs(side)),n=[0,1,0];ids.push(vertex([mid[0]+ox,mid[1]-nx*ox-nz*oz+above,mid[2]+oz],n,materials?.turf?[.90,1,.82]:[.07,.20,.025],[(side+1)/2,t],above,1-cover*.20));}
+     const angle=rng()*Math.PI,ax=Math.cos(angle)*dx*.46,az=Math.sin(angle)*dz*.46,bendX=Math.sin(angle)*.045,bendZ=-Math.cos(angle)*.045,cx=(rng()-.5)*dx*.8,cz=(rng()-.5)*dz*.8,ids=[];
+     for(let row=0;row<3;row++)for(const side of [-1,0,1]){const t=row/2,ox=Math.max(-dx*.499,Math.min(dx*.499,cx+ax*side+bendX*t*t)),oz=Math.max(-dz*.499,Math.min(dz*.499,cz+az*side+bendZ*t*t)),above=.036+h*t*(1-.20*Math.abs(side)),n=[0,1,0];ids.push(vertex([mid[0]+ox,mid[1]-nx*ox-nz*oz+above,mid[2]+oz],n,materials?.turf?[.90,1,.82]:[.07,.20,.025],[(side+1)/2,t],above,1-cover*.20));}
      if(materials?.turf&&kind!=='dry')for(let y=0;y<2;y++)for(let x=0;x<2;x++){const a=ids[y*3+x],b=ids[y*3+x+1],c=ids[(y+1)*3+x+1],d=ids[(y+1)*3+x];groundIndices.turf.push(a,b,c,a,c,d);}
     }
    }
    const orderedIndices=[],parts=[];
-   for(const kind of ['grass','litter','dry','turf'])if(groundIndices[kind].length){parts.push({start:orderedIndices.length,count:groundIndices[kind].length,alpha_test:kind==='grass'?0:.42,opacity:1,surface:kind,...(materials?.[kind]?{image:materials[kind]}:{})});orderedIndices.push(...groundIndices[kind]);}
+   for(const kind of ['grass','litter','dry','turf'])if(groundIndices[kind].length){parts.push({start:orderedIndices.length,count:groundIndices[kind].length,alpha_test:kind==='grass'?0:kind==='litter'?.22:kind==='dry'?.24:.42,opacity:1,surface:kind,...(materials?.[kind]?{image:materials[kind]}:{})});orderedIndices.push(...groundIndices[kind]);}
    const indices=new Uint16Array(orderedIndices),data=new Float32Array(vertices),cover=new Float32Array(coverage),asset={id:patch.id,role:'grass',ground_cover:true,ground_representation:'raised-ground-mosaic',grass_cells:patch.cells.length,grass_vertices_per_cell:perCell,grass_blades_per_cell:0,grass_ribbons_per_cell:ribbons,leaf_slots_per_cell:0,leaf_vertices_per_leaf:0,ground_types:new Uint8Array(groundTypes),raised_cells:new Uint8Array(raisedCells),ground_coverage:cover,dry_cells:groundTypes.filter(t=>t===2).length,dry_blade_count:0,litter_cells:groundTypes.filter(t=>t===1).length,leaf_count:0,ground_offsets:new Float32Array(groundOffsets),height_m:1,crown_diameter_m:1,stride_bytes:44,vertices:data,indices,parts,bytes:data.byteLength+indices.byteLength+cover.byteLength};
    groups.push({asset,instances:new Float32Array([...anchor,1,1,0,1]),count:1});count+=patch.cells.length;
   }
