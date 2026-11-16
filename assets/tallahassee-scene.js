@@ -60,20 +60,21 @@
  // understory uses the same stable clusters as the near view.
  const grassCluster=p=>{const q=project(p),s=32/Math.max(.09,Math.cos((Math.floor(p[1]/5)*5+2.5)*Math.PI/180));return hash('grass-understory/'+Math.floor(q[0]/s)+'/'+Math.floor(q[1]/s))%3===0;};
  function grassGrid(center,eligible,mobile=false,footprint=grassMask(eligible)){
-  const q=project(center),scale=Math.cos(center[1]*Math.PI/180),radius=650,limit=mobile?5500:12000,patches=[];
+  const q=project(center),scale=Math.cos(center[1]*Math.PI/180),radius=650,limit=12000,patches=[];
   const south=unproject([q[0],q[1]-radius/scale])[1],north=unproject([q[0],q[1]+radius/scale])[1];
   for(let band=Math.floor(south/5)*5;band<=Math.floor(north/5)*5;band+=5){
    const step=2/Math.max(.09,Math.cos((band+2.5)*Math.PI/180)),size=step*16;
    const y0=project([0,Math.max(south,band)])[1],y1=project([0,Math.min(north,band+5)])[1];
    for(let x=Math.floor((q[0]-radius/scale)/size);x<=Math.floor((q[0]+radius/scale)/size);x++)for(let y=Math.floor(y0/size);y<=Math.floor(y1/size);y++){
     const id='grass-patch/'+band+'/'+x+'/'+y,xy=[(x+.5)*size,(y+.5)*size],d=Math.hypot(xy[0]-q[0],xy[1]-q[1])*scale;
-    if(d>radius||d>100&&hash(id+'/coverage')/4294967296>.16)continue;
+    if(d>radius||d>180&&hash(id+'/coverage')/4294967296>.16)continue;
     patches.push({id,x,y,band,step,size,d,center:unproject(xy)});
    }
   }
-  // Reserve a small share for intact distant patches in all viewing directions.
-  const priority=v=>v.d<100?v.d:100+hash(v.id+'/budget')/4294967296*650;
-  patches.sort((a,b)=>priority(a)-priority(b)||a.id.localeCompare(b.id));const points=[];let nearCount=0;
+  // Spend the surface budget on adjoining nearby patches first. Avoid random
+  // gaps in the user-selected area; remote cover remains bounded.
+  const priority=v=>v.d;
+  patches.sort((a,b)=>priority(a)-priority(b)||a.id.localeCompare(b.id));const points=[];
   for(const v of patches){
    const cells=[];
    for(let i=0;i<16;i++)for(let j=0;j<16;j++){
@@ -84,8 +85,7 @@
     if(sw[1]<v.band||ne[1]>v.band+5||!footprint(p,box))continue;
     cells.push({type:'Feature',geometry:{type:'Point',coordinates:p},properties:{kind:'grass',source_id:v.id+'/'+i+'/'+j,grass_patch_id:v.id,grass_patch_center:v.center,grass_bounds:box,synthetic:true,display_height_m:.18,display_crown_m:v.step*Math.cos(p[1]*Math.PI/180),source:'Mapped vegetated ground',placement:'Schematic continuous ground cover; not surveyed plants'}});
    }
-   if(v.d<100&&nearCount+cells.length>Math.floor(limit*5/6))continue;
-   if(points.length+cells.length<=limit){points.push(...cells);if(v.d<100)nearCount+=cells.length;}
+   if(points.length+cells.length<=limit)points.push(...cells);
    if(points.length>limit-256)break;
   }return points;
  }

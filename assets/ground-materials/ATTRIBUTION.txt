@@ -1,5 +1,5 @@
 Ground textures derive from the existing llll0630/wildfire-simulation assets.
 Source revision: eed7ae1e7b9109d1b9d13ea0f172e14900551fc3. Original notices remain in Scene-ATTRIBUTION.txt.
 Resized and blended for bounded client rendering. No additional upstream license is inferred.
-Fire-eye adds deterministic decorative leaf silhouettes and straw strokes.
+Fire-eye bakes overlapping decorative litter and straw into continuous surface materials.
 Ground decoration is illustrative, not surveyed leaf cover, fuel moisture or seasonal observations.

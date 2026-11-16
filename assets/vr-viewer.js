@@ -29636,7 +29636,7 @@ function groundCoverAsset(asset, row, ground, radius, remaining) {
     }
   }
   const data = new Float32Array(vertices), index = new Uint16Array(indices), litterCells = groundTypes.filter((t) => t === 1).length;
-  return { ...asset, vertices: data, indices: index, parts, ground_offsets: new Float32Array(heights), ground_types: new Uint8Array(groundTypes), dry_blades_per_cell: new Uint8Array(dryCounts), dry_blade_count: dryCounts.reduce((n, v) => n + v, 0), litter_cells: litterCells, leaf_count: litterCells * (asset.leaf_slots_per_cell || 0), grass_cells: cells, bytes: data.byteLength + index.byteLength };
+  return { ...asset, vertices: data, indices: index, parts, ground_offsets: new Float32Array(heights), ground_types: new Uint8Array(groundTypes), dry_blades_per_cell: new Uint8Array(dryCounts), dry_blade_count: dryCounts.reduce((n, v) => n + v, 0), litter_cells: litterCells, dry_cells: groundTypes.filter((t) => t === 2).length, leaf_count: litterCells * (asset.leaf_slots_per_cell || 0), grass_cells: cells, bytes: data.byteLength + index.byteLength };
 }
 function capture({ center, height, features, meshSnapshot, forecast, terrainReady, terrainStatus, terrainSource = "Published local terrain", mobile = false, radius = 240 }) {
   if (!terrainReady && terrainStatus === "outside") throw Error("Local terrain has not loaded for this location. Reload the scene.");
@@ -29774,7 +29774,7 @@ function capture({ center, height, features, meshSnapshot, forecast, terrainRead
     canStand,
     forecast: { issue_time_utc: forecast.issue_time_utc, target_time_utc: forecast.target_time_utc, source_id: forecast.source_id, lead_hours: forecast.lead_hours, resolution: forecast.resolution, field_status: forecast.field_status },
     bounds_m: [-radius, -radius, radius, radius],
-    counts: { buildings: objects.filter((f) => f.properties.kind === "building").length, trees: groups.filter((g) => g.asset.role !== "grass").reduce((n, g) => n + g.instances.length / 7, 0), grass: grassCount, grassPatches: groups.filter((g) => g.asset.ground_cover).length, litterCells: groups.reduce((n, g) => n + (g.asset.litter_cells || 0), 0), leaves: groups.reduce((n, g) => n + (g.asset.leaf_count || 0), 0), dryBlades: groups.reduce((n, g) => n + (g.asset.dry_blade_count || 0), 0), emitters: emitters.length }
+    counts: { buildings: objects.filter((f) => f.properties.kind === "building").length, trees: groups.filter((g) => g.asset.role !== "grass").reduce((n, g) => n + g.instances.length / 7, 0), grass: grassCount, grassPatches: groups.filter((g) => g.asset.ground_cover).length, groundRepresentation: "continuous-surface", dryCells: groups.reduce((n, g) => n + (g.asset.dry_cells || 0), 0), litterCells: groups.reduce((n, g) => n + (g.asset.litter_cells || 0), 0), leaves: groups.reduce((n, g) => n + (g.asset.leaf_count || 0), 0), dryBlades: groups.reduce((n, g) => n + (g.asset.dry_blade_count || 0), 0), emitters: emitters.length }
   };
 }
 

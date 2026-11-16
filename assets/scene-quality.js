@@ -4,16 +4,18 @@
  const revision="08133000efa914b6e77f0cc7c33308fc4e3f65f4",tiers=["low","medium","high"];
  function preferred(){try{const value=localStorage.getItem("fire-eye-scene-quality");if(tiers.includes(value))return value;}catch{}return matchMedia("(pointer:coarse)").matches||(navigator.deviceMemory||8)<=4?"low":"medium";}
  function remember(value){if(tiers.includes(value))try{localStorage.setItem("fire-eye-scene-quality",value);}catch{}}
- // Display budgets only. The geographic sample and forecast field are shared.
+ // Display budgets only. Continuous ground uses four vertices per cell; all
+ // tiers retain its footprint. Texture resolution and tree detail vary by tier.
+ // The geographic sample and forecast field are shared.
  function budget(tier,mobile=false){
   const table=mobile?{
-   low:{trees:1400,detailTrees:70,grass:2800,vrTrees:1000,vrDetail:40,vrGrass:2200,particles:600},
-   medium:{trees:1900,detailTrees:120,grass:4000,vrTrees:1600,vrDetail:65,vrGrass:3500,particles:1000},
-   high:{trees:2200,detailTrees:160,grass:5500,vrTrees:2000,vrDetail:90,vrGrass:5000,particles:1400}
+   low:{trees:1400,detailTrees:70,grass:12000,vrTrees:1000,vrDetail:40,vrGrass:12000,particles:600},
+   medium:{trees:1900,detailTrees:120,grass:12000,vrTrees:1600,vrDetail:65,vrGrass:12000,particles:1000},
+   high:{trees:2200,detailTrees:160,grass:12000,vrTrees:2000,vrDetail:90,vrGrass:12000,particles:1400}
   }:{
-   low:{trees:2000,detailTrees:100,grass:5500,vrTrees:1600,vrDetail:55,vrGrass:4000,particles:1000},
-   medium:{trees:3800,detailTrees:220,grass:8500,vrTrees:2400,vrDetail:100,vrGrass:6500,particles:2000},
-   high:{trees:5200,detailTrees:360,grass:12000,vrTrees:3000,vrDetail:150,vrGrass:9500,particles:3000}
+   low:{trees:2000,detailTrees:100,grass:12000,vrTrees:1600,vrDetail:55,vrGrass:12000,particles:1000},
+   medium:{trees:3800,detailTrees:220,grass:12000,vrTrees:2400,vrDetail:100,vrGrass:12000,particles:2000},
+   high:{trees:5200,detailTrees:360,grass:12000,vrTrees:3000,vrDetail:150,vrGrass:12000,particles:3000}
   };return {...(table[tier]||table.low)};
  }
  function createLoader(manifestURL){

@@ -1,6 +1,6 @@
 /* Local schematic vegetation, generated only after explicit simulation intent. */
 'use strict';
-importScripts('tallahassee-scene.js?v=337d5aa10421b3f7');
+importScripts('tallahassee-scene.js?v=96a958fab205249f');
 const H=FireEyeTallahassee,R=6378137;
 const project=p=>[p[0]*Math.PI/180*R,Math.log(Math.tan(Math.PI/4+p[1]*Math.PI/360))*R];
 const unproject=p=>[p[0]/R*180/Math.PI,(2*Math.atan(Math.exp(p[1]/R))-Math.PI/2)*180/Math.PI];
