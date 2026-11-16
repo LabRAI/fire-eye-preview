@@ -168,9 +168,11 @@
    const grassEligible=p=>{
     if(mask.polygonsAt(p).some(f=>contains(f.geometry,p))||mask.roadsAt(p).some(f=>roadDistance(f.geometry,p)<f.gap))return false;
     const cover=sample(manifest,data,p),greens=mask.greensAt(p).filter(f=>contains(f.geometry,p));
-    return greens.some(f=>['grass','garden','meadow','recreation_ground'].includes(f.properties.class))||cover===3||cover===1&&grassCluster(p);
+    return greens.some(f=>['grass','garden','meadow','recreation_ground','wood','forest'].includes(f.properties.class))||cover===3||cover===1;
    };
-   const added=grassGrid(c,grassEligible,mobile,grassMask(grassEligible,{surfaces:mask.greens,blocked:mask.polygons,roads:mask.roads}));features.push(...added);grass=added.length;
+   const added=grassGrid(c,grassEligible,mobile,grassMask(grassEligible,{surfaces:mask.greens,blocked:mask.polygons,roads:mask.roads}));
+   for(const f of added){const p=f.geometry.coordinates,greens=mask.greensAt(p).filter(g=>contains(g.geometry,p)),lawn=greens.some(g=>['grass','garden','meadow'].includes(g.properties.class));f.properties.ground_kind=!lawn&&(sample(manifest,data,p)===1||greens.some(g=>['wood','forest'].includes(g.properties.class)))?'litter':'grass';}
+   features.push(...added);grass=added.length;
    const snapshot={area:{id:'tallahassee',title:'Tallahassee',bbox_wgs84:box,prediction_linked:true,synthetic_vegetation:true,source_edition:2020,feature_counts:{tree:trees,grass}},collection:{type:'FeatureCollection',features},metrics:{trees,anchors,grass,mask_features:mask.features.length,cover_bytes:manifest.asset.bytes,key}};
    last={key,snapshot};return snapshot;
   }

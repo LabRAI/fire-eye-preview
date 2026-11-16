@@ -1,6 +1,6 @@
 /* Local schematic vegetation, generated only after explicit simulation intent. */
 'use strict';
-importScripts('tallahassee-scene.js?v=e7350c12496318f1');
+importScripts('tallahassee-scene.js?v=337d5aa10421b3f7');
 const H=FireEyeTallahassee,R=6378137;
 const project=p=>[p[0]*Math.PI/180*R,Math.log(Math.tan(Math.PI/4+p[1]*Math.PI/360))*R];
 const unproject=p=>[p[0]/R*180/Math.PI,(2*Math.atan(Math.exp(p[1]/R))-Math.PI/2)*180/Math.PI];
@@ -34,7 +34,7 @@ function generate({center,features,mobile,coverContext},sampleCover=()=>null){
   const type=classification==='forest_woodland'?'forest':classification==='shrubland'?'shrub':classification==='grass_herbaceous'?'grass':null;
   return {classes:type?[type]:[],sample};
  };
- const grassy=(v,p)=>v.classes.includes('grass')||v.classes.includes('park')||v.classes.includes('forest')&&H.grassCluster(p);
+ const grassy=v=>v.classes.some(c=>['grass','park','forest','shrub'].includes(c));
  const contextProps=sample=>sample?{source:'Published CONUS 3 km cover composition',source_cell_id:sample.cell_id,source_edition:coverContext?.source_edition,source_resolution_m:3000,placement:'Schematic clusters from historical 3 km cover fractions; not exact plants, tree density, or current conditions.'}:{};
  const candidates=[];
  // Latitude bands belong to the locations, not the selected center. Enumerate
@@ -58,7 +58,7 @@ function generate({center,features,mobile,coverContext},sampleCover=()=>null){
  }
  const grassEligible=p=>eligible(p)&&grassy(vegetationAt(p),p);
  const grassFeatures=H.grassGrid(center,grassEligible,mobile,H.grassMask(grassEligible,{surfaces:cover,blocked:polygons,roads}));
- for(const f of grassFeatures){const sample=vegetationAt(f.geometry.coordinates).sample;if(sample){Object.assign(f.properties,contextProps(sample));contextGrass++;}}
+ for(const f of grassFeatures){const v=vegetationAt(f.geometry.coordinates),sample=v.sample;f.properties.ground_kind=v.classes.includes('grass')?'grass':v.classes.includes('forest')?'litter':v.classes.includes('shrub')?'dry':'grass';if(sample){Object.assign(f.properties,contextProps(sample));contextGrass++;}}
  objects.push(...grassFeatures);grass=grassFeatures.length;
  return {area:{id:'on-demand',title:'Selected area',bbox_wgs84:box,prediction_linked:true,synthetic_vegetation:true,vegetation_source:contextTrees||contextGrass?'Mapped local cover + published CONUS 3 km composition':'OpenStreetMap mapped land cover',vegetation_context_status:coverContext?.status||'not_requested',vegetation_context_note:coverContext?.note||null,vegetation_context_partial:!!coverContext?.partial,source_edition:coverContext?.source_edition,feature_counts:{tree:trees,grass}},collection:{type:'FeatureCollection',features:objects},metrics:{trees,grass,anchors,cover_polygons:cover.length,source_features:features.length,context_trees:contextTrees,context_grass:contextGrass,context_cells:coverContext?.cells?.length||0,generated_on_device:true}};
 }

@@ -25,7 +25,7 @@
  // one shared map/VR mesh, including its continuous floor and bounded blades.
  // The snapshot carries these exact vertices; VR never resamples individual
  // grass cells or reintroduces holes by thinning their instances.
- function grassPatchGroups(features,{center,local,limits,quality,footprint,mobile=false}){
+ function grassPatchGroups(features,{center,local,limits,quality,footprint,mobile=false,materials=null,surfaceAt=()=>null}){
   const patches=new Map(),cos=Math.cos(center[1]*Math.PI/180),budget=Math.min(limits.grass,limits.vrGrass),maxGroups=mobile?48:96;
   for(const f of features){
    const p=f.properties,b=p.grass_bounds;if(!b||!p.grass_patch_id||!footprint(f.geometry.coordinates,b))continue;
@@ -34,36 +34,52 @@
   }
   const priority=p=>p.distance<100?p.distance:100+hash(p.id+'/budget')/4294967296*650;
   const ordered=[...patches.values()].sort((a,b)=>priority(a)-priority(b)||a.id.localeCompare(b.id)),groups=[];let count=0,nearCount=0;
-  const blades=quality==='high'?6:quality==='medium'?4:2;
+  const blades=quality==='high'?6:quality==='medium'?4:2,leaves=quality==='high'?3:quality==='medium'?2:1;
+  const world=p=>{const scale=Math.cos((Math.floor(p[1]/5)*5+2.5)*Math.PI/180);return [p[0]*Math.PI/180*6378137*scale,Math.log(Math.tan(Math.PI/4+p[1]*Math.PI/360))*6378137*scale];};
   for(const patch of ordered){
    if(groups.length>=maxGroups)break;
    if(count+patch.cells.length>budget||patch.distance<100&&nearCount+patch.cells.length>Math.floor(budget*5/6))continue;
-   const anchor=local(patch.center),vertices=[],groundOffsets=[],groundIndices=[],bladeIndices=[];
+   const anchor=local(patch.center),vertices=[],groundOffsets=[],groundIndices={grass:[],litter:[],dry:[]},bladeIndices=[],groundTypes=[],worldOrigin=world(patch.center).map(v=>Math.floor(v/4)*4);
    const vertex=(p,n,c,uv=[0,0],aboveGround=.035)=>{const index=vertices.length/11;vertices.push(p[0]-anchor[0],p[1]-anchor[1],p[2]-anchor[2],...n,...c,...uv);groundOffsets.push(aboveGround);return index;};
    for(const f of patch.cells){
     const b=f.properties.grass_bounds,geo=[[b[0],b[1]],[b[2],b[1]],[b[2],b[3]],[b[0],b[3]]],corners=geo.map(local);
     const dx=corners[1][0]-corners[0][0],dz=corners[0][2]-corners[3][2],nx=-(corners[1][1]-corners[0][1])/dx,nz=-(corners[0][1]-corners[3][1])/dz,norm=Math.hypot(nx,1,nz),normal=[nx/norm,1/norm,nz/norm];
-    const ids=corners.map((p,i)=>{const shade=hash(geo[i].map(v=>v.toFixed(9)).join(','))/4294967296;return vertex([p[0],p[1]+.035,p[2]],normal,[.075+shade*.025,.155+shade*.035,.028+shade*.015]);});
-    groundIndices.push(ids[0],ids[1],ids[2],ids[0],ids[2],ids[3]);
+    const requested=surfaceAt(f)||f.properties.ground_kind,kind=requested==='litter'?'litter':requested==='dry'?'dry':'grass';groundTypes.push(kind==='litter'?1:kind==='dry'?2:0);
+    const ids=corners.map((p,i)=>{const shade=hash(geo[i].map(v=>v.toFixed(9)).join(','))/4294967296,xy=world(geo[i]),uv=xy.map((v,k)=>(v-worldOrigin[k])/4);
+     const color=materials?.[kind]?[.88+shade*.12,.88+shade*.12,.88+shade*.12]:kind==='litter'?[.095+shade*.04,.060+shade*.025,.025+shade*.01]:kind==='dry'?[.17+shade*.05,.13+shade*.035,.055+shade*.02]:[.075+shade*.025,.155+shade*.035,.028+shade*.015];
+     return vertex([p[0],p[1]+.035,p[2]],normal,color,uv);});
+    groundIndices[kind].push(ids[0],ids[1],ids[2],ids[0],ids[2],ids[3]);
     const rng=random(hash(f.properties.source_id+'/blades')),base=local(f.geometry.coordinates);
     for(let k=0;k<blades;k++){
      // Thin, individually jittered blades replace the dark texture-card tuft.
      // Keep every root and tip strictly inside this already-approved footprint.
      const ox=(rng()-.5)*dx*.8,oz=(rng()-.5)*dz*.8,angle=rng()*Math.PI*2,halfWidth=.025+rng()*.025,h=.055+rng()*.07,ax=Math.cos(angle)*halfWidth,az=Math.sin(angle)*halfWidth,bendX=(rng()-.5)*.05,bendZ=(rng()-.5)*.05;
      const ground=(x,z)=>[base[0]+x,base[1]+.035-nx*x-nz*z,base[2]+z],a=ground(ox-ax,oz-az),b=ground(ox+ax,oz+az),tip=ground(ox+bendX,oz+bendZ);tip[1]+=h;
-     const shade=rng(),c=[.085+shade*.015,.17+shade*.025,.035+shade*.012],n=[0,1,0],v=vertex(a,n,c),w=vertex(b,n,c),t=vertex(tip,n,c,[0,0],.035+h);bladeIndices.push(v,w,t);
+     const shade=rng(),dry=kind!=='grass'||rng()<.16,c=dry?[.22+shade*.05,.15+shade*.035,.055+shade*.02]:[.085+shade*.015,.17+shade*.025,.035+shade*.012],n=[0,1,0],v=vertex(a,n,c),w=vertex(b,n,c),t=vertex(tip,n,c,[0,0],.035+h);bladeIndices.push(v,w,t);
+    }
+    // Small folded leaf silhouettes add relief above the continuous litter
+    // material. Fixed slots preserve map/VR cell clipping and quality budgets.
+    const leafRng=random(hash(f.properties.source_id+'/litter'));
+    for(let k=0;k<leaves;k++){
+     const ox=(leafRng()-.5)*dx*.65,oz=(leafRng()-.5)*dz*.65,angle=leafRng()*Math.PI*2,halfLength=.07+leafRng()*.07,halfWidth=.025+leafRng()*.035,tint=leafRng(),color=[.20+tint*.11,.075+tint*.075,.022+tint*.022],leaf=[];
+     for(const [x,z,h] of [[-halfWidth,0,.014],[0,halfLength,0],[halfWidth,0,.014],[-halfWidth,0,.014],[halfWidth,0,.014],[0,-halfLength,0]]){
+      const a=kind==='litter'?ox+x*Math.cos(angle)-z*Math.sin(angle):0,b=kind==='litter'?oz+x*Math.sin(angle)+z*Math.cos(angle):0,above=.048+(kind==='litter'?h:0);
+      leaf.push(vertex([base[0]+a,base[1]-nx*a-nz*b+above,base[2]+b],normal,color,[0,0],above));
+     }
+     if(kind==='litter')bladeIndices.push(...leaf);
     }
    }
-   const indices=new Uint16Array([...groundIndices,...bladeIndices]),parts=[{start:0,count:groundIndices.length,alpha_test:0,opacity:1}];
-   if(bladeIndices.length)parts.push({start:groundIndices.length,count:bladeIndices.length,alpha_test:0,opacity:1});
-   const data=new Float32Array(vertices),asset={id:patch.id,role:'grass',ground_cover:true,grass_cells:patch.cells.length,grass_vertices_per_cell:4+blades*3,ground_offsets:new Float32Array(groundOffsets),height_m:1,crown_diameter_m:1,stride_bytes:44,vertices:data,indices,parts,bytes:data.byteLength+indices.byteLength};
+   const orderedIndices=[],parts=[];
+   for(const kind of ['grass','litter','dry'])if(groundIndices[kind].length){parts.push({start:orderedIndices.length,count:groundIndices[kind].length,alpha_test:0,opacity:1,surface:kind,...(materials?.[kind]?{image:materials[kind]}:{})});orderedIndices.push(...groundIndices[kind]);}
+   if(bladeIndices.length){parts.push({start:orderedIndices.length,count:bladeIndices.length,alpha_test:0,opacity:1,surface:'detail'});orderedIndices.push(...bladeIndices);}
+   const indices=new Uint16Array(orderedIndices),data=new Float32Array(vertices),litterCells=groundTypes.filter(t=>t===1).length,asset={id:patch.id,role:'grass',ground_cover:true,grass_cells:patch.cells.length,grass_vertices_per_cell:4+blades*3+leaves*6,grass_blades_per_cell:blades,leaf_slots_per_cell:leaves,ground_types:new Uint8Array(groundTypes),litter_cells:litterCells,leaf_count:litterCells*leaves,ground_offsets:new Float32Array(groundOffsets),height_m:1,crown_diameter_m:1,stride_bytes:44,vertices:data,indices,parts,bytes:data.byteLength+indices.byteLength};
    groups.push({asset,instances:new Float32Array([...anchor,1,1,0,1]),count:1});count+=patch.cells.length;if(patch.distance<100)nearCount+=patch.cells.length;
   }
   return groups;
  }
  function mount(map,options={}){
   const C={phase:'mapped',alpha:0,treeCount:0,renderedTrees:0,grassCount:0,detailTrees:0,canopyTrees:0,frames:0,elapsed:0,paused:matchMedia('(prefers-reduced-motion: reduce)').matches,fireEnabled:true,ignition:null,forecastRequired:false,forecast:null,fireEmphasis:1,candidates:[],candidateKey:"",emitters:[],sampledCount:0,validCount:0,particleBudget:(navigator.hardwareConcurrency||4)<=4?1200:3000,quality:(navigator.hardwareConcurrency||4)<=4?"balanced":"high",frameMs:0,performanceSamples:0,assetBytes:0,error:null};
-  let disposed=false,area=null,collection=null,assets=null,assetTask=null,controller=new AbortController(),layer=null,gpu=null,origin=null,metres=1,groups=[],fireGroups=[],timer=null,last=null,cooldown=0,lastState='',replacement=-1,installing=false,ignitionAttempted=false,ignitionView=null,sceneMatrix=null,siteVisible=null,sightView=null;
+  let disposed=false,area=null,collection=null,assets=null,groundMaterials=null,assetTask=null,controller=new AbortController(),layer=null,gpu=null,origin=null,metres=1,groups=[],fireGroups=[],timer=null,last=null,cooldown=0,lastState='',replacement=-1,installing=false,ignitionAttempted=false,ignitionView=null,sceneMatrix=null,siteVisible=null,sightView=null;
   const qualityLoader=global.FireEyeSceneQuality.createLoader(options.manifestURL);let assetController=null,assetSequence=0;
   C.assetQuality=global.FireEyeSceneQuality.preferred();C.loadedQuality=null;C.qualityLoading=false;C.qualityError=false;
   const merc=p=>global.maplibregl.MercatorCoordinate.fromLngLat(p,0);
@@ -94,7 +110,8 @@
    if(assets&&C.loadedQuality===C.assetQuality)return assets;if(assetTask)return assetTask;
    const tier=C.assetQuality,seq=++assetSequence;assetController?.abort();assetController=new AbortController();C.qualityLoading=true;C.qualityError=false;notify();
    assetTask=(async()=>{
-    const signal=AbortSignal.any([controller.signal,assetController.signal,AbortSignal.timeout(20000)]),meshes=await qualityLoader.load(tier,signal);
+    const signal=AbortSignal.any([controller.signal,assetController.signal,AbortSignal.timeout(20000)]),[meshes,materials]=await Promise.all([qualityLoader.load(tier,signal),import('./ground-materials.mjs?v=bd22717776168eac').then(m=>m.loadGroundMaterials(tier,signal)).catch(()=>null)]);
+    if(!disposed&&seq===assetSequence){groundMaterials=materials||groundMaterials;C.groundMaterials=materials?'ready':groundMaterials?'retained':'colors';}
     if(disposed||seq!==assetSequence)return null;const gl=gpu?.gl;release();assets=meshes;C.loadedQuality=tier;C.particleBudget=global.FireEyeSceneQuality.budget(tier,matchMedia('(pointer:coarse)').matches||innerWidth<=640).particles;C.assetBytes=meshes.reduce((n,m)=>n+m.bytes,0);C.error=null;rebuild();if(gl)initialize(gl);install();update();return meshes;
    })().catch(()=>{if(!disposed&&seq===assetSequence){C.qualityError=true;cooldown=Date.now()+30000;if(!assets)fail();}return null;}).finally(()=>{if(seq===assetSequence){assetTask=null;C.qualityLoading=false;notify();}});return assetTask;
   }
@@ -153,7 +170,7 @@
    return candidates.sort((a,b)=>distance(a.lnglat)-distance(b.lnglat))[0]||(available[0]?ignition(available[0]):null);
   }
   function rebuild(ignite=false){
-   if(!area||!collection||!assets){groups=[];fireGroups=[];C.treeCount=0;C.renderedTrees=0;C.grassCount=0;C.detailTrees=0;C.canopyTrees=0;C.ignition=null;C.candidates=[];C.candidateKey="";C.emitters=[];if(gpu)uploadInstances();return;}
+   if(!area||!collection||!assets){groups=[];fireGroups=[];C.treeCount=0;C.renderedTrees=0;C.grassCount=0;C.grassPatches=0;C.litterCells=0;C.leafCount=0;C.detailTrees=0;C.canopyTrees=0;C.ignition=null;C.candidates=[];C.candidateKey="";C.emitters=[];C.cluster=null;if(gpu)uploadInstances();return;}
    const b=area.bbox_wgs84;origin=merc([(b[0]+b[2])/2,(b[1]+b[3])/2]);metres=origin.meterInMercatorCoordinateUnits();
    const extra=(options.exclusions?.()||[]).map(f=>({...f,b:global.FireEyeTallahassee.boundsOf?.(f.geometry)}));
    const extraAt=global.FireEyeTallahassee.spatial(extra,.0004);
@@ -163,7 +180,7 @@
    if(C.forecastRequired&&global.FireEyeScenarioField&&global.proj4){
     const project=global.proj4('EPSG:4326','+proj=aea +lat_0=23 +lon_0=-96 +lat_1=29.5 +lat_2=45.5 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs'),bounds=map.getBounds(),excluded=collection.features.filter(f=>['building','water'].includes(f.properties?.kind)).map(f=>({...f,b:global.FireEyeTallahassee.boundsOf(f.geometry)})),excludedAt=global.FireEyeTallahassee.spatial(excluded);
     const points=global.FireEyeScenarioField.candidates(collection.features,p=>project.forward(p),p=>bounds.contains(p)&&allowed(p)&&!excludedAt(p).some(f=>contains(f.geometry,p))),key=points.map(p=>p.id+'@'+p.lnglat.join(',')).join('|');
-    if(key!==C.candidateKey){C.candidates=points;C.candidateKey=key;C.emitters=[];C.forecast=null;C.fireEmphasis=0;}
+    if(key!==C.candidateKey){C.candidates=points;C.candidateKey=key;C.emitters=[];C.cluster=null;C.forecast=null;C.fireEmphasis=0;}
    }
    const center=map.getCenter().toArray(),scale=Math.cos(center[1]*Math.PI/180),distance=f=>Math.hypot((f.geometry.coordinates[0]-center[0])*scale,f.geometry.coordinates[1]-center[1])*111320;
    const mobile=matchMedia('(pointer:coarse)').matches||innerWidth<=640,limits=global.FireEyeSceneQuality.budget(C.loadedQuality||C.assetQuality,mobile);
@@ -173,7 +190,10 @@
    const grass=collection.features.filter(f=>f.properties?.kind==='grass'&&f.geometry?.type==='Point');
    const grassBlocked=[...extra,...collection.features.filter(f=>['building','water','pedestrian_area','transportation'].includes(f.properties?.kind))];
    const grassAllowed=global.FireEyeTallahassee.grassMask(allowed,{blocked:grassBlocked.filter(f=>f.properties.kind!=='transportation'),roads:grassBlocked.filter(f=>f.properties.kind==='transportation'&&!f.properties.below_ground)});
-   const groundGroups=grassPatchGroups(grass,{center,local,limits,quality:C.loadedQuality,footprint:grassAllowed,mobile});
+   const canopyAt=global.FireEyeTallahassee.spatial(allTrees.map(f=>{const p=f.geometry.coordinates,r=Math.min(12,Math.max(2,(Number(f.properties.display_crown_m)||6)/2)),dy=r/111320,dx=dy/Math.cos(p[1]*Math.PI/180);return {...f,r,b:[p[0]-dx,p[1]-dy,p[0]+dx,p[1]+dy]};}));
+   const surfaceAt=f=>{if(f.properties.ground_kind==='litter')return 'litter';const p=f.geometry.coordinates;return canopyAt(p).some(t=>Math.hypot((p[0]-t.geometry.coordinates[0])*Math.cos(p[1]*Math.PI/180),p[1]-t.geometry.coordinates[1])*111320<t.r)?'litter':f.properties.ground_kind;};
+   const groundGroups=grassPatchGroups(grass,{center,local,limits,quality:C.loadedQuality,footprint:grassAllowed,mobile,materials:groundMaterials,surfaceAt});
+   C.litterCells=groundGroups.reduce((n,g)=>n+g.asset.litter_cells,0);C.leafCount=groundGroups.reduce((n,g)=>n+g.asset.leaf_count,0);
    C.renderBudget=limits;C.grassCount=groundGroups.reduce((n,g)=>n+g.asset.grass_cells,0);C.grassPatches=groundGroups.length;C.detailTrees=near.length;C.canopyTrees=trees.length-near.length;
    const treeKind=f=>/pine|conifer|needleleaf|evergreen/i.test(String(f.properties.class||''))?'tree_pine_01':hash(f.properties.source_id)%2?'tree_oak_02':'tree_oak_01';
    groups=assets.filter(asset=>asset.role!=='grass').map(asset=>{
@@ -193,14 +213,15 @@
     // Vegetation fire symbols rise above the schematic canopy so nearby
     // tree meshes do not hide the entire effect. This is display geometry.
     const canopy=C.forecastRequired?(emitter.canopy_m||0):0;
-    fireGroups.push(make(180,4.5,.3,Math.max(11,canopy+10),4.2,false),make(80,3,Math.max(9,canopy+6),25,9,true));
+    const core=emitter.cluster_core??1,radius=4.5+core*4;
+    fireGroups.push(make(Math.round(130+core*100),radius,.3,Math.max(11,canopy+10+core*3),4.2+core,false),make(Math.round(45+core*35),radius*.65,Math.max(9,canopy+6),25+core*5,9,true));
    }
   }
   function setForecast(value){
-   if(!C.forecastRequired||value.candidateKey!==C.candidateKey)return;C.forecast={...value};C.emitters=[];C.sampledCount=0;C.validCount=0;
+   if(!C.forecastRequired||value.candidateKey!==C.candidateKey)return;C.forecast={...value};C.emitters=[];C.cluster=null;C.sampledCount=0;C.validCount=0;
    if(value.status==='ready'){
     if(!Array.isArray(value.values)||value.values.length!==C.candidates.length)C.forecast.status='missing';
-    else{const result=global.FireEyeScenarioField.select(C.candidates,value.values);C.emitters=result.emitters;C.sampledCount=result.sampledCount;C.validCount=result.validCount;C.forecast.risk=result.mean;if(!result.validCount)C.forecast.status='missing';}
+    else{const result=global.FireEyeScenarioField.select(C.candidates,value.values);C.emitters=result.emitters;C.cluster=result.cluster;C.sampledCount=result.sampledCount;C.validCount=result.validCount;C.forecast.risk=result.mean;if(!result.validCount)C.forecast.status='missing';}
    }
    C.fireEmphasis=C.forecast.status==='ready'?1:0;clearTimer();last=null;rebuildFire();if(gpu)uploadInstances();notify();map.triggerRepaint();
   }
@@ -223,7 +244,7 @@
    gpu.meshProgram=program(gl,meshVertex,meshFragment,['position','normal','color','uv','offset','size','rotation'],['matrix','opacity','materialMap','alphaTest','materialOpacity']);
    gpu.fireProgram=program(gl,particleVertex,particleFragment,['position','seed'],['matrix','viewport','time','rise','smoke','size','opacity']);
    const previousTexture=gl.getParameter(gl.TEXTURE_BINDING_2D),flip=gl.getParameter(gl.UNPACK_FLIP_Y_WEBGL),premultiply=gl.getParameter(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL);
-   function texture(part){const key=part.image?.sha256||'white';if(gpu.textures.has(key))return gpu.textures.get(key);const t=gl.createTexture();gpu.textures.set(key,t);gl.bindTexture(gl.TEXTURE_2D,t);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,false);if(part.image)gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,part.image.bitmap);else gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([255,255,255,255]));gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);return t;}
+   function texture(part){const key=part.image?.sha256||'white';if(gpu.textures.has(key))return gpu.textures.get(key);const t=gl.createTexture();gpu.textures.set(key,t);gl.bindTexture(gl.TEXTURE_2D,t);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,false);if(part.image)gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,part.image.bitmap);else gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([255,255,255,255]));gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,part.image?.repeat?gl.REPEAT:gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,part.image?.repeat?gl.REPEAT:gl.CLAMP_TO_EDGE);if(part.image?.repeat){gl.generateMipmap(gl.TEXTURE_2D);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);}return t;}
     gpu.texture=texture;try{uploadInstances();}finally{gl.bindTexture(gl.TEXTURE_2D,previousTexture);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,flip);gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,premultiply);}
   }
   function attribute(gl,location,size,stride,offset){if(location<0)return;gl.enableVertexAttribArray(location);gl.vertexAttribPointer(location,size,gl.FLOAT,false,stride,offset);}
@@ -236,8 +257,8 @@
     if(!C.paused&&last!==null)C.elapsed+=Math.min(.1,(now-last)/1000);last=now;
     const projection=cameraMatrix(matrix,origin,metres),g=gpu;g.vaoExt?.bindVertexArrayOES(g.vao);gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);gl.enable(gl.BLEND);gl.blendEquation(gl.FUNC_ADD);gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(true);
     if(g.instanced){const p=g.meshProgram;gl.useProgram(p.id);gl.uniformMatrix4fv(p.u.matrix,false,projection);gl.uniform1f(p.u.opacity,C.alpha);
-     const activeTexture=gl.getParameter(gl.ACTIVE_TEXTURE);gl.activeTexture(gl.TEXTURE0);const previousTexture=gl.getParameter(gl.TEXTURE_BINDING_2D);gl.uniform1i(p.u.materialMap,0);
-     try{for(const m of g.meshes){if(!m.count)continue;gl.bindBuffer(gl.ARRAY_BUFFER,m.vertex);attribute(gl,p.a.position,3,44,0);attribute(gl,p.a.normal,3,44,12);attribute(gl,p.a.color,3,44,24);attribute(gl,p.a.uv,2,44,36);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,m.index);gl.bindBuffer(gl.ARRAY_BUFFER,m.instance);attribute(gl,p.a.offset,3,28,0);attribute(gl,p.a.size,2,28,12);attribute(gl,p.a.rotation,2,28,20);for(const name of ['offset','size','rotation'])g.instanced.vertexAttribDivisorANGLE(p.a[name],1);for(const part of m.parts){gl.bindTexture(gl.TEXTURE_2D,part.texture);gl.uniform1f(p.u.alphaTest,part.alpha_test);gl.uniform1f(p.u.materialOpacity,part.opacity);g.instanced.drawElementsInstancedANGLE(gl.TRIANGLES,part.count,gl.UNSIGNED_SHORT,part.start*2,m.count);}for(const name of ['offset','size','rotation'])g.instanced.vertexAttribDivisorANGLE(p.a[name],0);}}finally{gl.bindTexture(gl.TEXTURE_2D,previousTexture);gl.activeTexture(activeTexture);}
+     const polygonOffset=gl.isEnabled(gl.POLYGON_OFFSET_FILL),offsetFactor=gl.getParameter(gl.POLYGON_OFFSET_FACTOR),offsetUnits=gl.getParameter(gl.POLYGON_OFFSET_UNITS),activeTexture=gl.getParameter(gl.ACTIVE_TEXTURE);gl.activeTexture(gl.TEXTURE0);const previousTexture=gl.getParameter(gl.TEXTURE_BINDING_2D);gl.uniform1i(p.u.materialMap,0);
+     try{for(const m of g.meshes){if(!m.count)continue;gl.bindBuffer(gl.ARRAY_BUFFER,m.vertex);attribute(gl,p.a.position,3,44,0);attribute(gl,p.a.normal,3,44,12);attribute(gl,p.a.color,3,44,24);attribute(gl,p.a.uv,2,44,36);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,m.index);gl.bindBuffer(gl.ARRAY_BUFFER,m.instance);attribute(gl,p.a.offset,3,28,0);attribute(gl,p.a.size,2,28,12);attribute(gl,p.a.rotation,2,28,20);for(const name of ['offset','size','rotation'])g.instanced.vertexAttribDivisorANGLE(p.a[name],1);for(const part of m.parts){if(part.surface&&part.surface!=='detail'){gl.enable(gl.POLYGON_OFFSET_FILL);gl.polygonOffset(-1,-1);}else gl.disable(gl.POLYGON_OFFSET_FILL);gl.bindTexture(gl.TEXTURE_2D,part.texture);gl.uniform1f(p.u.alphaTest,part.alpha_test);gl.uniform1f(p.u.materialOpacity,part.opacity);g.instanced.drawElementsInstancedANGLE(gl.TRIANGLES,part.count,gl.UNSIGNED_SHORT,part.start*2,m.count);}for(const name of ['offset','size','rotation'])g.instanced.vertexAttribDivisorANGLE(p.a[name],0);}}finally{gl.polygonOffset(offsetFactor,offsetUnits);if(polygonOffset)gl.enable(gl.POLYGON_OFFSET_FILL);else gl.disable(gl.POLYGON_OFFSET_FILL);gl.bindTexture(gl.TEXTURE_2D,previousTexture);gl.activeTexture(activeTexture);}
      for(const a of Object.values(p.a))if(a>=0)gl.disableVertexAttribArray(a);
     }
     if(C.fireEnabled&&g.fire.length&&C.fireEmphasis>0){const p=g.fireProgram;gl.useProgram(p.id);gl.uniformMatrix4fv(p.u.matrix,false,projection);gl.uniform2f(p.u.viewport,gl.drawingBufferWidth,gl.drawingBufferHeight);gl.uniform1f(p.u.time,C.elapsed);gl.uniform1f(p.u.opacity,C.alpha*C.fireEmphasis);gl.depthMask(false);

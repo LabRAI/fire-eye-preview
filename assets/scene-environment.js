@@ -9,6 +9,13 @@
  function inRing(p,r){let inside=false;for(let i=0,j=r.length-1;i<r.length;j=i++){
   const a=r[i],b=r[j];if((a[1]>p[1])!==(b[1]>p[1])&&p[0]<(b[0]-a[0])*(p[1]-a[1])/(b[1]-a[1])+a[0])inside=!inside;
  }return inside;}
+ function sampleTerrainDEM(data,x,y,extent=8192){
+  const dem=data?.tile?.dem,m=data?.u_terrain_matrix;if(!dem||!m||!(extent>0))return null;
+  const tx=x/extent*8192,ty=y/extent*8192,u=(m[0]*tx+m[4]*ty+m[12])*dem.dim,v=(m[1]*tx+m[5]*ty+m[13])*dem.dim;
+  const i=Math.floor(u),j=Math.floor(v),a=u-i,b=v-j,values=[dem.get(i,j),dem.get(i+1,j),dem.get(i,j+1),dem.get(i+1,j+1)];
+  if(!values.every(Number.isFinite))return null;
+  return (values[0]*(1-a)+values[1]*a)*(1-b)+(values[2]*(1-a)+values[3]*a)*b;
+ }
  function mount(map,options){
   let disposed=false,catalog=null,catalogTask=null,active=null,controller=null,sequence=0;
   let timer=null,refreshTimer=null,cooldown=0,changing=false;
@@ -134,6 +141,12 @@
    // Use the actual rendered DEM where supported by the pinned MapLibre 2.4
    // build; retain a verified grid fallback for newer renderers.
    if(map.queryTerrainElevation){const z=map.queryTerrainElevation(p);if(Number.isFinite(z))return z;}
+   if(global.maplibregl.version.startsWith('2.4.')&&map.transform?.getElevation&&map.style?.terrain?.getTerrainData){
+    // Pinned 2.4 CPU sampling interpolates north/south with the x fraction.
+    // Read the same rendered DEM with correctly ordered x/y interpolation.
+    const terrain=map.style.terrain,z=map.transform.getElevation(new maplibregl.LngLat(...p),{getElevation(tile,x,y,extent){const h=sampleTerrainDEM(terrain.getTerrainData(tile),x,y,extent);return h===null?null:(h+terrain.elevationOffset)*terrain.exaggeration;}});
+    if(Number.isFinite(z))return z;
+   }
    if(map.transform?.getElevation&&map.style?.terrain){
     const z=map.transform.getElevation(new maplibregl.LngLat(...p),map.style.terrain);if(Number.isFinite(z))return z;
    }
@@ -155,5 +168,5 @@
     dispose(){disposed=true;sequence++;controller?.abort();clearTimeout(timer);clearTimeout(refreshTimer);
       map.off('moveend',moved);map.off('sourcedata',changed);map.off('error',failed);remove();cache.clear();}};
  }
- global.FireEyeSceneEnvironment={mount,inBox,inRing};
+ global.FireEyeSceneEnvironment={mount,inBox,inRing,sampleTerrainDEM};
 })(window);

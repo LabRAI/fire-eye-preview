@@ -29594,7 +29594,7 @@ function boundedPoint(p, radius) {
   return Array.isArray(p) && p.length >= 2 && p.slice(0, 2).every(Number.isFinite) && Math.abs(p[0]) < radius - 4 && Math.abs(p[1]) < radius - 4;
 }
 function groundCoverAsset(asset, row, ground, radius, remaining) {
-  const stride = 11, perCell = asset.grass_vertices_per_cell, src = asset.vertices, offsets = asset.ground_offsets, vertices = [], heights = [], remap = /* @__PURE__ */ new Map();
+  const stride = 11, perCell = asset.grass_vertices_per_cell, src = asset.vertices, offsets = asset.ground_offsets, vertices = [], heights = [], groundTypes = [], remap = /* @__PURE__ */ new Map();
   let cells = 0;
   if (!Number.isInteger(perCell) || perCell < 4 || src.length !== asset.grass_cells * perCell * stride || offsets?.length !== src.length / stride) throw Error("Invalid grass patch geometry");
   for (let cell = 0; cell < asset.grass_cells; cell++) {
@@ -29606,6 +29606,7 @@ function groundCoverAsset(asset, row, ground, radius, remaining) {
     if (!points.every((p) => boundedPoint(p, radius))) continue;
     if (cells >= remaining) break;
     cells++;
+    groundTypes.push(asset.ground_types?.[cell] || 0);
     for (let j = 0; j < perCell; j++) {
       const old = start + j, i = old * stride, p = points[j], v = Array.from(src.slice(i, i + stride));
       v[1] = (ground(...p) - row[1] + offsets[old]) / row[4];
@@ -29633,8 +29634,8 @@ function groundCoverAsset(asset, row, ground, radius, remaining) {
       vertices[k + 2] = nz / n;
     }
   }
-  const data = new Float32Array(vertices), index = new Uint16Array(indices);
-  return { ...asset, vertices: data, indices: index, parts, ground_offsets: new Float32Array(heights), grass_cells: cells, bytes: data.byteLength + index.byteLength };
+  const data = new Float32Array(vertices), index = new Uint16Array(indices), litterCells = groundTypes.filter((t) => t === 1).length;
+  return { ...asset, vertices: data, indices: index, parts, ground_offsets: new Float32Array(heights), ground_types: new Uint8Array(groundTypes), litter_cells: litterCells, leaf_count: litterCells * (asset.leaf_slots_per_cell || 0), grass_cells: cells, bytes: data.byteLength + index.byteLength };
 }
 function capture({ center, height, features, meshSnapshot, forecast, terrainReady, terrainStatus, terrainSource = "Published local terrain", mobile = false, radius = 240 }) {
   if (!terrainReady && terrainStatus === "outside") throw Error("Local terrain has not loaded for this location. Reload the scene.");
@@ -29650,7 +29651,8 @@ function capture({ center, height, features, meshSnapshot, forecast, terrainRead
   const ground = (x, z) => {
     if (!boundedPoint([x, z], radius)) return null;
     const u = (x + radius) / step, v = (z + radius) / step, i = Math.min(size - 2, Math.floor(u)), j = Math.min(size - 2, Math.floor(v)), a = u - i, b = v - j;
-    return heights[j * size + i] * (1 - a) * (1 - b) + heights[j * size + i + 1] * a * (1 - b) + heights[(j + 1) * size + i] * (1 - a) * b + heights[(j + 1) * size + i + 1] * a * b;
+    const h00 = heights[j * size + i], h10 = heights[j * size + i + 1], h01 = heights[(j + 1) * size + i], h11 = heights[(j + 1) * size + i + 1];
+    return a + b <= 1 ? h00 * (1 - a - b) + h10 * a + h01 * b : h10 * (1 - b) + h01 * (1 - a) + h11 * (a + b - 1);
   };
   const seen = /* @__PURE__ */ new Set(), objects = [];
   for (const f of features || []) {
@@ -29771,7 +29773,7 @@ function capture({ center, height, features, meshSnapshot, forecast, terrainRead
     canStand,
     forecast: { issue_time_utc: forecast.issue_time_utc, target_time_utc: forecast.target_time_utc, source_id: forecast.source_id, lead_hours: forecast.lead_hours, resolution: forecast.resolution, field_status: forecast.field_status },
     bounds_m: [-radius, -radius, radius, radius],
-    counts: { buildings: objects.filter((f) => f.properties.kind === "building").length, trees: groups.filter((g) => g.asset.role !== "grass").reduce((n, g) => n + g.instances.length / 7, 0), grass: grassCount, grassPatches: groups.filter((g) => g.asset.ground_cover).length, emitters: emitters.length }
+    counts: { buildings: objects.filter((f) => f.properties.kind === "building").length, trees: groups.filter((g) => g.asset.role !== "grass").reduce((n, g) => n + g.instances.length / 7, 0), grass: grassCount, grassPatches: groups.filter((g) => g.asset.ground_cover).length, litterCells: groups.reduce((n, g) => n + (g.asset.litter_cells || 0), 0), leaves: groups.reduce((n, g) => n + (g.asset.leaf_count || 0), 0), emitters: emitters.length }
   };
 }
 
@@ -29797,13 +29799,14 @@ async function createViewer(container, data, { onSession = () => {
           texture = new Texture(part.image.bitmap);
           texture.flipY = false;
           texture.colorSpace = SRGBColorSpace;
+          if (part.image.repeat) texture.wrapS = texture.wrapT = RepeatWrapping;
           texture.needsUpdate = true;
           texture.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
           textures.add(texture);
           plantTextures.set(part.image.sha256, texture);
         }
       }
-      const m = mat(new MeshStandardMaterial({ vertexColors: true, map: texture, alphaTest: part.alpha_test, opacity: part.opacity, roughness: 0.9, side: DoubleSide }));
+      const m = mat(new MeshStandardMaterial({ vertexColors: true, map: texture, alphaTest: part.alpha_test, opacity: part.opacity, roughness: 0.9, side: DoubleSide, polygonOffset: !!part.surface && part.surface !== "detail", polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
       plantMaterials.set(key, m);
       return m;
     }, fireBatch = function(smoke) {
@@ -29811,12 +29814,15 @@ async function createViewer(container, data, { onSession = () => {
       const g = geo(new InstancedBufferGeometry()), centers = [], seeds = [], strengths = [], rises = [];
       g.setAttribute("position", new Float32BufferAttribute([-0.5, -0.5, 0, 0.5, -0.5, 0, 0.5, 0.5, 0, -0.5, 0.5, 0], 3));
       g.setIndex([0, 1, 2, 0, 2, 3]);
-      for (const e of data.emitters) for (let i = 0; i < (smoke ? 5 : 14); i++) {
-        const seed = ((i + 1) * 0.61803398875 + e.position[0] * 0.017 + e.position[2] * 0.013) % 1;
-        centers.push(e.position[0] + Math.sin(i * 7) * 2, e.position[1] + (smoke ? e.canopy_m + 5 : 0.2), e.position[2] + Math.cos(i * 7) * 2);
-        seeds.push(Math.abs(seed));
-        strengths.push(e.strength);
-        rises.push(smoke ? 24 : Math.max(11, e.canopy_m + 10));
+      for (const e of data.emitters) {
+        const core = e.cluster_core ?? 1, radius = (4.5 + core * 4) * (smoke ? 0.65 : 1);
+        for (let i = 0; i < (smoke ? 5 : Math.round(12 + core * 10)); i++) {
+          const seed = ((i + 1) * 0.61803398875 + e.position[0] * 0.017 + e.position[2] * 0.013) % 1, d = Math.sqrt((i + 1) * 0.754877666 % 1) * radius;
+          centers.push(e.position[0] + Math.sin(i * 7) * d, e.position[1] + (smoke ? (e.canopy_m || 0) + 5 : 0.2), e.position[2] + Math.cos(i * 7) * d);
+          seeds.push(Math.abs(seed));
+          strengths.push(e.strength);
+          rises.push(smoke ? 25 + core * 5 : Math.max(11, (e.canopy_m || 0) + 10 + core * 3));
+        }
       }
       g.setAttribute("center", new InstancedBufferAttribute(new Float32Array(centers), 3));
       g.setAttribute("seed", new InstancedBufferAttribute(new Float32Array(seeds), 1));
@@ -29872,12 +29878,42 @@ async function createViewer(container, data, { onSession = () => {
       if (hit.object.userData.action) return { action: hit.object.userData.action, point: hit.point, distance: hit.distance };
       if (hit.object !== ground || !data.canStand(hit.point.x, hit.point.z)) return { distance: hit.distance, invalid: true };
       return { point: hit.point, distance: hit.distance };
+    }, clearView = function(p) {
+      const ground2 = data.ground(p[0], p[2]);
+      if (!Number.isFinite(ground2) || p[1] < ground2 + 1) return false;
+      for (const t of crowns) {
+        if (Math.abs(p[0] - t.x) > t.r || Math.abs(p[2] - t.z) > t.r || p[1] > t.y + t.h + 1) continue;
+        const r = p[1] < t.y + t.h * 0.22 ? Math.min(0.55, t.r) : t.r;
+        if ((p[0] - t.x) ** 2 + (p[2] - t.z) ** 2 < r * r) return false;
+      }
+      const geo2 = data.frame.toGeo([p[0], p[2]]);
+      return !data.objects.some((f) => f.properties.kind === "building" && contains(f.geometry, geo2) && p[1] < ground2 + (Number(f.properties.height_m ?? f.properties.render_height) || 8) + 1);
     }, overview = function() {
       rig.position.set(0, 0, 0);
       rig.quaternion.identity();
-      const x = data.spawn[0] + 18, z = data.spawn[2] + 26, ground2 = data.ground(x, z);
-      camera.position.set(x, (Number.isFinite(ground2) ? ground2 : data.spawn[1]) + 9, z);
-      controls.target.set(data.spawn[0], data.spawn[1] + 1.7, data.spawn[2]);
+      const target = [data.spawn[0], data.spawn[1] + 1.7, data.spawn[2]];
+      let chosen = null;
+      for (const distance of [24, 36, 52]) {
+        for (let turn = 0; turn < 12; turn++) {
+          const angle = Math.atan2(18, 26) + turn * Math.PI / 6, x = data.spawn[0] + Math.sin(angle) * distance, z = data.spawn[2] + Math.cos(angle) * distance, ground2 = data.ground(x, z);
+          if (!Number.isFinite(ground2)) continue;
+          for (const height of [2.6, 4.5, 9]) {
+            const p = [x, ground2 + height, z], length = Math.hypot(...p.map((v, i) => v - target[i]));
+            if ([0, 2, 4, 6].every((d) => clearView(p.map((v, i) => v + (target[i] - v) * Math.min(0.8, d / length))))) {
+              chosen = p;
+              break;
+            }
+          }
+          if (chosen) break;
+        }
+        if (chosen) break;
+      }
+      if (!chosen) {
+        const top = Math.max(12, ...crowns.filter((t) => Math.hypot(t.x - data.spawn[0], t.z - data.spawn[2]) < 60).map((t) => t.y + t.h - data.spawn[1] + 5));
+        chosen = [data.spawn[0] + 18, data.spawn[1] + top, data.spawn[2] + 26];
+      }
+      camera.position.fromArray(chosen);
+      controls.target.fromArray(target);
       controls.enabled = true;
       controls.update();
     }, resize = function() {
@@ -30113,6 +30149,11 @@ async function createViewer(container, data, { onSession = () => {
           stats.teleports++;
         }
       });
+    }
+    const crowns = [];
+    for (const g of data.groups) if (g.asset.role !== "grass") for (let i = 0; i < g.instances.length; i += 7) {
+      const a = g.instances;
+      crowns.push({ x: a[i], y: a[i + 1], z: a[i + 2], h: g.asset.height_m * a[i + 4], r: g.asset.crown_diameter_m * a[i + 3] / 2 + 0.8 });
     }
     overview();
     observer = new ResizeObserver(resize);

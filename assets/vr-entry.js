@@ -1,7 +1,7 @@
 /* Optional immersive rendering. Explicit, persistent entry; large renderer stays lazy. */
 (async()=>{
  const standalone=document.body.classList.contains('vr-standalone');
- const moduleURL=new URL('./vr-viewer.js?v=2ce95c82256ad96c',document.currentScript.src),terrainURL=new URL('./vr-terrain.mjs?v=5f5ed23adb84968f',document.currentScript.src),qrURL=new URL('./vr-qr.mjs?v=dbe8802f554d6d8c',document.currentScript.src);let moduleAttempt=0,terrainModule=null,terrainController=null;
+ const moduleURL=new URL('./vr-viewer.js?v=5a1655b1ab7c7ed2',document.currentScript.src),terrainURL=new URL('./vr-terrain.mjs?v=5f5ed23adb84968f',document.currentScript.src),qrURL=new URL('./vr-qr.mjs?v=dbe8802f554d6d8c',document.currentScript.src);let moduleAttempt=0,terrainModule=null,terrainController=null;
  for(let i=0;i<600&&!window.fireEyeGeography;i++)await new Promise(r=>setTimeout(r,100));
  const G=window.fireEyeGeography,S=window.fireEyePreview;if(!G||!S)return;
  const element=(tag,text,cls)=>{const e=document.createElement(tag);if(text)e.textContent=text;if(cls)e.className=cls;return e;};
