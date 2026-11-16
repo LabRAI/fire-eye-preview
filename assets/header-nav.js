@@ -3,7 +3,7 @@
   const links = document.getElementById('header-more-links');
   if (!trigger || !links) return;
   const header = trigger.closest('.masthead');
-  const compact = window.matchMedia('(max-width: 640px)');
+  const compact = window.matchMedia('(max-width: 960px)');
   const close = (restoreFocus = false) => {
     links.classList.remove('is-open');
     header?.classList.remove('navigation-open');
@@ -33,4 +33,5 @@
     if (!links.contains(event.target) && !trigger.contains(event.target)) close();
   });
   compact.addEventListener('change', () => close());
+  window.addEventListener('resize', () => close());
 })();

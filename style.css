@@ -43,29 +43,42 @@ body.simulation-embedded> :not(#scene-dialog){visibility:hidden!important;pointe
 body.simulation-embedded #scene-dialog .dialog-heading h2,body.simulation-embedded #scene-dialog .dialog-heading .eyebrow{display:none}body.simulation-embedded #scene-dialog .dialog-heading{margin-bottom:6px}
 
 .header-actions .team-link,.header-actions .report-link{display:inline-flex;align-items:center;justify-content:center;min-height:44px;min-width:44px;white-space:nowrap}
-/* Keep Forecast Records and sign-in directly accessible on small screens. */
+/* Keep one uncluttered header row; every navigation action remains in the menu. */
 .masthead.navigation-open{z-index:20}
+.masthead>.brand{flex-shrink:0}
 .header-more-links{display:contents}
 .header-actions .header-more-open{display:none}
-.header-actions .report-link{order:2}
+.header-more-links #assistant-global-open{order:0}
 .header-more-links #updates-open{order:1}
+.header-actions .report-link{order:2}
 .header-more-links>a{order:3}
+.header-more-links .report-link{order:2}
 .header-more-links .team-link{order:4}
 .header-more-links #refresh{order:5}
 .header-actions #account-open{order:6}
 .header-actions .report-link:focus-visible,.header-actions .header-more-open:focus-visible{outline:3px solid #89bda8;outline-offset:2px;border-radius:3px}
-@media(max-width:640px){
- .masthead>.header-actions{gap:4px;flex:none}
- .header-actions #assistant-global-open{min-height:44px}
- .header-actions .header-more-open{display:inline-flex;align-items:center;justify-content:center;order:3;width:44px;min-height:44px;padding:0;font-size:24px;line-height:1}
- .header-more-links{display:none;position:absolute;top:calc(100% + 6px);right:8px;min-width:168px;max-width:calc(100vw - 16px);max-height:calc(100dvh - 76px);overflow:auto;flex-direction:column;align-items:stretch;gap:0;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:6px;z-index:12}
+@media(max-width:960px){
+ .masthead{gap:12px}
+ .masthead>.header-actions{gap:6px;flex:0 0 auto}
+ .masthead .account-label{display:none}
+ .masthead .account-open{padding:0;width:44px;height:44px;flex:0 0 44px}
+ .header-actions .header-more-open{display:inline-flex;align-items:center;justify-content:center;order:7;width:44px;height:44px;flex:0 0 44px;padding:0;font-size:26px;line-height:1;border-radius:8px}
+ .header-actions .header-more-open[aria-expanded="true"]{background:#eef5f0}
+ .header-more-links{display:none;position:absolute;top:calc(100% + 6px);right:max(10px,env(safe-area-inset-right));width:248px;max-width:calc(100vw - 20px);max-height:calc(100vh - 76px);max-height:calc(100dvh - 76px);overflow-y:auto;overscroll-behavior:contain;flex-direction:column;align-items:stretch;gap:2px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 28px #173d3524;padding:8px;z-index:12}
  .header-more-links.is-open{display:flex}
- .header-actions .header-more-links>a,.header-actions .header-more-links>button{display:flex;justify-content:flex-start;align-items:center;width:100%;min-height:44px;padding:0 12px;white-space:nowrap;font-size:13px;text-align:left}
- .header-actions .header-more-links #updates-open{width:100%;min-height:44px;font-size:13px;gap:8px}
+ .header-actions .header-more-links>a,.header-actions .header-more-links>button{display:flex;justify-content:flex-start;align-items:center;order:0;flex:0 0 auto;width:100%;min-width:44px;min-height:44px;padding:10px 12px;white-space:nowrap;font-size:14px;line-height:1.4;text-align:left;border-radius:7px}
+ .header-actions .header-more-links #assistant-global-open{font-size:14px;width:100%;font-weight:600}
+ .header-actions .header-more-links #updates-open{width:100%;min-height:44px;font-size:14px;gap:8px}
  .header-actions .header-more-links #refresh{display:none}
- .header-more-links>a:hover,.header-more-links>button:hover{background:#eef5f0;border-radius:5px}
+ .header-more-links>a:hover,.header-more-links>button:hover{background:#eef5f0}
+ .header-actions .header-more-links .status-dot{width:7px;height:7px;margin:0}
+ .masthead .brand>#menu-toggle{width:44px!important;height:44px!important}
 }
-@media(max-width:430px){
- .header-actions .report-link{flex:0 0 56px;white-space:normal;text-align:center;line-height:1.2}
- .header-actions #assistant-global-open{flex:0 0 44px;width:44px;white-space:normal;text-align:center;line-height:1.2}
+@media(max-width:640px){
+ .masthead{padding:0 max(8px,env(safe-area-inset-right)) 0 max(8px,env(safe-area-inset-left));gap:8px}
+ .masthead .brand{gap:6px}
+ .masthead .brand h1{font-size:18px;white-space:nowrap}
+ .masthead .brand .rai-brand{font-size:18px}
+ .masthead .brand .nsf-logo{width:26px;height:26px}
+ .masthead>.header-actions{gap:2px}
 }
