@@ -28,7 +28,8 @@
   const patches=new Map(),cos=Math.cos(center[1]*Math.PI/180),budget=Math.min(limits.grass,limits.vrGrass),maxGroups=96;
   const salts=new Map(),noise=(x,z,scale,tag)=>{x/=scale;z/=scale;if(!salts.has(tag))salts.set(tag,hash(tag));const salt=salts.get(tag),i=Math.floor(x),j=Math.floor(z),u=smooth(x-i),v=smooth(z-j),h=(a,b)=>{let n=Math.imul(a,374761393)^Math.imul(b,668265263)^salt;n=Math.imul(n^(n>>>13),1274126177);return ((n^(n>>>16))>>>0)/4294967296;};return (h(i,j)*(1-u)+h(i+1,j)*u)*(1-v)+(h(i,j+1)*(1-u)+h(i+1,j+1)*u)*v;};
   const world=p=>{const scale=Math.cos((Math.floor(p[1]/5)*5+2.5)*Math.PI/180);return [p[0]*Math.PI/180*6378137*scale,Math.log(Math.tan(Math.PI/4+p[1]*Math.PI/360))*6378137*scale];};
-  const amount=(xy,kind)=>kind==='grass'?0:smooth((noise(...xy,7,'cover')*.65+noise(...xy,17,'cover-wide')*.35-.44)/.22);
+  // Small, open leaf groups: keep the green understory continuous, not large clearings.
+  const amount=(xy,kind)=>kind==='grass'?0:smooth((noise(...xy,3.5,'cover')*.70+noise(...xy,9,'cover-wide')*.30-.52)/.25);
   for(const f of features){const p=f.properties,b=p.grass_bounds;if(!b||!p.grass_patch_id||!footprint(f.geometry.coordinates,b))continue;
    if(!patches.has(p.grass_patch_id)){const c=p.grass_patch_center;patches.set(p.grass_patch_id,{id:p.grass_patch_id,center:c,cells:[],distance:Math.hypot((c[0]-center[0])*cos,c[1]-center[1])*111320});}patches.get(p.grass_patch_id).cells.push(f);
   }
@@ -42,13 +43,13 @@
     const b=f.properties.grass_bounds,geo=[[b[0],b[1]],[b[2],b[1]],[b[2],b[3]],[b[0],b[3]]],corners=geo.map(local),xy=geo.map(world);
     const dx=corners[1][0]-corners[0][0],dz=corners[0][2]-corners[3][2],nx=-(corners[1][1]-corners[0][1])/dx,nz=-(corners[0][1]-corners[3][1])/dz,norm=Math.hypot(nx,1,nz),normal=[nx/norm,1/norm,nz/norm];
     const requested=surfaceAt(f)||f.properties.ground_kind,kind=requested==='litter'?'litter':requested==='dry'?'dry':'grass';groundTypes.push(kind==='litter'?1:kind==='dry'?2:0);
-    const ids=corners.map((p,i)=>{const shadow=1-.12*amount(xy[i],kind),shade=.88+.1*noise(...xy[i],6,'grass');return vertex([p[0],p[1]+.035,p[2]],normal,materials?.grass?[shade*shadow,shade*shadow,shade*shadow]:[.07*shadow,.19*shadow,.025*shadow],xy[i].map((v,k)=>(v-worldOrigin[k])/4),.035);});
+    const ids=corners.map((p,i)=>{const shadow=1-.035*amount(xy[i],kind),shade=.88+.1*noise(...xy[i],6,'grass');return vertex([p[0],p[1]+.035,p[2]],normal,materials?.grass?[shade*shadow,shade*shadow,shade*shadow]:[.07*shadow,.19*shadow,.025*shadow],xy[i].map((v,k)=>(v-worldOrigin[k])/4),.035);});
     groundIndices.grass.push(ids[0],ids[1],ids[2],ids[0],ids[2],ids[3]);
     const point=(u,v)=>{const a=corners[0],c=corners[1],d=corners[2],e=corners[3];return a.map((x,k)=>(x*(1-u)+c[k]*u)*(1-v)+(e[k]*(1-u)+d[k]*u)*v);};
     const overlay=[];let raised=0;
     for(let y=0;y<3;y++)for(let x=0;x<3;x++){
-     const u=x/2,v=y/2,p=point(u,v),w=[xy[0][0]+(xy[1][0]-xy[0][0])*u,xy[0][1]+(xy[3][1]-xy[0][1])*v],cover=amount(w,kind),h=.052+cover*(kind==='dry'?.08:.10)+noise(...w,1.4,'relief')*(.02+.06*cover);
-     if(cover>.5)raised=1;overlay.push(vertex([p[0],p[1]+h,p[2]],[0,0,0],materials?.[kind]?[.9,.9,.9]:kind==='dry'?[.36,.26,.10]:[.27,.12,.035],w.map((v,k)=>(v-worldOrigin[k])/2),h,cover));
+     const u=x/2,v=y/2,p=point(u,v),w=[xy[0][0]+(xy[1][0]-xy[0][0])*u,xy[0][1]+(xy[3][1]-xy[0][1])*v],cover=amount(w,kind),h=.043+cover*(kind==='dry'?.014:.019)+noise(...w,1.4,'relief')*.009;
+     if(cover>.5)raised=1;overlay.push(vertex([p[0],p[1]+h,p[2]],[0,0,0],materials?.[kind]?[.9,.9,.9]:kind==='dry'?[.36,.29,.14]:[.49,.38,.17],w.map((v,k)=>(v-worldOrigin[k])/2),h,cover));
     }
     raisedCells.push(raised);
     const face=(a,b,c)=>{const av=a*11,bv=b*11,cv=c*11,u=[vertices[bv]-vertices[av],vertices[bv+1]-vertices[av+1],vertices[bv+2]-vertices[av+2]],v=[vertices[cv]-vertices[av],vertices[cv+1]-vertices[av+1],vertices[cv+2]-vertices[av+2]],n=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]];for(const i of [av,bv,cv])for(let k=0;k<3;k++)vertices[i+3+k]+=n[k];};
@@ -57,7 +58,7 @@
     const rng=random(hash(f.properties.source_id+'/grass-ribbons')),mid=point(.5,.5),w=world(f.geometry.coordinates),cover=amount(w,kind),h=.26+noise(...w,2,'grass-height')*.20;
     for(let k=0;k<ribbons;k++){
      const angle=rng()*Math.PI,ax=Math.cos(angle)*dx*.20,az=Math.sin(angle)*dz*.20,bendX=Math.sin(angle)*.045,bendZ=-Math.cos(angle)*.045,cx=(rng()-.5)*dx*.55,cz=(rng()-.5)*dz*.55,ids=[];
-     for(let row=0;row<3;row++)for(const side of [-1,0,1]){const t=row/2,ox=cx+ax*side+bendX*t*t,oz=cz+az*side+bendZ*t*t,above=.036+h*t*(1-.20*Math.abs(side)),n=[0,1,0];ids.push(vertex([mid[0]+ox,mid[1]-nx*ox-nz*oz+above,mid[2]+oz],n,materials?.turf?[.90,1,.82]:[.07,.20,.025],[(side+1)/2,t],above,1-cover*.85));}
+     for(let row=0;row<3;row++)for(const side of [-1,0,1]){const t=row/2,ox=cx+ax*side+bendX*t*t,oz=cz+az*side+bendZ*t*t,above=.036+h*t*(1-.20*Math.abs(side)),n=[0,1,0];ids.push(vertex([mid[0]+ox,mid[1]-nx*ox-nz*oz+above,mid[2]+oz],n,materials?.turf?[.90,1,.82]:[.07,.20,.025],[(side+1)/2,t],above,1-cover*.20));}
      if(materials?.turf&&kind!=='dry')for(let y=0;y<2;y++)for(let x=0;x<2;x++){const a=ids[y*3+x],b=ids[y*3+x+1],c=ids[(y+1)*3+x+1],d=ids[(y+1)*3+x];groundIndices.turf.push(a,b,c,a,c,d);}
     }
    }
