@@ -13,16 +13,16 @@ export async function loadGroundMaterials(quality,signal){
  const root=new URL('./ground-materials/',import.meta.url),bounded=AbortSignal.any([signal,AbortSignal.timeout(4000)]),created=[];
  try{
   const response=await fetch(new URL('manifest.json',root),{credentials:'omit',cache:'no-cache',signal:bounded}),manifest=JSON.parse(new TextDecoder().decode(await bytes(response,20000,bounded)));
-  if(manifest.kind!=='illustrative-ground-materials'||manifest.schema_version!==1)throw Error('Invalid ground catalog');
+  if(manifest.kind!=='illustrative-ground-materials'||manifest.schema_version!==2)throw Error('Invalid ground catalog');
   const expected={low:128,medium:256,high:512}[quality],result={};
-  const outcomes=await Promise.allSettled(['grass','litter','dry'].map(async kind=>{
-   const a=manifest.tiers?.[quality]?.[kind];
-   if(!a||!hex.test(a.sha256)||a.path!==kind+'-'+a.sha256+'.jpg'||!Number.isInteger(a.bytes)||a.bytes<1||a.bytes>200000||a.width!==expected||a.height!==expected||a.tile_metres!==4)throw Error('Invalid ground material');
+  const outcomes=await Promise.allSettled(['grass','litter','dry','turf'].map(async kind=>{
+   const a=manifest.tiers?.[quality]?.[kind],extension=kind==='grass'?'.jpg':'.png',tile=kind==='grass'?4:kind==='turf'?1:2;
+   if(!a||!hex.test(a.sha256)||a.path!==kind+'-'+a.sha256+extension||!Number.isInteger(a.bytes)||a.bytes<1||a.bytes>400000||a.width!==expected||a.height!==expected||a.tile_metres!==tile||a.alpha_cutout!==(kind!=='grass'))throw Error('Invalid ground material');
    const response=await fetch(new URL(a.path,root),{credentials:'omit',signal:bounded}),data=await bytes(response,a.bytes,bounded),digest=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',data)),x=>x.toString(16).padStart(2,'0')).join('');
    if(data.length!==a.bytes||digest!==a.sha256)throw Error('Ground checksum mismatch');
-   const bitmap=await createImageBitmap(new Blob([data],{type:'image/jpeg'}),{imageOrientation:'flipY',premultiplyAlpha:'none'});created.push(bitmap);
+   const bitmap=await createImageBitmap(new Blob([data],{type:kind==='grass'?'image/jpeg':'image/png'}),{imageOrientation:'flipY',premultiplyAlpha:'none'});created.push(bitmap);
    if(bitmap.width!==a.width||bitmap.height!==a.height)throw Error('Ground dimensions mismatch');
-   result[kind]={sha256:a.sha256,bitmap,repeat:true,tile_metres:a.tile_metres,bytes:a.bytes};
+   result[kind]={sha256:a.sha256,bitmap,repeat:kind!=='turf',tile_metres:a.tile_metres,bytes:a.bytes};
   }));
   bounded.throwIfAborted();if(outcomes.some(x=>x.status==='rejected'))throw Error('Ground materials unavailable');
   cache.set(quality,result);return result;

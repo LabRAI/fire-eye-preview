@@ -29594,7 +29594,7 @@ function boundedPoint(p, radius) {
   return Array.isArray(p) && p.length >= 2 && p.slice(0, 2).every(Number.isFinite) && Math.abs(p[0]) < radius - 4 && Math.abs(p[1]) < radius - 4;
 }
 function groundCoverAsset(asset, row, ground, radius, remaining) {
-  const stride = 11, perCell = asset.grass_vertices_per_cell, src = asset.vertices, offsets = asset.ground_offsets, vertices = [], heights = [], groundTypes = [], dryCounts = [], remap = /* @__PURE__ */ new Map();
+  const stride = 11, perCell = asset.grass_vertices_per_cell, src = asset.vertices, offsets = asset.ground_offsets, vertices = [], heights = [], groundTypes = [], dryCounts = [], coverage = [], raisedCells = [], remap = /* @__PURE__ */ new Map();
   let cells = 0;
   if (!Number.isInteger(perCell) || perCell < 4 || src.length !== asset.grass_cells * perCell * stride || offsets?.length !== src.length / stride) throw Error("Invalid grass patch geometry");
   for (let cell = 0; cell < asset.grass_cells; cell++) {
@@ -29608,12 +29608,14 @@ function groundCoverAsset(asset, row, ground, radius, remaining) {
     cells++;
     groundTypes.push(asset.ground_types?.[cell] || 0);
     dryCounts.push(asset.dry_blades_per_cell?.[cell] || 0);
+    raisedCells.push(asset.raised_cells?.[cell] || 0);
     for (let j = 0; j < perCell; j++) {
       const old = start + j, i = old * stride, p = points[j], v = Array.from(src.slice(i, i + stride));
       v[1] = (ground(...p) - row[1] + offsets[old]) / row[4];
       remap.set(old, vertices.length / stride);
       vertices.push(...v);
       heights.push(offsets[old]);
+      coverage.push(asset.ground_coverage?.[old] ?? 1);
     }
   }
   if (!cells) return null;
@@ -29636,7 +29638,7 @@ function groundCoverAsset(asset, row, ground, radius, remaining) {
     }
   }
   const data = new Float32Array(vertices), index = new Uint16Array(indices), litterCells = groundTypes.filter((t) => t === 1).length;
-  return { ...asset, vertices: data, indices: index, parts, ground_offsets: new Float32Array(heights), ground_types: new Uint8Array(groundTypes), dry_blades_per_cell: new Uint8Array(dryCounts), dry_blade_count: dryCounts.reduce((n, v) => n + v, 0), litter_cells: litterCells, dry_cells: groundTypes.filter((t) => t === 2).length, leaf_count: litterCells * (asset.leaf_slots_per_cell || 0), grass_cells: cells, bytes: data.byteLength + index.byteLength };
+  return { ...asset, vertices: data, indices: index, parts, ground_offsets: new Float32Array(heights), ground_types: new Uint8Array(groundTypes), ground_coverage: new Float32Array(coverage), raised_cells: new Uint8Array(raisedCells), dry_blades_per_cell: new Uint8Array(dryCounts), dry_blade_count: dryCounts.reduce((n, v) => n + v, 0), litter_cells: litterCells, dry_cells: groundTypes.filter((t) => t === 2).length, leaf_count: litterCells * (asset.leaf_slots_per_cell || 0), grass_cells: cells, bytes: data.byteLength + index.byteLength + coverage.length * 4 };
 }
 function capture({ center, height, features, meshSnapshot, forecast, terrainReady, terrainStatus, terrainSource = "Published local terrain", mobile = false, radius = 240 }) {
   if (!terrainReady && terrainStatus === "outside") throw Error("Local terrain has not loaded for this location. Reload the scene.");
@@ -29774,7 +29776,7 @@ function capture({ center, height, features, meshSnapshot, forecast, terrainRead
     canStand,
     forecast: { issue_time_utc: forecast.issue_time_utc, target_time_utc: forecast.target_time_utc, source_id: forecast.source_id, lead_hours: forecast.lead_hours, resolution: forecast.resolution, field_status: forecast.field_status },
     bounds_m: [-radius, -radius, radius, radius],
-    counts: { buildings: objects.filter((f) => f.properties.kind === "building").length, trees: groups.filter((g) => g.asset.role !== "grass").reduce((n, g) => n + g.instances.length / 7, 0), grass: grassCount, grassPatches: groups.filter((g) => g.asset.ground_cover).length, groundRepresentation: "continuous-surface", dryCells: groups.reduce((n, g) => n + (g.asset.dry_cells || 0), 0), litterCells: groups.reduce((n, g) => n + (g.asset.litter_cells || 0), 0), leaves: groups.reduce((n, g) => n + (g.asset.leaf_count || 0), 0), dryBlades: groups.reduce((n, g) => n + (g.asset.dry_blade_count || 0), 0), emitters: emitters.length }
+    counts: { buildings: objects.filter((f) => f.properties.kind === "building").length, trees: groups.filter((g) => g.asset.role !== "grass").reduce((n, g) => n + g.instances.length / 7, 0), grass: grassCount, grassPatches: groups.filter((g) => g.asset.ground_cover).length, groundRepresentation: "raised-ground-mosaic", raisedCells: groups.reduce((n, g) => n + (g.asset.raised_cells?.reduce((a, b) => a + b, 0) || 0), 0), dryCells: groups.reduce((n, g) => n + (g.asset.dry_cells || 0), 0), litterCells: groups.reduce((n, g) => n + (g.asset.litter_cells || 0), 0), leaves: groups.reduce((n, g) => n + (g.asset.leaf_count || 0), 0), dryBlades: groups.reduce((n, g) => n + (g.asset.dry_blade_count || 0), 0), emitters: emitters.length }
   };
 }
 
@@ -29791,7 +29793,7 @@ async function createViewer(container, data, { onSession = () => {
   let renderer, controls, observer;
   try {
     let plantMaterial = function(part) {
-      const key = (part.image?.sha256 || "plain") + "/" + part.alpha_test + "/" + part.opacity;
+      const key = (part.image?.sha256 || "plain") + "/" + part.alpha_test + "/" + part.opacity + "/" + (part.surface || "mesh");
       if (plantMaterials.has(key)) return plantMaterials.get(key);
       let texture = null;
       if (part.image) {
@@ -29807,7 +29809,13 @@ async function createViewer(container, data, { onSession = () => {
           plantTextures.set(part.image.sha256, texture);
         }
       }
-      const m = mat(new MeshStandardMaterial({ vertexColors: true, map: texture, alphaTest: part.alpha_test, opacity: part.opacity, roughness: 0.9, side: DoubleSide, polygonOffset: !!part.surface && part.surface !== "detail", polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
+      const m = mat(new MeshStandardMaterial({ vertexColors: true, map: texture, alphaTest: part.alpha_test, opacity: part.opacity, roughness: 0.9, side: DoubleSide, polygonOffset: part.surface === "grass", polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
+      if (part.surface === "turf") {
+        m.onBeforeCompile = (shader) => {
+          shader.fragmentShader = shader.fragmentShader.replace("#include <normal_fragment_begin>", "#include <normal_fragment_begin>\n#ifdef DOUBLE_SIDED\nnormal *= faceDirection;\n#endif");
+        };
+        m.customProgramCacheKey = () => "grass-bank-two-sided";
+      }
       plantMaterials.set(key, m);
       return m;
     }, fireBatch = function(smoke) {
@@ -30070,11 +30078,12 @@ async function createViewer(container, data, { onSession = () => {
         position.push(...v.slice(i, i + 3));
         normal.push(...v.slice(i + 3, i + 6));
         color.push(...v.slice(i + 6, i + 9));
+        if (asset.ground_coverage) color.push(asset.ground_coverage[i / stride]);
         uv.push(...stride === 11 ? v.slice(i + 9, i + 11) : [0, 0]);
       }
       g.setAttribute("position", new Float32BufferAttribute(position, 3));
       g.setAttribute("normal", new Float32BufferAttribute(normal, 3));
-      g.setAttribute("color", new Float32BufferAttribute(color, 3));
+      g.setAttribute("color", new Float32BufferAttribute(color, asset.ground_coverage ? 4 : 3));
       g.setAttribute("uv", new Float32BufferAttribute(uv, 2));
       g.setIndex(new BufferAttribute(asset.indices, 1));
       const parts = asset.parts || [{ start: 0, count: asset.indices.length, alpha_test: 0, opacity: 1 }];

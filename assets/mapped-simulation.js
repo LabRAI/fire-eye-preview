@@ -12,8 +12,8 @@
  function contains(g,p){const parts=g?.type==='Polygon'?[g.coordinates]:g?.type==='MultiPolygon'?g.coordinates:[];return parts.some(r=>ringContains(r[0],p)&&!r.slice(1).some(h=>ringContains(h,p)));}
  // Local east/up/south metres -> Mercator -> the existing map camera.
  function cameraMatrix(matrix,origin,scale){const result=new Float32Array(16);for(let row=0;row<4;row++){result[row]=matrix[row]*scale;result[4+row]=matrix[8+row]*scale;result[8+row]=matrix[4+row]*scale;result[12+row]=matrix[row]*origin.x+matrix[4+row]*origin.y+matrix[8+row]*origin.z+matrix[12+row];}return result;}
- const meshVertex='precision highp float; attribute vec3 position; attribute vec3 normal; attribute vec3 color; attribute vec2 uv; attribute vec3 offset; attribute vec2 size; attribute vec2 rotation; uniform mat4 matrix; varying mediump vec3 shade; varying mediump vec2 texCoord; void main(){vec3 p=position*vec3(size.x,size.y,size.x);p.xz=mat2(rotation.y,rotation.x,-rotation.x,rotation.y)*p.xz;vec3 n=normal/vec3(size.x,size.y,size.x);n.xz=mat2(rotation.y,rotation.x,-rotation.x,rotation.y)*n.xz;float light=0.57+0.43*max(0.0,dot(normalize(n),normalize(vec3(-0.4,0.85,0.3))));shade=max(color*light,vec3(0.0));texCoord=uv;gl_Position=matrix*vec4(p+offset,1.0);}';
- const meshFragment='precision mediump float; varying mediump vec3 shade; varying mediump vec2 texCoord; uniform sampler2D materialMap; uniform float opacity; uniform float alphaTest; uniform float materialOpacity; void main(){vec4 tex=texture2D(materialMap,texCoord);if(tex.a*materialOpacity<alphaTest)discard;vec3 c=pow(max(shade*pow(tex.rgb,vec3(2.2)),vec3(0.0)),vec3(0.454545));float a=opacity*materialOpacity;gl_FragColor=vec4(c*a,a);}';
+ const meshVertex='precision highp float; attribute float coverage; varying mediump float groundCoverage; attribute vec3 position; attribute vec3 normal; attribute vec3 color; attribute vec2 uv; attribute vec3 offset; attribute vec2 size; attribute vec2 rotation; uniform mat4 matrix; varying mediump vec3 shade; varying mediump vec2 texCoord; void main(){groundCoverage=coverage;vec3 p=position*vec3(size.x,size.y,size.x);p.xz=mat2(rotation.y,rotation.x,-rotation.x,rotation.y)*p.xz;vec3 n=normal/vec3(size.x,size.y,size.x);n.xz=mat2(rotation.y,rotation.x,-rotation.x,rotation.y)*n.xz;float light=0.57+0.43*max(0.0,dot(normalize(n),normalize(vec3(-0.4,0.85,0.3))));shade=max(color*light,vec3(0.0));texCoord=uv;gl_Position=matrix*vec4(p+offset,1.0);}';
+ const meshFragment='precision mediump float; varying mediump float groundCoverage; varying mediump vec3 shade; varying mediump vec2 texCoord; uniform sampler2D materialMap; uniform float opacity; uniform float alphaTest; uniform float materialOpacity; void main(){vec4 tex=texture2D(materialMap,texCoord);if(tex.a*materialOpacity*groundCoverage<alphaTest)discard;vec3 c=pow(max(shade*pow(tex.rgb,vec3(2.2)),vec3(0.0)),vec3(0.454545));float a=opacity*materialOpacity;gl_FragColor=vec4(c*a,a);}';
  const particleVertex='precision highp float; attribute vec3 position; attribute float seed; uniform mat4 matrix; uniform vec2 viewport; uniform float time; uniform float rise; uniform mediump float smoke; uniform float size; varying mediump float life; void main(){life=fract(seed+time*(smoke>0.5?0.085:0.42));vec3 p=position;p.y+=life*rise;p.x+=sin(seed*30.0+time*0.8)*life*(smoke>0.5?8.0:0.4);p.z+=cos(seed*24.0+time*0.5)*life*(smoke>0.5?6.0:0.4);vec4 clip=matrix*vec4(p,1.0);vec4 side=matrix*vec4(p+vec3(size,0.0,0.0),1.0);vec4 other=matrix*vec4(p+vec3(0.0,0.0,size),1.0);float pixels=max(length((side.xy/side.w-clip.xy/clip.w)*viewport*0.5),length((other.xy/other.w-clip.xy/clip.w)*viewport*0.5));gl_Position=clip;gl_PointSize=clamp(pixels*(smoke>0.5?0.4+life:1.0-life*0.65),1.0,160.0);}';
  const particleFragment='precision mediump float; uniform mediump float smoke; uniform float opacity; varying mediump float life; void main(){vec2 p=gl_PointCoord-0.5;float d=length(p*vec2(1.0,smoke>0.5?1.0:0.75));float soft=1.0-smoothstep(0.12,0.5,d);float alpha=soft*sin(life*3.14159)*opacity;if(smoke>0.5){alpha*=0.075;gl_FragColor=vec4(vec3(0.38,0.35,0.31)*alpha,alpha);}else{alpha*=0.9;vec3 c=mix(vec3(1.0,0.75,0.16),vec3(0.95,0.15,0.01),life);gl_FragColor=vec4(c*alpha,alpha);}}';
  function program(gl,vertex,fragment,attributes,uniforms){
@@ -21,38 +21,49 @@
   try{for(const [type,code] of [[gl.VERTEX_SHADER,vertex],[gl.FRAGMENT_SHADER,fragment]]){const shader=gl.createShader(type);shaders.push(shader);gl.shaderSource(shader,code);gl.compileShader(shader);if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS))throw Error('Scene shader unavailable');}p=gl.createProgram();shaders.forEach(s=>gl.attachShader(p,s));gl.linkProgram(p);if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw Error('Scene program unavailable');return {id:p,a:Object.fromEntries(attributes.map(n=>[n,gl.getAttribLocation(p,n)])),u:Object.fromEntries(uniforms.map(n=>[n,gl.getUniformLocation(p,n)]))};}
   catch(e){if(p)gl.deleteProgram(p);throw e;}finally{shaders.forEach(s=>gl.deleteShader(s));}
  }
- // Bake short cover onto sampled ground once per rebuild. Each 32 m patch is
- // one shared map/VR surface. Leaf litter and matted grass are continuous
- // materials, with no individually placed leaves or blades.
- // The snapshot carries these exact vertices; VR never resamples individual
- // grass cells or reintroduces holes by thinning their instances.
+ // Connected green understory with raised, cutout litter and grass ribbons.
+ // Every ribbon represents a dense grass group; no per-leaf/blade instances.
+ // Source-approved cells and world-anchored patch contours are shared with VR.
  function grassPatchGroups(features,{center,local,limits,quality,footprint,mobile=false,materials=null,surfaceAt=()=>null}){
   const patches=new Map(),cos=Math.cos(center[1]*Math.PI/180),budget=Math.min(limits.grass,limits.vrGrass),maxGroups=96;
-  for(const f of features){
-   const p=f.properties,b=p.grass_bounds;if(!b||!p.grass_patch_id||!footprint(f.geometry.coordinates,b))continue;
-   if(!patches.has(p.grass_patch_id)){const c=p.grass_patch_center;patches.set(p.grass_patch_id,{id:p.grass_patch_id,center:c,cells:[],distance:Math.hypot((c[0]-center[0])*cos,c[1]-center[1])*111320});}
-   patches.get(p.grass_patch_id).cells.push(f);
-  }
-  const priority=p=>p.distance;
-  const ordered=[...patches.values()].sort((a,b)=>priority(a)-priority(b)||a.id.localeCompare(b.id)),groups=[];let count=0;
+  const salts=new Map(),noise=(x,z,scale,tag)=>{x/=scale;z/=scale;if(!salts.has(tag))salts.set(tag,hash(tag));const salt=salts.get(tag),i=Math.floor(x),j=Math.floor(z),u=smooth(x-i),v=smooth(z-j),h=(a,b)=>{let n=Math.imul(a,374761393)^Math.imul(b,668265263)^salt;n=Math.imul(n^(n>>>13),1274126177);return ((n^(n>>>16))>>>0)/4294967296;};return (h(i,j)*(1-u)+h(i+1,j)*u)*(1-v)+(h(i,j+1)*(1-u)+h(i+1,j+1)*u)*v;};
   const world=p=>{const scale=Math.cos((Math.floor(p[1]/5)*5+2.5)*Math.PI/180);return [p[0]*Math.PI/180*6378137*scale,Math.log(Math.tan(Math.PI/4+p[1]*Math.PI/360))*6378137*scale];};
+  const amount=(xy,kind)=>kind==='grass'?0:smooth((noise(...xy,7,'cover')*.65+noise(...xy,17,'cover-wide')*.35-.44)/.22);
+  for(const f of features){const p=f.properties,b=p.grass_bounds;if(!b||!p.grass_patch_id||!footprint(f.geometry.coordinates,b))continue;
+   if(!patches.has(p.grass_patch_id)){const c=p.grass_patch_center;patches.set(p.grass_patch_id,{id:p.grass_patch_id,center:c,cells:[],distance:Math.hypot((c[0]-center[0])*cos,c[1]-center[1])*111320});}patches.get(p.grass_patch_id).cells.push(f);
+  }
+  const ordered=[...patches.values()].sort((a,b)=>a.distance-b.distance||a.id.localeCompare(b.id)),groups=[];let count=0;
   for(const patch of ordered){
-   if(groups.length>=maxGroups)break;
-   if(count+patch.cells.length>budget)continue;
-   const anchor=local(patch.center),vertices=[],groundOffsets=[],groundIndices={grass:[],litter:[],dry:[]},groundTypes=[],worldOrigin=world(patch.center).map(v=>Math.floor(v/4)*4);
-   const vertex=(p,n,c,uv=[0,0],aboveGround=.035)=>{const index=vertices.length/11;vertices.push(p[0]-anchor[0],p[1]-anchor[1],p[2]-anchor[2],...n,...c,...uv);groundOffsets.push(aboveGround);return index;};
+   if(groups.length>=maxGroups)break;if(count+patch.cells.length>budget)continue;
+   const ribbons=patch.distance<65?(quality==='high'?12:quality==='medium'?10:8):0,perCell=13+ribbons*9;
+   const anchor=local(patch.center),vertices=[],groundOffsets=[],coverage=[],groundTypes=[],raisedCells=[],groundIndices={grass:[],litter:[],dry:[],turf:[]},worldOrigin=world(patch.center).map(v=>Math.floor(v/4)*4);
+   const vertex=(p,n,c,uv,above,cover=1)=>{const index=vertices.length/11;vertices.push(p[0]-anchor[0],p[1]-anchor[1],p[2]-anchor[2],...n,...c,...uv);groundOffsets.push(above);coverage.push(cover);return index;};
    for(const f of patch.cells){
-    const b=f.properties.grass_bounds,geo=[[b[0],b[1]],[b[2],b[1]],[b[2],b[3]],[b[0],b[3]]],corners=geo.map(local);
+    const b=f.properties.grass_bounds,geo=[[b[0],b[1]],[b[2],b[1]],[b[2],b[3]],[b[0],b[3]]],corners=geo.map(local),xy=geo.map(world);
     const dx=corners[1][0]-corners[0][0],dz=corners[0][2]-corners[3][2],nx=-(corners[1][1]-corners[0][1])/dx,nz=-(corners[0][1]-corners[3][1])/dz,norm=Math.hypot(nx,1,nz),normal=[nx/norm,1/norm,nz/norm];
     const requested=surfaceAt(f)||f.properties.ground_kind,kind=requested==='litter'?'litter':requested==='dry'?'dry':'grass';groundTypes.push(kind==='litter'?1:kind==='dry'?2:0);
-    const ids=corners.map((p,i)=>{const shade=hash(geo[i].map(v=>v.toFixed(9)).join(','))/4294967296,xy=world(geo[i]),uv=xy.map((v,k)=>(v-worldOrigin[k])/4);
-     const color=materials?.[kind]?[.88+shade*.12,.88+shade*.12,.88+shade*.12]:kind==='litter'?[.30+shade*.04,.15+shade*.025,.045+shade*.01]:kind==='dry'?[.38+shade*.05,.29+shade*.035,.12+shade*.02]:[.075+shade*.025,.155+shade*.035,.028+shade*.015];
-     return vertex([p[0],p[1]+.035,p[2]],normal,color,uv);});
-    groundIndices[kind].push(ids[0],ids[1],ids[2],ids[0],ids[2],ids[3]);
+    const ids=corners.map((p,i)=>{const shadow=1-.12*amount(xy[i],kind),shade=.88+.1*noise(...xy[i],6,'grass');return vertex([p[0],p[1]+.035,p[2]],normal,materials?.grass?[shade*shadow,shade*shadow,shade*shadow]:[.07*shadow,.19*shadow,.025*shadow],xy[i].map((v,k)=>(v-worldOrigin[k])/4),.035);});
+    groundIndices.grass.push(ids[0],ids[1],ids[2],ids[0],ids[2],ids[3]);
+    const point=(u,v)=>{const a=corners[0],c=corners[1],d=corners[2],e=corners[3];return a.map((x,k)=>(x*(1-u)+c[k]*u)*(1-v)+(e[k]*(1-u)+d[k]*u)*v);};
+    const overlay=[];let raised=0;
+    for(let y=0;y<3;y++)for(let x=0;x<3;x++){
+     const u=x/2,v=y/2,p=point(u,v),w=[xy[0][0]+(xy[1][0]-xy[0][0])*u,xy[0][1]+(xy[3][1]-xy[0][1])*v],cover=amount(w,kind),h=.052+cover*(kind==='dry'?.08:.10)+noise(...w,1.4,'relief')*(.02+.06*cover);
+     if(cover>.5)raised=1;overlay.push(vertex([p[0],p[1]+h,p[2]],[0,0,0],materials?.[kind]?[.9,.9,.9]:kind==='dry'?[.36,.26,.10]:[.27,.12,.035],w.map((v,k)=>(v-worldOrigin[k])/2),h,cover));
+    }
+    raisedCells.push(raised);
+    const face=(a,b,c)=>{const av=a*11,bv=b*11,cv=c*11,u=[vertices[bv]-vertices[av],vertices[bv+1]-vertices[av+1],vertices[bv+2]-vertices[av+2]],v=[vertices[cv]-vertices[av],vertices[cv+1]-vertices[av+1],vertices[cv+2]-vertices[av+2]],n=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]];for(const i of [av,bv,cv])for(let k=0;k<3;k++)vertices[i+3+k]+=n[k];};
+    for(let y=0;y<2;y++)for(let x=0;x<2;x++){const a=overlay[y*3+x],b=overlay[y*3+x+1],c=overlay[(y+1)*3+x+1],d=overlay[(y+1)*3+x];face(a,b,c);face(a,c,d);if(kind!=='grass'&&[a,b,c,d].some(i=>coverage[i]>.25))groundIndices[kind].push(a,b,c,a,c,d);}
+    for(const i of overlay){const j=i*11+3,length=Math.hypot(vertices[j],vertices[j+1],vertices[j+2])||1;for(let k=0;k<3;k++)vertices[j+k]/=length;}
+    const rng=random(hash(f.properties.source_id+'/grass-ribbons')),mid=point(.5,.5),w=world(f.geometry.coordinates),cover=amount(w,kind),h=.26+noise(...w,2,'grass-height')*.20;
+    for(let k=0;k<ribbons;k++){
+     const angle=rng()*Math.PI,ax=Math.cos(angle)*dx*.20,az=Math.sin(angle)*dz*.20,bendX=Math.sin(angle)*.045,bendZ=-Math.cos(angle)*.045,cx=(rng()-.5)*dx*.55,cz=(rng()-.5)*dz*.55,ids=[];
+     for(let row=0;row<3;row++)for(const side of [-1,0,1]){const t=row/2,ox=cx+ax*side+bendX*t*t,oz=cz+az*side+bendZ*t*t,above=.036+h*t*(1-.20*Math.abs(side)),n=[0,1,0];ids.push(vertex([mid[0]+ox,mid[1]-nx*ox-nz*oz+above,mid[2]+oz],n,materials?.turf?[.90,1,.82]:[.07,.20,.025],[(side+1)/2,t],above,1-cover*.85));}
+     if(materials?.turf&&kind!=='dry')for(let y=0;y<2;y++)for(let x=0;x<2;x++){const a=ids[y*3+x],b=ids[y*3+x+1],c=ids[(y+1)*3+x+1],d=ids[(y+1)*3+x];groundIndices.turf.push(a,b,c,a,c,d);}
+    }
    }
    const orderedIndices=[],parts=[];
-   for(const kind of ['grass','litter','dry'])if(groundIndices[kind].length){parts.push({start:orderedIndices.length,count:groundIndices[kind].length,alpha_test:0,opacity:1,surface:kind,...(materials?.[kind]?{image:materials[kind]}:{})});orderedIndices.push(...groundIndices[kind]);}
-   const indices=new Uint16Array(orderedIndices),data=new Float32Array(vertices),litterCells=groundTypes.filter(t=>t===1).length,dryCells=groundTypes.filter(t=>t===2).length,asset={id:patch.id,role:'grass',ground_cover:true,ground_representation:'continuous-surface',grass_cells:patch.cells.length,grass_vertices_per_cell:4,grass_blades_per_cell:0,leaf_slots_per_cell:0,leaf_vertices_per_leaf:0,ground_types:new Uint8Array(groundTypes),dry_cells:dryCells,dry_blade_count:0,litter_cells:litterCells,leaf_count:0,ground_offsets:new Float32Array(groundOffsets),height_m:1,crown_diameter_m:1,stride_bytes:44,vertices:data,indices,parts,bytes:data.byteLength+indices.byteLength};
+   for(const kind of ['grass','litter','dry','turf'])if(groundIndices[kind].length){parts.push({start:orderedIndices.length,count:groundIndices[kind].length,alpha_test:kind==='grass'?0:.42,opacity:1,surface:kind,...(materials?.[kind]?{image:materials[kind]}:{})});orderedIndices.push(...groundIndices[kind]);}
+   const indices=new Uint16Array(orderedIndices),data=new Float32Array(vertices),cover=new Float32Array(coverage),asset={id:patch.id,role:'grass',ground_cover:true,ground_representation:'raised-ground-mosaic',grass_cells:patch.cells.length,grass_vertices_per_cell:perCell,grass_blades_per_cell:0,grass_ribbons_per_cell:ribbons,leaf_slots_per_cell:0,leaf_vertices_per_leaf:0,ground_types:new Uint8Array(groundTypes),raised_cells:new Uint8Array(raisedCells),ground_coverage:cover,dry_cells:groundTypes.filter(t=>t===2).length,dry_blade_count:0,litter_cells:groundTypes.filter(t=>t===1).length,leaf_count:0,ground_offsets:new Float32Array(groundOffsets),height_m:1,crown_diameter_m:1,stride_bytes:44,vertices:data,indices,parts,bytes:data.byteLength+indices.byteLength+cover.byteLength};
    groups.push({asset,instances:new Float32Array([...anchor,1,1,0,1]),count:1});count+=patch.cells.length;
   }
   return groups;
@@ -90,7 +101,7 @@
    if(assets&&C.loadedQuality===C.assetQuality)return assets;if(assetTask)return assetTask;
    const tier=C.assetQuality,seq=++assetSequence;assetController?.abort();assetController=new AbortController();C.qualityLoading=true;C.qualityError=false;notify();
    assetTask=(async()=>{
-    const signal=AbortSignal.any([controller.signal,assetController.signal,AbortSignal.timeout(20000)]),[meshes,materials]=await Promise.all([qualityLoader.load(tier,signal),import('./ground-materials.mjs?v=bd22717776168eac').then(m=>m.loadGroundMaterials(tier,signal)).catch(()=>null)]);
+    const signal=AbortSignal.any([controller.signal,assetController.signal,AbortSignal.timeout(20000)]),[meshes,materials]=await Promise.all([qualityLoader.load(tier,signal),import('./ground-materials.mjs?v=569d8da2e69f2d6f').then(m=>m.loadGroundMaterials(tier,signal)).catch(()=>null)]);
     if(!disposed&&seq===assetSequence){groundMaterials=materials||groundMaterials;C.groundMaterials=materials?'ready':groundMaterials?'retained':'colors';}
     if(disposed||seq!==assetSequence)return null;const gl=gpu?.gl;release();assets=meshes;C.loadedQuality=tier;C.particleBudget=global.FireEyeSceneQuality.budget(tier,matchMedia('(pointer:coarse)').matches||innerWidth<=640).particles;C.assetBytes=meshes.reduce((n,m)=>n+m.bytes,0);C.error=null;rebuild();if(gl)initialize(gl);install();update();return meshes;
    })().catch(()=>{if(!disposed&&seq===assetSequence){C.qualityError=true;cooldown=Date.now()+30000;if(!assets)fail();}return null;}).finally(()=>{if(seq===assetSequence){assetTask=null;C.qualityLoading=false;notify();}});return assetTask;
@@ -173,7 +184,7 @@
    const canopyAt=global.FireEyeTallahassee.spatial(allTrees.map(f=>{const p=f.geometry.coordinates,r=Math.min(14,Math.max(3,(Number(f.properties.display_crown_m)||6)*.675+1)),dy=r/111320,dx=dy/Math.cos(p[1]*Math.PI/180);return {...f,r,b:[p[0]-dx,p[1]-dy,p[0]+dx,p[1]+dy]};}));
    const surfaceAt=f=>{if(f.properties.ground_kind==='litter')return 'litter';const p=f.geometry.coordinates;return canopyAt(p).some(t=>Math.hypot((p[0]-t.geometry.coordinates[0])*Math.cos(p[1]*Math.PI/180),p[1]-t.geometry.coordinates[1])*111320<t.r)?'litter':f.properties.ground_kind;};
    const groundGroups=grassPatchGroups(grass,{center,local,limits,quality:C.loadedQuality,footprint:grassAllowed,mobile,materials:groundMaterials,surfaceAt});
-   C.groundRepresentation='continuous-surface';C.dryCells=groundGroups.reduce((n,g)=>n+g.asset.dry_cells,0);C.litterCells=groundGroups.reduce((n,g)=>n+g.asset.litter_cells,0);C.leafCount=groundGroups.reduce((n,g)=>n+g.asset.leaf_count,0);C.dryBladeCount=groundGroups.reduce((n,g)=>n+g.asset.dry_blade_count,0);
+   C.groundRepresentation='raised-ground-mosaic';C.dryCells=groundGroups.reduce((n,g)=>n+g.asset.dry_cells,0);C.litterCells=groundGroups.reduce((n,g)=>n+g.asset.litter_cells,0);C.leafCount=groundGroups.reduce((n,g)=>n+g.asset.leaf_count,0);C.dryBladeCount=groundGroups.reduce((n,g)=>n+g.asset.dry_blade_count,0);
    C.renderBudget=limits;C.grassCount=groundGroups.reduce((n,g)=>n+g.asset.grass_cells,0);C.grassPatches=groundGroups.length;C.detailTrees=near.length;C.canopyTrees=trees.length-near.length;
    const treeKind=f=>/pine|conifer|needleleaf|evergreen/i.test(String(f.properties.class||''))?'tree_pine_01':hash(f.properties.source_id)%2?'tree_oak_02':'tree_oak_01';
    groups=assets.filter(asset=>asset.role!=='grass').map(asset=>{
@@ -206,14 +217,14 @@
    C.fireEmphasis=C.forecast.status==='ready'?1:0;clearTimer();last=null;rebuildFire();if(gpu)uploadInstances();notify();map.triggerRepaint();
   }
   function buffer(gl,target,data){const b=gl.createBuffer();gl.bindBuffer(target,b);gl.bufferData(target,data,gl.STATIC_DRAW);return b;}
-  function release(){if(!gpu)return;const {gl}=gpu;for(const m of gpu.meshes){gl.deleteBuffer(m.vertex);gl.deleteBuffer(m.index);if(m.instance)gl.deleteBuffer(m.instance);}for(const t of gpu.textures.values())gl.deleteTexture(t);for(const f of gpu.fire)gl.deleteBuffer(f.buffer);for(const p of [gpu.meshProgram,gpu.fireProgram])if(p)gl.deleteProgram(p.id);if(gpu.vao&&gpu.vaoExt)gpu.vaoExt.deleteVertexArrayOES(gpu.vao);gpu=null;}
+  function release(){if(!gpu)return;const {gl}=gpu;for(const m of gpu.meshes){gl.deleteBuffer(m.vertex);gl.deleteBuffer(m.index);if(m.coverage)gl.deleteBuffer(m.coverage);if(m.instance)gl.deleteBuffer(m.instance);}for(const t of gpu.textures.values())gl.deleteTexture(t);for(const f of gpu.fire)gl.deleteBuffer(f.buffer);for(const p of [gpu.meshProgram,gpu.fireProgram])if(p)gl.deleteProgram(p.id);if(gpu.vao&&gpu.vaoExt)gpu.vaoExt.deleteVertexArrayOES(gpu.vao);gpu=null;}
   function uploadInstances(){
    if(!gpu)return;const {gl,vaoExt}=gpu,previousArray=gl.getParameter(gl.ARRAY_BUFFER_BINDING),previousTexture=gl.getParameter(gl.TEXTURE_BINDING_2D),previousVao=vaoExt?gl.getParameter(vaoExt.VERTEX_ARRAY_BINDING_OES):null,previousIndex=gl.getParameter(gl.ELEMENT_ARRAY_BUFFER_BINDING),old=gpu.meshes;
    vaoExt?.bindVertexArrayOES(gpu.vao);
    try{
-    gpu.meshes=groups.map((group,i)=>{let m=old[i];if(m?.asset!==group.asset)m={asset:group.asset,vertex:buffer(gl,gl.ARRAY_BUFFER,group.asset.vertices),index:buffer(gl,gl.ELEMENT_ARRAY_BUFFER,group.asset.indices),parts:group.asset.parts.map(p=>({...p,texture:gpu.texture(p)}))};
+    gpu.meshes=groups.map((group,i)=>{let m=old[i];if(m?.asset!==group.asset)m={asset:group.asset,vertex:buffer(gl,gl.ARRAY_BUFFER,group.asset.vertices),index:buffer(gl,gl.ELEMENT_ARRAY_BUFFER,group.asset.indices),coverage:group.asset.ground_coverage?buffer(gl,gl.ARRAY_BUFFER,group.asset.ground_coverage):null,parts:group.asset.parts.map(p=>({...p,texture:gpu.texture(p)}))};
      if(m.instance)gl.deleteBuffer(m.instance);m.instance=buffer(gl,gl.ARRAY_BUFFER,group.instances);m.count=group.count;return m;});
-    const retained=new Set(gpu.meshes);for(const m of old)if(!retained.has(m)){gl.deleteBuffer(m.vertex);gl.deleteBuffer(m.index);if(m.instance)gl.deleteBuffer(m.instance);}
+    const retained=new Set(gpu.meshes);for(const m of old)if(!retained.has(m)){gl.deleteBuffer(m.vertex);gl.deleteBuffer(m.index);if(m.coverage)gl.deleteBuffer(m.coverage);if(m.instance)gl.deleteBuffer(m.instance);}
     for(const f of gpu.fire)gl.deleteBuffer(f.buffer);gpu.fire=fireGroups.map(f=>({...f,buffer:buffer(gl,gl.ARRAY_BUFFER,f.values)}));
    }finally{vaoExt?.bindVertexArrayOES(previousVao);gl.bindBuffer(gl.ARRAY_BUFFER,previousArray);if(!vaoExt)gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,previousIndex);gl.bindTexture(gl.TEXTURE_2D,previousTexture);}
    C.renderedTrees=gpu.instanced?groups.filter(g=>g.asset.role!=='grass').reduce((n,g)=>n+g.count,0):0;
@@ -221,7 +232,7 @@
   function initialize(gl){
    const vaoExt=gl.getExtension('OES_vertex_array_object'),instanced=gl.getExtension('ANGLE_instanced_arrays');
    gpu={gl,vaoExt,vao:vaoExt?.createVertexArrayOES(),instanced,meshes:[],fire:[],textures:new Map(),meshProgram:null,fireProgram:null};
-   gpu.meshProgram=program(gl,meshVertex,meshFragment,['position','normal','color','uv','offset','size','rotation'],['matrix','opacity','materialMap','alphaTest','materialOpacity']);
+   gpu.meshProgram=program(gl,meshVertex,meshFragment,['position','normal','color','uv','offset','size','rotation','coverage'],['matrix','opacity','materialMap','alphaTest','materialOpacity']);
    gpu.fireProgram=program(gl,particleVertex,particleFragment,['position','seed'],['matrix','viewport','time','rise','smoke','size','opacity']);
    const previousTexture=gl.getParameter(gl.TEXTURE_BINDING_2D),flip=gl.getParameter(gl.UNPACK_FLIP_Y_WEBGL),premultiply=gl.getParameter(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL);
    function texture(part){const key=part.image?.sha256||'white';if(gpu.textures.has(key))return gpu.textures.get(key);const t=gl.createTexture();gpu.textures.set(key,t);gl.bindTexture(gl.TEXTURE_2D,t);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,false);if(part.image)gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,part.image.bitmap);else gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([255,255,255,255]));gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,part.image?.repeat?gl.REPEAT:gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,part.image?.repeat?gl.REPEAT:gl.CLAMP_TO_EDGE);if(part.image?.repeat){gl.generateMipmap(gl.TEXTURE_2D);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);}return t;}
@@ -238,7 +249,7 @@
     const projection=cameraMatrix(matrix,origin,metres),g=gpu;g.vaoExt?.bindVertexArrayOES(g.vao);gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);gl.enable(gl.BLEND);gl.blendEquation(gl.FUNC_ADD);gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(true);
     if(g.instanced){const p=g.meshProgram;gl.useProgram(p.id);gl.uniformMatrix4fv(p.u.matrix,false,projection);gl.uniform1f(p.u.opacity,C.alpha);
      const polygonOffset=gl.isEnabled(gl.POLYGON_OFFSET_FILL),offsetFactor=gl.getParameter(gl.POLYGON_OFFSET_FACTOR),offsetUnits=gl.getParameter(gl.POLYGON_OFFSET_UNITS),activeTexture=gl.getParameter(gl.ACTIVE_TEXTURE);gl.activeTexture(gl.TEXTURE0);const previousTexture=gl.getParameter(gl.TEXTURE_BINDING_2D);gl.uniform1i(p.u.materialMap,0);
-     try{for(const m of g.meshes){if(!m.count)continue;gl.bindBuffer(gl.ARRAY_BUFFER,m.vertex);attribute(gl,p.a.position,3,44,0);attribute(gl,p.a.normal,3,44,12);attribute(gl,p.a.color,3,44,24);attribute(gl,p.a.uv,2,44,36);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,m.index);gl.bindBuffer(gl.ARRAY_BUFFER,m.instance);attribute(gl,p.a.offset,3,28,0);attribute(gl,p.a.size,2,28,12);attribute(gl,p.a.rotation,2,28,20);for(const name of ['offset','size','rotation'])g.instanced.vertexAttribDivisorANGLE(p.a[name],1);for(const part of m.parts){if(part.surface&&part.surface!=='detail'){gl.enable(gl.POLYGON_OFFSET_FILL);gl.polygonOffset(-1,-1);}else gl.disable(gl.POLYGON_OFFSET_FILL);gl.bindTexture(gl.TEXTURE_2D,part.texture);gl.uniform1f(p.u.alphaTest,part.alpha_test);gl.uniform1f(p.u.materialOpacity,part.opacity);g.instanced.drawElementsInstancedANGLE(gl.TRIANGLES,part.count,gl.UNSIGNED_SHORT,part.start*2,m.count);}for(const name of ['offset','size','rotation'])g.instanced.vertexAttribDivisorANGLE(p.a[name],0);}}finally{gl.polygonOffset(offsetFactor,offsetUnits);if(polygonOffset)gl.enable(gl.POLYGON_OFFSET_FILL);else gl.disable(gl.POLYGON_OFFSET_FILL);gl.bindTexture(gl.TEXTURE_2D,previousTexture);gl.activeTexture(activeTexture);}
+     try{for(const m of g.meshes){if(!m.count)continue;gl.bindBuffer(gl.ARRAY_BUFFER,m.vertex);attribute(gl,p.a.position,3,44,0);attribute(gl,p.a.normal,3,44,12);attribute(gl,p.a.color,3,44,24);attribute(gl,p.a.uv,2,44,36);if(m.coverage){gl.bindBuffer(gl.ARRAY_BUFFER,m.coverage);attribute(gl,p.a.coverage,1,4,0);}else{gl.disableVertexAttribArray(p.a.coverage);gl.vertexAttrib1f(p.a.coverage,1);}gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,m.index);gl.bindBuffer(gl.ARRAY_BUFFER,m.instance);attribute(gl,p.a.offset,3,28,0);attribute(gl,p.a.size,2,28,12);attribute(gl,p.a.rotation,2,28,20);for(const name of ['offset','size','rotation'])g.instanced.vertexAttribDivisorANGLE(p.a[name],1);for(const part of m.parts){if(part.surface==='grass'){gl.enable(gl.POLYGON_OFFSET_FILL);gl.polygonOffset(-1,-1);}else gl.disable(gl.POLYGON_OFFSET_FILL);gl.bindTexture(gl.TEXTURE_2D,part.texture);gl.uniform1f(p.u.alphaTest,part.alpha_test);gl.uniform1f(p.u.materialOpacity,part.opacity);g.instanced.drawElementsInstancedANGLE(gl.TRIANGLES,part.count,gl.UNSIGNED_SHORT,part.start*2,m.count);}for(const name of ['offset','size','rotation'])g.instanced.vertexAttribDivisorANGLE(p.a[name],0);}}finally{gl.polygonOffset(offsetFactor,offsetUnits);if(polygonOffset)gl.enable(gl.POLYGON_OFFSET_FILL);else gl.disable(gl.POLYGON_OFFSET_FILL);gl.bindTexture(gl.TEXTURE_2D,previousTexture);gl.activeTexture(activeTexture);}
      for(const a of Object.values(p.a))if(a>=0)gl.disableVertexAttribArray(a);
     }
     if(C.fireEnabled&&g.fire.length&&C.fireEmphasis>0){const p=g.fireProgram;gl.useProgram(p.id);gl.uniformMatrix4fv(p.u.matrix,false,projection);gl.uniform2f(p.u.viewport,gl.drawingBufferWidth,gl.drawingBufferHeight);gl.uniform1f(p.u.time,C.elapsed);gl.uniform1f(p.u.opacity,C.alpha*C.fireEmphasis);gl.depthMask(false);
