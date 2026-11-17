@@ -1,7 +1,7 @@
 /* Reuse local map geometry; request bounded cover context only on scene intent. */
 (function(global){
  'use strict';
- const scriptURL=new URL(document.currentScript.src),workerURL=new URL('./on-demand-scene-worker.js?v=4bd459b9f3251e93',scriptURL),coverURL=new URL('./scene-cover.mjs?v=26fc19104245d70e',scriptURL);
+ const scriptURL=new URL(document.currentScript.src),workerURL=new URL('./on-demand-scene-worker.js?v=cb962921eb00f8fe',scriptURL),coverURL=new URL('./scene-cover.mjs?v=26fc19104245d70e',scriptURL);
  let coverModule=null,coverFailureAt=0;
  const loadCoverModule=()=>{if(coverFailureAt&&Date.now()-coverFailureAt>30000){coverModule=null;coverFailureAt=0;}return coverModule||(coverModule=import(coverURL.href).catch(error=>{coverFailureAt=Date.now();throw error;}));};
  function create(map,options={}){
@@ -18,7 +18,7 @@
      const p=f.properties||{},identity=sourceLayer+'|'+String(f.id??'')+'|'+JSON.stringify(f.geometry.coordinates);if(seen.has(identity))continue;seen.add(identity);
      const c=p.class||p.subclass||'',kind=sourceLayer==='building'?'building':sourceLayer==='water'?'water':['waterway','transportation'].includes(sourceLayer)?'transportation':'land_area';
      const height=Number(p.render_height??p.height),width=Number(p.width),fallback=sourceLayer==='waterway'?8:['motorway','trunk','primary','secondary'].includes(c)?24:['path','track','footway','cycleway','pedestrian'].includes(c)?4:12;
-     features.push({type:'Feature',geometry:f.geometry,properties:{kind,class:c,source_layer:sourceLayer,source_id:'map/'+sourceLayer+'/'+String(f.id??seen.size),height_m:Number.isFinite(height)&&height>0?Math.min(height,650):8,width_m:Number.isFinite(width)&&width>0?Math.min(width,100):fallback,below_ground:p.brunnel==='tunnel',source:'OpenStreetMap / OpenMapTiles',height_source:Number.isFinite(height)&&height>0?'mapped':'display estimate'}});
+     features.push({type:'Feature',geometry:f.geometry,properties:{kind,class:c,subclass:p.subclass,leaf_type:p.leaf_type,leaf_cycle:p.leaf_cycle,species:p.species,genus:p.genus,vegetation_type:p.vegetation_type,fuel_model:p.fuel_model,source_layer:sourceLayer,source_id:'map/'+sourceLayer+'/'+String(f.id??seen.size),height_m:Number.isFinite(height)&&height>0?Math.min(height,650):8,width_m:Number.isFinite(width)&&width>0?Math.min(width,100):fallback,below_ground:p.brunnel==='tunnel',source:'OpenStreetMap / OpenMapTiles',height_source:Number.isFinite(height)&&height>0?'mapped':'display estimate'}});
     }
    }
    for(const f of options.extraFeatures?.()||[]){const b=H.boundsOf(f.geometry);if(b[0]<=box[2]&&b[2]>=box[0]&&b[1]<=box[3]&&b[3]>=box[1])features.push(f);}

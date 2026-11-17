@@ -29703,7 +29703,7 @@ function capture({ center, height, features, meshSnapshot, forecast, terrainRead
   };
   if (meshSnapshot) {
     const shift = [(meshSnapshot.origin[0] - frame.mercator[0]) * frame.metresPerUnit, (meshSnapshot.origin[1] - frame.mercator[1]) * frame.metresPerUnit], ratio = meshSnapshot.mercatorUnitsPerMetre * frame.metresPerUnit;
-    const canopy = meshSnapshot.groups.find((g) => g.asset.role === "tree-canopy")?.asset, canopyRows = [], detailRows = [];
+    const canopies = meshSnapshot.groups.filter((g) => g.asset.role === "tree-canopy").map((g) => g.asset), canopy = canopies[0], canopyRows = [], detailRows = [];
     for (const g of meshSnapshot.groups) {
       const rows = [];
       for (let i = 0; i < g.instances.length; i += 7) {
@@ -29713,7 +29713,7 @@ function capture({ center, height, features, meshSnapshot, forecast, terrainRead
       }
       rows.sort((a, b) => (a[0] - spawn[0]) ** 2 + (a[2] - spawn[2]) ** 2 - ((b[0] - spawn[0]) ** 2 + (b[2] - spawn[2]) ** 2));
       if (g.asset.role === "tree-canopy") {
-        canopyRows.push(...rows);
+        canopyRows.push(...rows.map((row) => ({ row, asset: g.asset })));
         continue;
       }
       if (g.asset.role === "tree-detail") {
@@ -29736,23 +29736,26 @@ function capture({ center, height, features, meshSnapshot, forecast, terrainRead
       }
     }
     detailRows.sort((a, b) => (a.row[0] - spawn[0]) ** 2 + (a.row[2] - spawn[2]) ** 2 - ((b.row[0] - spawn[0]) ** 2 + (b.row[2] - spawn[2]) ** 2));
-    const detailed = /* @__PURE__ */ new Map(), used = /* @__PURE__ */ new Map();
+    const detailed = /* @__PURE__ */ new Map();
     let detailCount = 0;
-    for (let i = 0; i < detailRows.length; i++) {
-      const { row, asset } = detailRows[i];
-      const type = String(asset.id || asset.role).replace(/_far$/, "");
+    for (const { row, asset } of detailRows) {
       if (detailCount < limits.vrDetail) {
         detailCount++;
-        used.set(type, (used.get(type) || 0) + 1);
         if (!detailed.has(asset)) detailed.set(asset, []);
         detailed.get(asset).push(...row);
-      } else if (canopy) canopyRows.push([row[0], row[1], row[2], row[3] * asset.crown_diameter_m / canopy.crown_diameter_m, row[4] * asset.height_m / canopy.height_m, row[5], row[6]]);
+      } else {
+        const kind = asset.tree_kind || String(asset.id || "").replace(/_far$/, ""), fallback = canopies.find((c) => c.tree_kind === kind || c.regional_form === "broadleaf" && /^tree_oak/.test(kind)) || canopy;
+        if (fallback) canopyRows.push({ asset: fallback, row: [row[0], row[1], row[2], row[3] * asset.crown_diameter_m / fallback.crown_diameter_m, row[4] * asset.height_m / fallback.height_m, row[5], row[6]] });
+      }
     }
     for (const [asset, rows] of detailed) groups.push({ asset, instances: new Float32Array(rows) });
-    if (canopyRows.length && canopy) {
-      canopyRows.sort((a, b) => plantPriority(a) - plantPriority(b));
-      groups.push({ asset: canopy, instances: new Float32Array(canopyRows.slice(0, Math.max(0, limits.vrTrees - detailCount)).flat()) });
+    canopyRows.sort((a, b) => plantPriority(a.row) - plantPriority(b.row));
+    const farGroups = /* @__PURE__ */ new Map();
+    for (const { asset, row } of canopyRows.slice(0, Math.max(0, limits.vrTrees - detailCount))) {
+      if (!farGroups.has(asset)) farGroups.set(asset, []);
+      farGroups.get(asset).push(...row);
     }
+    for (const [asset, rows] of farGroups) groups.push({ asset, instances: new Float32Array(rows) });
   }
   const emitters = (meshSnapshot?.emitters || []).map((e) => {
     const p = frame.toLocal(e.lnglat);

@@ -29,10 +29,10 @@ function generate({center,features,mobile,coverContext},sampleCover=()=>null){
  const eligible=p=>!blockedAt(p).some(f=>H.contains(f.geometry,p))&&!roadsAt(p).some(f=>H.contains(f.geometry,p)||H.roadDistance(f.geometry,p)<(Number(f.properties.width_m)||12)/2+1);
  const vegetationAt=p=>{
   const local=coverAt(p).filter(f=>H.contains(f.geometry,p));
-  if(local.length)return {classes:local.map(f=>f.cover),sample:null};
+  if(local.length)return {classes:local.map(f=>f.cover),sample:null,tags:local.find(f=>f.cover==='forest')?.properties||local[0].properties};
   const sample=sampleCover(p),classification=sample?.classification;
   const type=classification==='forest_woodland'?'forest':classification==='shrubland'?'shrub':classification==='grass_herbaceous'?'grass':null;
-  return {classes:type?[type]:[],sample};
+  return {classes:type?[type]:[],sample,tags:sample?.vegetation||{}};
  };
  const grassy=v=>v.classes.some(c=>['grass','park','forest','shrub'].includes(c));
  const contextProps=sample=>sample?{source:'Published CONUS 3 km cover composition',source_cell_id:sample.cell_id,source_edition:coverContext?.source_edition,source_resolution_m:3000,placement:'Schematic clusters from historical 3 km cover fractions; not exact plants, tree density, or current conditions.'}:{};
@@ -47,13 +47,13 @@ function generate({center,features,mobile,coverContext},sampleCover=()=>null){
   const v=vegetationAt(p),classes=v.classes;if(!classes.length)continue;
   const lawn=classes.includes('grass'),forest=!lawn&&classes.includes('forest'),shrub=!lawn&&!forest&&classes.includes('shrub'),park=!lawn&&!forest&&!shrub&&classes.includes('park');
   const tree=seed%10000<(forest?.96:shrub?.65:park?.38:0)*10000;
-  candidates.push({id,seed,p,tree,forest,shrub,grass:grassy(v,p),sample:v.sample,d:Math.hypot(...project(p).map((v,i)=>v-q[i]))*scale});
+  candidates.push({id,seed,p,tree,forest,shrub,grass:grassy(v,p),sample:v.sample,tags:v.tags,d:Math.hypot(...project(p).map((v,i)=>v-q[i]))*scale});
  }}
  candidates.sort((a,b)=>H.hash(a.id+'/budget')-H.hash(b.id+'/budget'));
  let trees=0,grass=0,anchors=0;const treeLimit=mobile?2200:5200;
  const point=(kind,id,p,props)=>({type:'Feature',geometry:{type:'Point',coordinates:p},properties:{kind,source_id:id,synthetic:true,source:'OpenStreetMap mapped land cover',placement:'Schematic vegetation; not surveyed plant locations',...props}});
  for(const v of candidates){
-  if(v.tree&&trees<treeLimit){objects.push(point('tree',v.id,v.p,{height_m:null,class:v.forest?'forest':v.shrub?'shrub':'park',display_height_m:v.shrub?3:v.forest?14+(v.seed%900)/100:8+(v.seed%500)/100,display_crown_m:v.shrub?4:v.forest?9+(v.seed%300)/100:6+(v.seed%200)/100,...contextProps(v.sample)}));trees++;if(v.sample)contextTrees++;}
+  if(v.tree&&trees<treeLimit){objects.push(point('tree',v.id,v.p,{height_m:null,leaf_type:v.tags?.leaf_type,leaf_cycle:v.tags?.leaf_cycle,species:v.tags?.species,genus:v.tags?.genus,vegetation_type:v.tags?.vegetation_type,subclass:v.tags?.subclass,fuel_model:v.tags?.fuel_model,class:v.forest?'forest':v.shrub?'shrub':'park',display_height_m:v.shrub?3:v.forest?14+(v.seed%900)/100:8+(v.seed%500)/100,display_crown_m:v.shrub?4:v.forest?9+(v.seed%300)/100:6+(v.seed%200)/100,...contextProps(v.sample)}));trees++;if(v.sample)contextTrees++;}
   else if(!v.tree&&anchors<160){objects.push(point('scenario_anchor',v.id,v.p,contextProps(v.sample)));anchors++;}
  }
  const grassEligible=p=>eligible(p)&&grassy(vegetationAt(p),p);

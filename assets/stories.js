@@ -31,12 +31,13 @@ function locationState(){const u=new URL(location);u.searchParams.set('edition',
 function render(){const editions=collections(),tabs=$('story-editions');tabs.replaceChildren();const active=editions.find(s=>s.id===editionId)||editions[0];
  if(!active){$('story-navigation').hidden=true;$('story-content').replaceChildren(el('p','The first source-linked edition will appear after a completed review.','feature-empty'));$('story-review').replaceChildren();return;}
  editionId=active.id;
- const groups=FireEyeStoryCollections.navigation(editions),older=$('story-older-months'),olderButtons=$('story-older-buttons');olderButtons.replaceChildren();older.hidden=!groups.older.length;
- older.querySelector('summary').textContent='Older months'+(groups.older.length?' ('+groups.older.length+')':'');
+ const groups=FireEyeStoryCollections.navigation(editions),older=$('story-older-months'),olderSelect=$('story-older-select');olderSelect.replaceChildren();older.hidden=!groups.older.length;
+ const placeholder=el('option','Choose an earlier month');placeholder.value='';placeholder.disabled=true;olderSelect.append(placeholder);
+ for(const s of groups.older){const option=el('option',label(s));option.value=s.id;olderSelect.append(option);}
+ olderSelect.value=groups.older.some(s=>s.id===editionId)?editionId:'';
+ olderSelect.onchange=()=>{if(!groups.older.some(s=>s.id===olderSelect.value))return;editionId=olderSelect.value;caseId=null;render();};
  const tab=(s,parent)=>{const b=el('button',label(s));b.type='button';b.dataset.edition=s.id;b.setAttribute('aria-pressed',String(s.id===editionId));b.addEventListener('click',()=>{editionId=s.id;caseId=null;render();});parent.append(b);};
  for(const s of [...groups.primary,...groups.recent])tab(s,tabs);
- for(const s of groups.older)tab(s,olderButtons);
- if(groups.older.some(s=>s.id===editionId))older.open=true;
  const ranking=$('story-ranking'),sort=$('story-sort');ranking.hidden=active.id!=='selected';sort.value=sortOrder;
  sort.onchange=()=>{sortOrder=sort.value;caseId=null;render();};
  $('story-ranking-note').textContent=sortOrder==='balanced'?'Reported area and fire-location score have equal weight.':sortOrder==='area'?'Largest reported fire areas first.':'Highest fire-location scores first.';
@@ -128,7 +129,7 @@ function renderReview(active){const root=$('story-review');root.replaceChildren(
  d.append(el('p','Displayed comparisons require a verified map and a fire-location score of at least '+FireEyeStoryCollections.minimumScore(active).toFixed(2)+'. The complete edition evidence retains records excluded from this selection.'));
  const selection=FireEyeStoryCollections.selection(active);
  if(active.id==='selected')d.append(el('p','The default case order gives equal weight to descending ranks for reported acreage and fire-location score. Ties use higher score, then area. Unknown areas follow records with both values; a “+” area uses its stated lower bound. This is presentation order, not a measure of predictive accuracy. The area and score controls provide separate rankings.'));
- d.append(el('p','The latest four published months are shown as buttons; earlier months remain under Older months. Age-based navigation does not remove low-scoring cases or alter evaluation totals in the complete evidence.'));
+ d.append(el('p','The latest four published months are shown as buttons; earlier months remain in the Older months menu. Age-based navigation does not remove low-scoring cases or alter evaluation totals in the complete evidence.'));
  if(selection.mode==='monthly-adaptive')d.append(el('p','Monthly selection starts at 0.30. If fewer than three reviewed map comparisons qualify, the display cutoff can step down to 0.25, 0.20, then 0.15, stopping when enough qualify or no further eligible comparisons can be added. This edition uses '+selection.minimum_point_score.toFixed(2)+'. This changes the displayed selection, not forecast values, featured status or evaluation totals; story counts are not hit rates.'));
  if(rule)d.append(el('p','Featured comparisons retain the fixed score floor of '+Math.max(0.30,rule.minimum_point_score||0).toFixed(2)+' and also require a verified event location, at least '+rule.minimum_advance_hours+' hours of recorded advance availability, a fire-location score above that raster’s 90th percentile, and a score above 80% of valid cells within 100 km. The displayed issue is selected by time, not by its highest score.'));
  d.append(el('p','Timing labels distinguish a verified public archive release from a timestamped local record. Reported discovery time and ignition time can differ.'));

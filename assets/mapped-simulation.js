@@ -71,7 +71,7 @@
  }
  function mount(map,options={}){
   const C={phase:'mapped',alpha:0,treeCount:0,renderedTrees:0,grassCount:0,detailTrees:0,canopyTrees:0,frames:0,elapsed:0,paused:matchMedia('(prefers-reduced-motion: reduce)').matches,fireEnabled:true,ignition:null,forecastRequired:false,forecast:null,fireEmphasis:1,candidates:[],candidateKey:"",emitters:[],sampledCount:0,validCount:0,particleBudget:(navigator.hardwareConcurrency||4)<=4?1200:3000,quality:(navigator.hardwareConcurrency||4)<=4?"balanced":"high",frameMs:0,performanceSamples:0,assetBytes:0,error:null};
-  let disposed=false,area=null,collection=null,assets=null,groundMaterials=null,assetTask=null,controller=new AbortController(),layer=null,gpu=null,origin=null,metres=1,groups=[],fireGroups=[],timer=null,last=null,cooldown=0,lastState='',replacement=-1,installing=false,ignitionAttempted=false,ignitionView=null,sceneMatrix=null,siteVisible=null,sightView=null;
+  let disposed=false,area=null,collection=null,assets=null,groundMaterials=null,vegetation=null,assetTask=null,controller=new AbortController(),layer=null,gpu=null,origin=null,metres=1,groups=[],fireGroups=[],timer=null,last=null,cooldown=0,lastState='',replacement=-1,installing=false,ignitionAttempted=false,ignitionView=null,sceneMatrix=null,siteVisible=null,sightView=null;
   const qualityLoader=global.FireEyeSceneQuality.createLoader(options.manifestURL);let assetController=null,assetSequence=0;
   C.assetQuality=global.FireEyeSceneQuality.preferred();C.loadedQuality=null;C.qualityLoading=false;C.qualityError=false;
   const merc=p=>global.maplibregl.MercatorCoordinate.fromLngLat(p,0);
@@ -102,9 +102,9 @@
    if(assets&&C.loadedQuality===C.assetQuality)return assets;if(assetTask)return assetTask;
    const tier=C.assetQuality,seq=++assetSequence;assetController?.abort();assetController=new AbortController();C.qualityLoading=true;C.qualityError=false;notify();
    assetTask=(async()=>{
-    const signal=AbortSignal.any([controller.signal,assetController.signal,AbortSignal.timeout(20000)]),[meshes,materials]=await Promise.all([qualityLoader.load(tier,signal),import('./ground-materials.mjs?v=569d8da2e69f2d6f').then(m=>m.loadGroundMaterials(tier,signal)).catch(()=>null)]);
+    const signal=AbortSignal.any([controller.signal,assetController.signal,AbortSignal.timeout(20000)]),[meshes,materials,plants]=await Promise.all([qualityLoader.load(tier,signal),import('./ground-materials.mjs?v=569d8da2e69f2d6f').then(m=>m.loadGroundMaterials(tier,signal)).catch(()=>null),import('./regional-vegetation.mjs?v=2db35397bfe3f767').catch(()=>null)]);
     if(!disposed&&seq===assetSequence){groundMaterials=materials||groundMaterials;C.groundMaterials=materials?'ready':groundMaterials?'retained':'colors';}
-    if(disposed||seq!==assetSequence)return null;const gl=gpu?.gl;release();assets=meshes;C.loadedQuality=tier;C.particleBudget=global.FireEyeSceneQuality.budget(tier,matchMedia('(pointer:coarse)').matches||innerWidth<=640).particles;C.assetBytes=meshes.reduce((n,m)=>n+m.bytes,0);C.error=null;rebuild();if(gl)initialize(gl);install();update();return meshes;
+    if(disposed||seq!==assetSequence)return null;const gl=gpu?.gl;release();vegetation=plants;assets=plants?plants.library(meshes):meshes;C.loadedQuality=tier;C.particleBudget=global.FireEyeSceneQuality.budget(tier,matchMedia('(pointer:coarse)').matches||innerWidth<=640).particles;C.assetBytes=assets.reduce((n,m)=>n+m.bytes,0);C.error=null;rebuild();if(gl)initialize(gl);install();update();return meshes;
    })().catch(()=>{if(!disposed&&seq===assetSequence){C.qualityError=true;cooldown=Date.now()+30000;if(!assets)fail();}return null;}).finally(()=>{if(seq===assetSequence){assetTask=null;C.qualityLoading=false;notify();}});return assetTask;
   }
   function setQuality(value){if(!global.FireEyeSceneQuality.tiers.includes(value))return Promise.resolve(null);global.FireEyeSceneQuality.remember(value);C.assetQuality=value;C.qualityError=false;assetSequence++;assetController?.abort();assetTask=null;cooldown=0;notify();if(area&&map.getZoom()>=15.5)return loadAssets();return Promise.resolve(null);}
@@ -187,9 +187,11 @@
    const groundGroups=grassPatchGroups(grass,{center,local,limits,quality:C.loadedQuality,footprint:grassAllowed,mobile,materials:groundMaterials,surfaceAt});
    C.groundRepresentation='raised-ground-mosaic';C.dryCells=groundGroups.reduce((n,g)=>n+g.asset.dry_cells,0);C.litterCells=groundGroups.reduce((n,g)=>n+g.asset.litter_cells,0);C.leafCount=groundGroups.reduce((n,g)=>n+g.asset.leaf_count,0);C.dryBladeCount=groundGroups.reduce((n,g)=>n+g.asset.dry_blade_count,0);
    C.renderBudget=limits;C.grassCount=groundGroups.reduce((n,g)=>n+g.asset.grass_cells,0);C.grassPatches=groundGroups.length;C.detailTrees=near.length;C.canopyTrees=trees.length-near.length;
-   const treeKind=f=>/pine|conifer|needleleaf|evergreen/i.test(String(f.properties.class||''))?'tree_pine_01':hash(f.properties.source_id)%2?'tree_oak_02':'tree_oak_01';
+   const kinds=new Map(trees.map(f=>[f,vegetation?vegetation.profile(f):{kind:/pine|conifer|needleleaf|evergreen/i.test(String(f.properties.class||''))?'tree_pine_01':hash(f.properties.source_id)%2?'tree_oak_02':'tree_oak_01',form:'broadleaf',basis:'generic fallback'}]));
+   C.vegetationForms={};C.vegetationNote=vegetation?.NOTE||'Schematic vegetation';
+   for(const f of trees){const form=kinds.get(f).form;C.vegetationForms[form]=(C.vegetationForms[form]||0)+1;}
    groups=assets.filter(asset=>asset.role!=='grass').map(asset=>{
-    const selected=asset.role==='tree-canopy'?trees.filter(f=>!detailed.has(f)):near.filter(f=>treeKind(f)===asset.id.replace(/_far$/,'')&&(C.loadedQuality!=='high'||(asset.lod==='far'?distance(f)>60:distance(f)<=60))),values=[];
+    const selected=asset.role==='tree-canopy'?trees.filter(f=>!detailed.has(f)&&(!vegetation||(asset.regional_form===kinds.get(f).form))):near.filter(f=>kinds.get(f).kind===(asset.tree_kind||asset.id.replace(/_far$/,''))&&(C.loadedQuality!=='high'||asset.regional_form||(asset.lod==='far'?distance(f)>60:distance(f)<=60))),values=[];
     for(const f of selected){const p=f.properties,h=typeof p.height_m==='number'&&p.height_m>0&&p.height_m<=120?p.height_m:(p.synthetic?p.display_height_m:8)||8,angle=hash(p.source_id)/4294967296*Math.PI*2;values.push(...local(f.geometry.coordinates),(p.synthetic?p.display_crown_m||4.8:4.8)/asset.crown_diameter_m,h/asset.height_m,Math.sin(angle),Math.cos(angle));}
     return {asset,instances:new Float32Array(values),count:selected.length};
    }).concat(groundGroups);
